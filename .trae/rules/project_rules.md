@@ -1,0 +1,4 @@
+1.使用开发文档中的规则-个人英语学习工具.docx 2.每个项目都需要根据开发文档中的规则进行设置 3.使用 git 进行版本控制 4.每个项目都需要有一个.gitignore 文件，用于指定哪些文件不应该被 git 版本控制 5.模块独立性，每个文件必须只做一件事。 6.数据一致性，所有用户数据统一保存在 data/ 下，路径写为相对路径。写入 JSON 前必须先读取并合并旧数据，避免覆盖。 7.命名规范，文件名、变量名、函数名必须使用小写 + 下划线（如 get_random_word()）。类名使用 PascalCase（如 WordManager）。 8.错误处理，所有用户输入和外部调用需 try/except 捕获。不能在 AI 逻辑中直接 exit() 程序。 9.日志与调试,所有重要操作（练习开始、错误单词、翻译失败）都写入 logger.py 记录。
+10.AI 生成建议:当 AI 接到开发任务时，应优先：检查是否符合目录结构;判断逻辑层是否被重复实现;保证模块接口清晰可调用;代码可被人类继续维护（注释规范） 11.代码质量,所有代码必须符合 PEP8 规范。使用 flake8 检查代码质量。 12.可以使用数据库存储用户数据（如 SQLite），但必须通过 WordManager 接口访问。 13.不允许将逻辑混写在 UI 文件中，不允许输出过多控制台打印信息 14.不允许在 UI 文件中直接调用 AI 逻辑，所有 AI 调用都必须通过 WordManager 接口。 15.版本控制约定：每次重大修改须更新版本号：v1.0.0 → v1.1.0；所有核心逻辑变更记录 DEVELOPER_DOCS.md
+16.git 远程仓库地址：https://github.com/CherryPainter/LexiNote.git
+17.git config --global user.name "CherryPainter" git config --global user.email "sqy3258731070@163.com"
