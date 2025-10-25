@@ -9,7 +9,9 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from ui.dictation_page import DictationPage
 from ui.translation_page import TranslationPage
 from ui.review_page import ReviewPage
+from ui.learning_page import LearningPage
 from word_manager import WordManager
+from core.learning import LearningManager
 from logger import log_info
 
 
@@ -71,10 +73,11 @@ class MainWindow:
         
         # 导航按钮
         nav_buttons = [
+            ("📚 单词学习", self._show_learning_page),
             ("📝 听写练习", self._show_dictation_page),
             ("🌐 翻译练习", self._show_translation_page),
-            ("📚 单词复习", self._show_review_page),
-            ("📊 学习统计", self._show_statistics),
+            ("📊 单词复习", self._show_review_page),
+            ("📈 学习统计", self._show_statistics),
             ("⚙️ 设置", self._show_settings)
         ]
         
@@ -172,6 +175,27 @@ class MainWindow:
         """显示单词复习页面"""
         self._clear_content_area()
         ReviewPage(self.content_area, self.word_manager, self.font_config)
+    
+    def _show_learning_page(self):
+        """显示学习模式页面"""
+        self._clear_content_area()
+        # 导入audio_player和logger模块
+        from audio_player import AudioPlayer
+        from logger import log_info, log_error
+        
+        # 创建音频播放器实例
+        audio_player = AudioPlayer()
+        
+        # 初始化LearningManager，将word_manager直接作为data_manager和scheduler
+        learning_manager = LearningManager(
+            data_manager=self.word_manager,
+            scheduler=self.word_manager,
+            audio_player=audio_player,
+            logger=self.word_manager
+        )
+        # 创建并显示学习页面，确保添加到content_area中
+        learning_page = LearningPage(self.content_area, learning_manager)
+        learning_page.pack(fill=tk.BOTH, expand=True)
     
     def _show_statistics(self):
         """显示学习统计页面"""
