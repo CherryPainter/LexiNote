@@ -123,33 +123,41 @@
 #### WordManager
 - **职责**：负责单词的增删改查、管理单词权重和学习进度、提供翻译检查功能
 - **主要方法**：
-  - `get_random_word()`：获取随机单词进行练习
-  - `check_translation(word, user_translation, update_stats)`：检查翻译正确性并更新学习统计
+  - `get_random_word(exclude_words=None)`：获取随机单词进行练习，可选排除指定单词
+  - `get_weighted_random_word(exclude_words=None)`：根据单词权重随机选择单词
+  - `check_translation(word, user_translation, update_stats=True)`：检查翻译正确性并更新学习统计
   - `translate_text(text, mode)`：翻译文本（英→中/中→英）
-  - `update_word_progress(word, is_correct)`：更新单词学习进度
-  - `save_progress()`：保存学习进度到文件
+  - `update_word_weight(word, factor)`：更新单词权重，影响练习时的出现频率
+  - `update_word_familiarity(word, delta)`：更新单词熟悉度（0-1范围）
+  - `add_wrong_word(word)`：记录错误单词并增加其权重
+  - `get_today_learned_words()`：获取今日学习的单词列表，用于听写功能前置检查
+  - `get_word_example(word)`：获取单词例句，包含英文例句和中文翻译
+  - `get_example_sentence(word)`：兼容性方法，调用get_word_example
+  - `is_ai_available()`：检查AI功能是否可用，包括模块导入检查和Ollama服务连接测试
+  - `get_words_by_criteria(criteria)`：根据条件获取单词，支持筛选不熟悉、困难单词和长度限制
   - `_init_ai_manager()`：初始化AI管理器（延迟加载）
-  - `_test_ai_connection()`：测试AI连接是否可用
-  - `get_today_learned_words()`：获取今日学习的单词列表
+  - `_test_ai_connection()`：测试AI连接是否可用，通过发送实际请求验证
 - **设计特点**：
   - 作为UI和AI功能之间的桥梁
   - 从v1.3.2版本开始完全使用AI进行翻译判断
   - 实现了延迟加载AIManager的机制，提高启动效率
   - 包含完善的错误处理和日志记录
   - v1.4.0版本改进了AI连接测试机制，确保准确判断AI功能可用性
+  - 实现了基于熟悉度和错误次数的智能单词推荐系统
 
 #### AIManager (core/ai_interface.py)
 - **职责**：封装Ollama API调用，提供AI相关功能
 - **主要方法**：
-  - `translate(text, mode)`：翻译文本
+  - `translate(text, mode)`：翻译文本（英→中/中→英）
   - `generate_text(prompt)`：生成文本内容
   - `check_translation(expected, user_input, is_english_to_chinese)`：判断翻译是否正确
-  - `generate_example(word)`：为单词生成例句
+  - `example(word)`：为单词生成例句（注意：方法名为example而非generate_example）
   - `evaluate_spelling(word, user_input)`：评估拼写准确性
 - **设计特点**：
   - 使用requests直接调用Ollama API，不依赖ollama模块
   - 实现错误处理和降级服务机制
   - 封装提示词工程，优化AI输出质量
+  - 返回标准化的错误信息，方便上层调用者处理
 
 #### LearningManager (core/learning.py)
 - **职责**：实现学习模式的核心逻辑，管理单词学习过程
@@ -200,16 +208,58 @@
    - 用户操作触发UI事件
    - UI调用WordManager提供的方法
    - WordManager根据需要调用AIManager或LearningManager
+   - 听写功能前置检查：main_window.py调用WordManager.get_today_learned_words()验证用户学习状态
 
 2. **逻辑层到数据层**：
    - WordManager读写单词库和学习进度
    - LearningManager读写用户学习记录
    - 所有数据操作遵循先读再写的原则，避免覆盖数据
+   - word_familiarity.json存储单词熟悉度和最后学习时间，用于实现日期筛选
 
 3. **数据层到UI层**：
    - WordManager将处理结果返回给UI
    - UI根据返回结果更新界面展示
    - 错误信息通过日志记录并在UI适当位置提示用户
+   - 听写功能前置检查失败时，通过messagebox显示友好提示
+
+### 听写功能前置检查实现
+
+从v1.4.0版本开始，系统实现了听写功能前置检查机制，具体实现如下：
+
+1. **检查逻辑**：
+   - 在main_window.py的_show_dictation_page()方法中，调用word_manager.get_today_learned_words()获取今日学习的单词
+   - 如果返回空列表，表示用户当天未学习单词，显示提示对话框
+   - 只有当今日有学习记录时，才允许进入听写页面
+
+2. **用户体验优化**：
+   - 提供清晰的错误提示，指导用户先进行单词学习
+   - 记录用户操作行为到日志，便于后续分析
+   - 保持界面简洁，避免用户在不适当的时机进入听写练习
+
+3. **技术实现**：
+   - 使用datetime模块获取当前日期
+   - 从word_familiarity.json中提取单词学习时间信息
+   - 使用Tkinter的messagebox模块显示友好提示
+   - 实现日期字符串比较，精确匹配今天的学习记录
+
+### AI功能检测机制
+
+从v1.4.0版本开始，系统实现了全面的AI功能检测机制，确保用户体验的稳定性：
+
+1. **双层检测机制**：
+   - 模块导入检测：在_initialize_ai_manager()方法中尝试导入AIManager
+   - 服务连接检测：在is_ai_available()方法中测试Ollama服务连接
+   - 请求响应检测：在_test_ai_connection()方法中发送实际请求验证功能可用性
+
+2. **降级处理策略**：
+   - 当AI功能不可用时，get_word_example()方法提供硬编码的基础例句作为备用
+   - 所有AI调用都包含try-except捕获，确保系统在AI不可用时仍能正常运行
+   - 错误信息通过logger记录，便于排查问题
+
+3. **日志记录**：
+   - AI初始化、连接测试、功能调用都有详细的日志记录
+   - 清晰标识AI功能的可用性状态，方便调试
+   - 记录所有AI相关错误，包括模块导入失败、服务连接失败等
 
 ### 开发环境设置
 
