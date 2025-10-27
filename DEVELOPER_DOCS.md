@@ -2,6 +2,14 @@
 
 ## 版本历史
 
+### v1.4.1 - 新增听写核心模块与学习功能增强
+- 新增core/dictation.py核心模块，实现听写练习的底层逻辑
+- 更新core/learning.py，增强学习功能的实现
+- 优化ui/dictation_page.py，提升听写页面的用户体验
+- 改进ui/review_page.py，完善复习功能的展示
+- 完善WordManager和AIManager方法文档
+- 添加AI功能检测机制详细文档
+
 ### v1.4.0 - AI功能初始化改进与听写前置检查
 - 修复WordManager中调用不存在的`is_ai_available()`方法的问题
 - 添加`_test_ai_connection()`方法实现AI连接可用性测试
