@@ -3,12 +3,13 @@ from tkinter import messagebox, ttk
 import sys
 import os
 import threading
+import json
 
 # 添加项目根目录到Python路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from audio_player import AudioPlayer
-from logger import log_info
+from logger import log_info, log_error
 
 
 class ReviewPage(tk.Frame):
@@ -35,8 +36,16 @@ class ReviewPage(tk.Frame):
         self.review_words = []
         self.current_index = 0
         
+        # 熟悉度相关数据
+        self.word_familiarity = {}
+        self.session_stats = {"total": 0, "familiar": 0, "difficult": 0}
+        self.familiar_threshold = 0.8  # 熟悉度阈值
+        
         # 创建UI
         self._create_ui()
+        
+        # 加载熟悉度数据
+        self._load_familiarity_data()
         
         # 加载单词列表
         self._load_words()
@@ -75,27 +84,27 @@ class ReviewPage(tk.Frame):
         )
         all_radio.pack(side=tk.LEFT, padx=10)
         
-        wrong_radio = tk.Radiobutton(
+        familiar_radio = tk.Radiobutton(
             filter_frame,
-            text="错误单词",
+            text="熟词",
             variable=self.filter_var,
-            value="wrong",
+            value="familiar",
             font=self.font_config['normal'],
             bg='white',
             command=self._on_filter_change
         )
-        wrong_radio.pack(side=tk.LEFT, padx=10)
+        familiar_radio.pack(side=tk.LEFT, padx=10)
         
-        high_weight_radio = tk.Radiobutton(
+        difficult_radio = tk.Radiobutton(
             filter_frame,
-            text="重点单词",
+            text="难词",
             variable=self.filter_var,
-            value="high",
+            value="difficult",
             font=self.font_config['normal'],
             bg='white',
             command=self._on_filter_change
         )
-        high_weight_radio.pack(side=tk.LEFT, padx=10)
+        difficult_radio.pack(side=tk.LEFT, padx=10)
         
         # 单词卡片
         self.card_frame = tk.Frame(self.main_frame, bg='#f5f5f5', bd=3, relief=tk.RAISED)
@@ -184,17 +193,29 @@ class ReviewPage(tk.Frame):
         )
         self.pronounce_button.pack(side=tk.LEFT, padx=5)
         
-        self.mark_button = tk.Button(
+        self.familiar_button = tk.Button(
             action_buttons_frame,
-            text="⭐ 标记重点",
+            text="✅ 标记熟悉",
             font=self.font_config['button'],
             width=12,
             height=2,
-            command=self._mark_as_important,
-            bg='#9C27B0',
+            command=self._mark_as_familiar,
+            bg='#4CAF50',
             fg='white'
         )
-        self.mark_button.pack(side=tk.LEFT, padx=5)
+        self.familiar_button.pack(side=tk.LEFT, padx=5)
+        
+        self.difficult_button = tk.Button(
+            action_buttons_frame,
+            text="❌ 标记困难",
+            font=self.font_config['button'],
+            width=12,
+            height=2,
+            command=self._mark_as_difficult,
+            bg='#F44336',
+            fg='white'
+        )
+        self.difficult_button.pack(side=tk.LEFT, padx=5)
         
         # 例句按钮
         self.example_button = tk.Button(
@@ -208,6 +229,22 @@ class ReviewPage(tk.Frame):
             fg='white'
         )
         self.example_button.pack(side=tk.LEFT, padx=5)
+        
+        # 复习总结按钮
+        summary_frame = tk.Frame(self.main_frame, bg='white')
+        summary_frame.pack(pady=10)
+        
+        self.summary_button = tk.Button(
+            summary_frame,
+            text="📊 复习总结",
+            font=self.font_config['button'],
+            width=15,
+            height=2,
+            command=self._show_summary,
+            bg='#FF9800',
+            fg='white'
+        )
+        self.summary_button.pack()
         
         # 进度信息
         self.progress_var = tk.StringVar()
@@ -223,21 +260,42 @@ class ReviewPage(tk.Frame):
     def _load_words(self):
         """加载单词列表"""
         filter_type = self.filter_var.get()
-        all_words = self.word_manager.get_all_words()
+        # 获取单词列表和翻译信息
+        word_list = self.word_manager.get_all_words()
+        # 为每个单词获取对应的翻译
+        all_words_dict = {word: self.word_manager.get_word_translation(word) or "" for word in word_list}
         wrong_words = self.word_manager.get_wrong_words()
+        weights = getattr(self.word_manager, 'word_weights', {})
         
         if filter_type == "all":
-            # 所有单词
-            self.review_words = list(all_words.items())
-        elif filter_type == "wrong":
-            # 错误单词
-            self.review_words = [(word, all_words.get(word, "")) for word in wrong_words.keys()]
-        elif filter_type == "high":
-            # 高权重单词（权重 > 1.5）
-            weights = self.word_manager.word_weights
-            self.review_words = [(word, all_words.get(word, "")) 
-                                for word in all_words 
-                                if word in weights and weights[word] > 1.5]
+            # 所有单词，格式为(单词, 翻译)的列表
+            self.review_words = list(all_words_dict.items())
+        elif filter_type == "familiar":
+            # 熟词：熟悉度高于阈值的单词
+            self.review_words = [(word, all_words_dict.get(word, "")) 
+                                for word in word_list 
+                                if word in self.word_familiarity and self.word_familiarity[word] >= self.familiar_threshold]
+            # 如果没有熟词数据，使用权重较低的单词作为备选
+            if not self.review_words:
+                self.review_words = [(word, all_words_dict.get(word, "")) 
+                                    for word in word_list 
+                                    if word in weights and weights[word] < 1.5]
+        elif filter_type == "difficult":
+            # 难词：熟悉度低于阈值或者权重高的单词
+            # 先收集熟悉度低的单词
+            familiarity_difficult = [(word, all_words_dict.get(word, "")) 
+                                   for word in word_list 
+                                   if word in self.word_familiarity and self.word_familiarity[word] < self.familiar_threshold]
+            # 再收集高权重单词
+            weight_difficult = [(word, all_words_dict.get(word, "")) 
+                               for word in word_list 
+                               if word in weights and weights[word] > 1.5]
+            # 合并并去重
+            difficult_words = dict(familiarity_difficult + weight_difficult)
+            self.review_words = list(difficult_words.items())
+            # 如果还没有难词，就使用错误单词列表
+            if not self.review_words:
+                self.review_words = [(word, all_words_dict.get(word, "")) for word in wrong_words.keys()]
         
         # 重置索引和状态
         self.current_index = 0
@@ -248,6 +306,9 @@ class ReviewPage(tk.Frame):
         # 更新显示
         self._update_word_display()
         self._update_progress()
+        
+        # 启用总结按钮
+        self.summary_button.config(state=tk.NORMAL if self.review_words else tk.DISABLED)
     
     def _update_word_display(self):
         """更新单词显示"""
@@ -256,14 +317,18 @@ class ReviewPage(tk.Frame):
             self.translation_var.set("")
             self.show_button.config(state=tk.DISABLED)
             self.pronounce_button.config(state=tk.DISABLED)
-            self.mark_button.config(state=tk.DISABLED)
+            # 检查mark_button是否存在
+            if hasattr(self, 'mark_button'):
+                self.mark_button.config(state=tk.DISABLED)
             self.example_button.config(state=tk.DISABLED)
             return
         
         # 启用按钮
         self.show_button.config(state=tk.NORMAL)
         self.pronounce_button.config(state=tk.NORMAL)
-        self.mark_button.config(state=tk.NORMAL)
+        # 检查mark_button是否存在
+        if hasattr(self, 'mark_button'):
+            self.mark_button.config(state=tk.NORMAL)
         self.example_button.config(state=tk.NORMAL)
         
         # 显示当前单词
@@ -382,3 +447,180 @@ class ReviewPage(tk.Frame):
         self.show_translation = False
         self.is_example_visible = False
         self._load_words()
+    
+    def _load_familiarity_data(self):
+        """加载单词熟悉度数据"""
+        try:
+            # 尝试从word_manager获取熟悉度数据
+            if hasattr(self.word_manager, 'get_word_familiarity'):
+                self.word_familiarity = self.word_manager.get_word_familiarity()
+            else:
+                # 如果word_manager没有提供熟悉度数据，使用空字典
+                self.word_familiarity = {}
+        except Exception as e:
+            log_error(f"加载熟悉度数据失败: {str(e)}")
+            self.word_familiarity = {}
+    
+    def _mark_as_familiar(self):
+        """将当前单词标记为熟悉"""
+        if not self.review_words:
+            return
+        
+        word, _ = self.review_words[self.current_index]
+        
+        # 更新熟悉度数据
+        self.word_familiarity[word] = min(self.word_familiarity.get(word, 0) + 0.2, 1.0)
+        self.session_stats["familiar"] += 1
+        
+        # 调用word_manager更新熟悉度
+        if hasattr(self.word_manager, 'update_word_familiarity'):
+            try:
+                self.word_manager.update_word_familiarity(word, self.word_familiarity[word])
+            except Exception as e:
+                log_error(f"更新单词熟悉度失败: {str(e)}")
+        
+        # 显示提示并自动下一个单词
+        self.translation_var.set(f"✓ 已将 '{word}' 标记为熟悉")
+        log_info(f"标记熟悉单词: {word}, 熟悉度: {self.word_familiarity[word]:.2f}")
+        
+        # 检查是否需要自动下一个单词
+        auto_next = self.settings_manager.get_setting("auto_next_familiar", False)
+        if auto_next:
+            delay = self.settings_manager.get_setting("auto_next_delay", 1000)
+            self.after(delay, self._next_word)
+    
+    def _mark_as_difficult(self):
+        """将当前单词标记为困难"""
+        if not self.review_words:
+            return
+        
+        word, _ = self.review_words[self.current_index]
+        
+        # 更新熟悉度数据
+        self.word_familiarity[word] = max(self.word_familiarity.get(word, 1.0) - 0.3, 0.0)
+        self.session_stats["difficult"] += 1
+        
+        # 调用word_manager更新熟悉度
+        if hasattr(self.word_manager, 'update_word_familiarity'):
+            try:
+                self.word_manager.update_word_familiarity(word, self.word_familiarity[word])
+            except Exception as e:
+                log_error(f"更新单词熟悉度失败: {str(e)}")
+        
+        # 同时标记为高权重（需要复习）
+        if hasattr(self.word_manager, 'update_word_weight'):
+            try:
+                current_weight = getattr(self.word_manager, 'word_weights', {}).get(word, 1.0)
+                self.word_manager.update_word_weight(word, False)  # False表示不认识，增加权重
+            except Exception as e:
+                log_error(f"更新单词权重失败: {str(e)}")
+        
+        # 显示提示并自动下一个单词
+        self.translation_var.set(f"! 已将 '{word}' 标记为困难，需要加强复习")
+        log_info(f"标记困难单词: {word}, 熟悉度: {self.word_familiarity[word]:.2f}")
+        
+        # 检查是否需要自动下一个单词
+        auto_next = self.settings_manager.get_setting("auto_next_difficult", False)
+        if auto_next:
+            delay = self.settings_manager.get_setting("auto_next_delay", 1000)
+            self.after(delay, self._next_word)
+    
+    def _show_summary(self):
+        """显示复习总结"""
+        # 创建新窗口显示总结
+        summary_window = tk.Toplevel(self)
+        summary_window.title("复习总结")
+        summary_window.geometry("500x400")
+        summary_window.configure(bg='white')
+        summary_window.transient(self.parent)
+        summary_window.grab_set()
+        
+        # 标题
+        title_label = tk.Label(
+            summary_window,
+            text="复习总结",
+            font=self.font_config['header'],
+            bg='white'
+        )
+        title_label.pack(pady=20)
+        
+        # 统计信息框架
+        stats_frame = tk.Frame(summary_window, bg='white')
+        stats_frame.pack(pady=20, padx=30, fill=tk.BOTH, expand=True)
+        
+        # 总单词数
+        total_words = len(self.review_words)
+        tk.Label(
+            stats_frame,
+            text=f"本次复习单词总数: {total_words}",
+            font=self.font_config['normal'],
+            bg='white'
+        ).pack(anchor='w', pady=5)
+        
+        # 熟悉单词数
+        familiar_count = self.session_stats["familiar"]
+        familiar_percent = (familiar_count / total_words * 100) if total_words > 0 else 0
+        tk.Label(
+            stats_frame,
+            text=f"熟悉单词: {familiar_count} ({familiar_percent:.1f}%)",
+            font=self.font_config['normal'],
+            bg='white',
+            fg='#4CAF50'
+        ).pack(anchor='w', pady=5)
+        
+        # 困难单词数
+        difficult_count = self.session_stats["difficult"]
+        difficult_percent = (difficult_count / total_words * 100) if total_words > 0 else 0
+        tk.Label(
+            stats_frame,
+            text=f"困难单词: {difficult_count} ({difficult_percent:.1f}%)",
+            font=self.font_config['normal'],
+            bg='white',
+            fg='#F44336'
+        ).pack(anchor='w', pady=5)
+        
+        # 获取熟悉度低于阈值的单词列表
+        difficult_words = [word for word, familiarity in self.word_familiarity.items() 
+                          if familiarity < self.familiar_threshold]
+        
+        # 复习建议
+        tk.Label(
+            stats_frame,
+            text="复习建议:",
+            font=self.font_config['normal'],
+            bg='white',
+            fg='#2196F3'
+        ).pack(anchor='w', pady=(15, 5))
+        
+        if not difficult_words:
+            advice = "太棒了！所有单词都掌握得很好。"
+        elif len(difficult_words) <= 5:
+            advice = f"建议重点复习这些单词: {', '.join(difficult_words)}"
+        else:
+            advice = f"建议使用'难词'模式进行针对性复习，共有{len(difficult_words)}个单词需要加强。"
+        
+        advice_label = tk.Label(
+            stats_frame,
+            text=advice,
+            font=self.font_config['normal'],
+            bg='white',
+            fg='#333333',
+            wraplength=400,
+            justify=tk.LEFT
+        )
+        advice_label.pack(anchor='w', pady=5)
+        
+        # 按钮
+        button_frame = tk.Frame(summary_window, bg='white')
+        button_frame.pack(pady=20)
+        
+        tk.Button(
+            button_frame,
+            text="关闭",
+            font=self.font_config['button'],
+            width=15,
+            height=2,
+            command=summary_window.destroy,
+            bg='#9E9E9E',
+            fg='white'
+        ).pack(pady=10)

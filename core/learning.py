@@ -110,13 +110,13 @@ class LearningManager:
         """
         try:
             # 直接从word_manager获取所有单词
-            word_dict = self.data_manager.get_all_words()
-            if not word_dict:
+            word_list = self.data_manager.get_all_words()
+            if not word_list:
                 # 使用word_manager作为logger记录错误
-                self.logger.log_error(f"获取学习批次失败: 单词字典为空")
+                self.logger.log_error(f"获取学习批次失败: 单词列表为空")
                 return []
             
-            all_words = list(word_dict.keys())
+            all_words = word_list  # 直接使用返回的单词列表
             
             # 如果单词总数少于批次大小，则全部返回
             if len(all_words) <= batch_size:
@@ -322,9 +322,8 @@ class LearningManager:
             Optional[str]: 单词释义，如果不存在返回None
         """
         try:
-            # 直接使用get_all_words方法获取完整的单词字典
-            word_dict = self.data_manager.get_all_words()
-            return word_dict.get(word)
+            # 使用get_word_translation方法获取单词翻译
+            return self.data_manager.get_word_translation(word)
         except Exception as e:
             self.logger.log_error(f"获取单词释义失败: {word}, 错误: {str(e)}")
             return None
