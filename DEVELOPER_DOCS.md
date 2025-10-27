@@ -1,6 +1,22 @@
-# LexiNote 开发者文档
+# 开发者文档
 
 ## 版本历史
+
+### v1.4.0 - AI功能初始化改进与听写前置检查
+- 修复WordManager中调用不存在的`is_ai_available()`方法的问题
+- 添加`_test_ai_connection()`方法实现AI连接可用性测试
+- 改进AI功能初始化逻辑，确保即使AI初始化失败应用也能正常运行
+- 优化错误处理和日志记录，提供更详细的AI功能状态信息
+- 实现听写功能前置检查：用户当天必须学习过单词才能进入听写页面
+- 在main_window.py中添加单词学习状态检查逻辑
+- 优化用户体验，提供清晰的操作引导
+
+### v1.3.4 - 页面继承与参数一致性修复
+- 修复页面继承问题：让DictationPage和ReviewPage继承自tk.Frame，确保所有页面类具有一致的继承结构
+- 修复参数传递一致性：确保所有页面都接受settings_manager参数，使配置能正确传递
+- 改进字体配置：为所有页面添加统一的默认字体配置
+- 优化页面初始化逻辑：修复了LearningPage初始化中的参数重复问题
+- 更新页面组件的父组件引用：确保所有子组件正确绑定到父框架
 
 ### v1.3.3 - 项目文件清理
 - 移除了6个无用的测试文件，包括test_ai_fallback.py、test_fix.py等
@@ -108,15 +124,19 @@
 - **职责**：负责单词的增删改查、管理单词权重和学习进度、提供翻译检查功能
 - **主要方法**：
   - `get_random_word()`：获取随机单词进行练习
-  - `check_translation(expected, user_input, is_english_to_chinese)`：使用AI检查翻译正确性
+  - `check_translation(word, user_translation, update_stats)`：检查翻译正确性并更新学习统计
   - `translate_text(text, mode)`：翻译文本（英→中/中→英）
   - `update_word_progress(word, is_correct)`：更新单词学习进度
   - `save_progress()`：保存学习进度到文件
+  - `_init_ai_manager()`：初始化AI管理器（延迟加载）
+  - `_test_ai_connection()`：测试AI连接是否可用
+  - `get_today_learned_words()`：获取今日学习的单词列表
 - **设计特点**：
   - 作为UI和AI功能之间的桥梁
   - 从v1.3.2版本开始完全使用AI进行翻译判断
   - 实现了延迟加载AIManager的机制，提高启动效率
   - 包含完善的错误处理和日志记录
+  - v1.4.0版本改进了AI连接测试机制，确保准确判断AI功能可用性
 
 #### AIManager (core/ai_interface.py)
 - **职责**：封装Ollama API调用，提供AI相关功能

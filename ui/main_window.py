@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, messagebox
 import sys
 import os
 
@@ -183,6 +183,18 @@ class MainWindow:
     
     def _show_dictation_page(self):
         """显示听写练习页面"""
+        # 检查今日是否学习过单词
+        today_words = self.word_manager.get_today_learned_words()
+        if not today_words:
+            # 如果今日没有学习过单词，显示提示消息
+            messagebox.showinfo(
+                "提示",
+                "您今天还没有学习任何单词，请先进行单词学习后再进行听写练习。"
+            )
+            log_info("用户尝试进入听写页面，但今日未学习单词")
+            return
+        
+        # 今日有学习过单词，显示听写页面
         self._clear_content_area()
         self.current_page = DictationPage(
             self.content_area,
@@ -192,7 +204,7 @@ class MainWindow:
         )
         self.current_page.pack(fill=tk.BOTH, expand=True)
         
-        log_info("切换到听写练习页面")
+        log_info(f"切换到听写练习页面，今日已学习 {len(today_words)} 个单词")
     
     def _show_translation_page(self):
         """显示翻译练习页面"""
