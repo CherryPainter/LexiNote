@@ -84,6 +84,9 @@
 │   ├── ai_interface.py  # AI接口管理
 │   └── learning.py      # 学习逻辑模块
 ├── data/            # 用户数据存储目录
+│   ├── word_list.json   # 单词库文件
+│   ├── word_progress.json # 学习进度数据
+│   └── user_settings.json # 用户设置数据
 ├── ui/              # 用户界面模块
 │   ├── dictation_page.py  # 听写练习页面
 │   ├── learning_page.py   # 学习模式页面
@@ -93,16 +96,115 @@
 ├── word_manager.py  # 单词管理核心类
 ├── audio_player.py  # 音频播放功能
 ├── logger.py        # 日志记录功能
-└── main.py          # 应用程序入口
+├── requirements.txt # 项目依赖
+├── main.py          # 应用程序入口
+├── README.md        # 项目说明
+└── DEVELOPER_DOCS.md # 开发者文档
 ```
 
 ### 核心模块说明
 
 #### WordManager
-- 负责单词的增删改查
-- 管理单词权重和学习进度
-- 提供翻译检查功能，从v1.3.2版本开始完全交由AI处理
-- 作为UI和AI功能之间的桥梁
+- **职责**：负责单词的增删改查、管理单词权重和学习进度、提供翻译检查功能
+- **主要方法**：
+  - `get_random_word()`：获取随机单词进行练习
+  - `check_translation(expected, user_input, is_english_to_chinese)`：使用AI检查翻译正确性
+  - `translate_text(text, mode)`：翻译文本（英→中/中→英）
+  - `update_word_progress(word, is_correct)`：更新单词学习进度
+  - `save_progress()`：保存学习进度到文件
+- **设计特点**：
+  - 作为UI和AI功能之间的桥梁
+  - 从v1.3.2版本开始完全使用AI进行翻译判断
+  - 实现了延迟加载AIManager的机制，提高启动效率
+  - 包含完善的错误处理和日志记录
+
+#### AIManager (core/ai_interface.py)
+- **职责**：封装Ollama API调用，提供AI相关功能
+- **主要方法**：
+  - `translate(text, mode)`：翻译文本
+  - `generate_text(prompt)`：生成文本内容
+  - `check_translation(expected, user_input, is_english_to_chinese)`：判断翻译是否正确
+  - `generate_example(word)`：为单词生成例句
+  - `evaluate_spelling(word, user_input)`：评估拼写准确性
+- **设计特点**：
+  - 使用requests直接调用Ollama API，不依赖ollama模块
+  - 实现错误处理和降级服务机制
+  - 封装提示词工程，优化AI输出质量
+
+#### LearningManager (core/learning.py)
+- **职责**：实现学习模式的核心逻辑，管理单词学习过程
+- **主要方法**：
+  - `get_next_word()`：获取下一个要学习的单词
+  - `update_mastery_level(word, rating)`：根据用户评分更新单词掌握度
+  - `get_word_definition(word)`：获取单词释义
+  - `get_word_progress()`：获取单词学习进度
+- **设计特点**：
+  - 基于记忆曲线的学习算法
+  - 个性化的学习进度跟踪
+  - 智能的单词推荐系统
+  - 实现依赖注入，避免紧耦合
+
+#### AudioPlayer
+- **职责**：提供单词发音功能
+- **主要方法**：
+  - `play_pronunciation(word)`：播放单词发音
+  - `stop()`：停止播放
+- **设计特点**：
+  - 支持多平台音频播放
+  - 包含错误处理和失败恢复机制
+
+### 模块交互关系
+
+```
+┌─────────────┐      ┌──────────────┐      ┌───────────────┐
+│   UI模块    │ ────>│ WordManager  │ ────>│  AIManager    │
+│ (ui/*.py)   │ <─── │ (核心桥梁)   │ <─── │(core/ai_interface.py)
+└─────────────┘      └───────┬──────┘      └───────────────┘
+                             │
+                             ▼
+                     ┌────────────────┐
+                     │ LearningManager │
+                     │(core/learning.py)│
+                     └────────────────┘
+                             │
+                             ▼
+                     ┌─────────────────┐
+                     │   数据文件       │
+                     │  (data/*.json)  │
+                     └─────────────────┘
+```
+
+### 数据流向说明
+
+1. **UI层到逻辑层**：
+   - 用户操作触发UI事件
+   - UI调用WordManager提供的方法
+   - WordManager根据需要调用AIManager或LearningManager
+
+2. **逻辑层到数据层**：
+   - WordManager读写单词库和学习进度
+   - LearningManager读写用户学习记录
+   - 所有数据操作遵循先读再写的原则，避免覆盖数据
+
+3. **数据层到UI层**：
+   - WordManager将处理结果返回给UI
+   - UI根据返回结果更新界面展示
+   - 错误信息通过日志记录并在UI适当位置提示用户
+
+### 开发环境设置
+
+#### 必要依赖
+- Python 3.12+
+- 依赖库：见requirements.txt
+- Ollama服务（用于AI功能）
+
+#### 开发流程
+1. 克隆仓库：`git clone https://github.com/CherryPainter/LexiNote.git`
+2. 安装依赖：`pip install -r requirements.txt`
+3. 确保Ollama服务正在运行（默认端口11434）
+4. 运行程序：`python main.py`
+
+
 
 ## AI翻译判断说明
 
