@@ -187,6 +187,7 @@ class MainWindow:
         audio_player = AudioPlayer()
         
         # 初始化LearningManager，将word_manager直接作为data_manager和scheduler
+        # 修复：直接使用word_manager作为scheduler参数，而不是访问不存在的scheduler属性
         learning_manager = LearningManager(
             data_manager=self.word_manager,
             scheduler=self.word_manager,

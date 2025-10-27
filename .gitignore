@@ -7,6 +7,7 @@ __pycache__/
 env/
 venv/
 environment/
+pyvenv.cfg
 
 # IDEs and editors
 .idea/
@@ -27,11 +28,18 @@ ehthumbs.db
 # Data files
 *.jsonl
 *.log
+logs/
+data/*.json
 
 # Temporary files
 *.tmp
 *.temp
 .cache/
+*.mp3
+*.wav
+*.zip
+*.tar.gz
+*.tar.bz2
 
 # Test files
 pytest_cache/
@@ -71,3 +79,4 @@ MANIFEST
 .env.development.local
 .env.test.local
 .env.production.local
+.env.production

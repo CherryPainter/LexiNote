@@ -1,7 +1,9 @@
 import json
 import os
 import random
-from logger import log_info, log_error, log_wrong_word, log_exercise_start
+from typing import Dict, List, Optional, Tuple, Any
+from logger import log_info, log_error, log_warning, log_wrong_word, log_exercise_start
+from core.ai_interface import AIManager
 
 
 class WordManager:
@@ -26,6 +28,11 @@ class WordManager:
         self.word_weights = self._load_data(self.word_weights_file)
         self.wrong_words = self._load_data(self.wrong_words_file)
         self.progress = self._load_data(self.progress_file)
+        
+        # 初始化AI管理器（延迟加载方式）
+        self.ai_manager = None
+        self.ai_available = False
+        self._init_ai_manager()
     
     def _initialize_data_files(self):
         """初始化数据文件，确保文件存在并包含基本结构"""
@@ -210,21 +217,151 @@ class WordManager:
         return word.lower() == user_input.lower()
     
     def check_translation(self, expected, user_input, is_english_to_chinese=True):
-        """检查翻译是否正确（模糊匹配）"""
+        """使用AI检查翻译是否正确"""
+        # 简单的输入验证
+        if not user_input or not expected:
+            return False
+            
+        # 首先检查AI功能是否可用
+        if self.ai_available and self.ai_manager:
+            try:
+                # 构建提示词，让AI判断翻译是否正确
+                if is_english_to_chinese:
+                    # 英译中判断
+                    prompt = f"请判断以下翻译是否正确：\n英文单词：{expected}\n用户翻译：{user_input}\n\n请直接回答'正确'或'错误'，不要添加其他解释。"
+                else:
+                    # 中译英判断
+                    prompt = f"请判断以下翻译是否正确：\n中文词语：{expected}\n用户翻译：{user_input}\n\n请直接回答'正确'或'错误'，不要添加其他解释。"
+                
+                # 调用AI接口获取判断结果
+                ai_response = self.ai_manager._ask(prompt)
+                
+                # 处理AI响应
+                if ai_response and ('正确' in ai_response or 'correct' in ai_response.lower()):
+                    return True
+                elif ai_response and ('错误' in ai_response or 'incorrect' in ai_response.lower()):
+                    return False
+            except Exception as e:
+                # AI调用失败时记录日志，但不影响程序运行
+                log_error(f"AI翻译判断失败: {str(e)}")
+        
+        # AI调用失败、不可用或无法判断时，使用备用的模糊匹配逻辑
+        return self._fallback_translation_check(expected, user_input, is_english_to_chinese)
+    
+    def _fallback_translation_check(self, expected, user_input, is_english_to_chinese=True):
+        """备用的翻译检查逻辑（当AI调用失败时使用）"""
         # 简单的模糊匹配逻辑
         expected_lower = expected.lower()
         user_input_lower = user_input.lower().strip()
         
-        # 如果是英译中，检查用户输入是否包含正确翻译的关键字
+        # 定义单词特定翻译的映射（对两种方向都适用）
+        word_specific_translations = {
+            'minor': ['较小的', '次要的', '轻微的', '小型的', '不太重要的', '微小的'],
+            'diagram': ['图表', '图形', '图示', '图像'],
+            'chart': ['图表', '图表', '曲线图', '图形'],
+            'graph': ['图表', '图形', '曲线图', '图表'],
+            'picture': ['图片', '照片', '图像', '图画'],
+            'image': ['图像', '图片', '影像', '镜像'],
+            'figure': ['数字', '图', '图表', '数据', '图像'],
+            'acquisition': ['获得', '习得', '获取', '收购', '得到', '取得']
+        }
+        
+        # 检查单词特定的翻译匹配（双向）
+        for word, translations in word_specific_translations.items():
+            if word == expected_lower and user_input_lower in translations:
+                return True
+            if user_input_lower == word and expected_lower in translations:
+                return True
+        
+        # 如果是英译中，实现更智能的模糊匹配
         if is_english_to_chinese:
-            # 这里可以实现更复杂的模糊匹配逻辑
-            return expected_lower in user_input_lower
+            # 检查完全匹配
+            if expected_lower == user_input_lower:
+                return True
+            
+            # 定义一些常见的近义词映射，用于更智能的匹配
+            common_synonyms = {
+                '小的': ['小型的', '较小的', '微小的', '细小的'],
+                '大的': ['大型的', '较大的', '巨大的', '庞大的'],
+                '好的': ['良好的', '优秀的', '棒的', '不错的'],
+                '坏的': ['糟糕的', '不良的', '不好的', '恶劣的'],
+                '新的': ['新鲜的', '新颖的', '新式的'],
+                '旧的': ['老旧的', '过时的', '陈腐的'],
+                '重要的': ['关键的', '主要的', '重大的'],
+                '次要的': ['较小的', '轻微的', '一般的'],
+                '简单的': ['简易的', '容易的', '基本的'],
+                '复杂的': ['繁复的', '困难的', '综合的'],
+                '图表': ['图形', '图示', '图像', '图表'],
+                '图形': ['图表', '图示', '图像'],
+                '图示': ['图表', '图形', '图像'],
+                '图像': ['图表', '图形', '图示'],
+                '获得': ['习得', '获取', '收购', '得到', '取得'],
+                '习得': ['获得', '获取', '得到', '取得'],
+                '获取': ['获得', '习得', '得到', '取得']
+            }
+            
+            # 检查用户输入是否包含预期翻译的近义词
+            for key, synonyms in common_synonyms.items():
+                if key in expected_lower and any(synonym in user_input_lower for synonym in synonyms):
+                    return True
+                if key in user_input_lower and any(synonym in expected_lower for synonym in synonyms):
+                    return True
+            
+            # 分词并检查关键词匹配
+            expected_chars = list(expected_lower)
+            user_chars = list(user_input_lower)
+            
+            # 计算匹配的字符比例
+            matches = 0
+            total_chars = len(expected_lower)
+            
+            for char in expected_chars:
+                if char in user_chars:
+                    matches += 1
+                    user_chars.remove(char)
+            
+            # 降低匹配阈值到50%，提高识别率
+            if total_chars > 0 and matches / total_chars >= 0.5:
+                return True
+                
+            # 检查是否有重叠的关键词（至少2个连续字符）
+            for i in range(len(expected_lower) - 1):
+                two_chars = expected_lower[i:i+2]
+                if two_chars in user_input_lower:
+                    return True
+                    
+            # 检查用户输入是否包含预期翻译的所有字符（顺序不限）
+            all_chars_match = True
+            for char in expected_lower:
+                if char not in user_input_lower:
+                    all_chars_match = False
+                    break
+            if all_chars_match:
+                return True
         else:
-            # 中译英，忽略大小写和单复数等简单变化
+            # 中译英，增强匹配逻辑
             # 移除常见的单复数结尾进行匹配
             user_input_lower = user_input_lower.rstrip('s').rstrip('es')
             expected_lower = expected_lower.rstrip('s').rstrip('es')
+            
+            # 完全匹配检查
+            if user_input_lower == expected_lower:
+                return True
+            
+            # 反向检查单词特定翻译（用于中译英）
+            for word, translations in word_specific_translations.items():
+                if expected_lower in translations and user_input_lower == word:
+                    return True
+            
+            # 中译英的模糊匹配
+            # 检查常见的动词变化
+            user_input_lower = user_input_lower.rstrip('ed').rstrip('ing')
+            expected_lower = expected_lower.rstrip('ed').rstrip('ing')
+            
             return user_input_lower == expected_lower
+        
+        # 所有匹配条件都不满足，返回False
+        return False
     
     def get_progress(self):
         """获取学习进度"""
@@ -255,4 +392,146 @@ class WordManager:
             return True
         except Exception as e:
             log_error(f"应用每日衰减失败: {str(e)}")
+            return False
+    
+    def translate_text(self, text, mode="en2zh"):
+        """翻译文本
+        
+        Args:
+            text: 要翻译的文本
+            mode: 翻译模式，"en2zh"(英→中)或"zh2en"(中→英)
+            
+        Returns:
+            翻译后的文本
+        """
+        if not self.ai_available:
+            log_warning("AI功能暂不可用")
+            return "AI功能暂不可用"
+        
+        try:
+            result = self.ai_manager.translate(text, mode)
+            return result
+        except Exception as e:
+            log_error(f"翻译失败: {str(e)}")
+            return "翻译失败"
+    
+    def generate_example(self, word):
+        """为单词生成例句
+        
+        Args:
+            word: 要生成例句的单词
+            
+        Returns:
+            包含例句和翻译的文本
+        """
+        if not self.ai_available:
+            log_warning("AI功能暂不可用")
+            return "AI功能暂不可用"
+        
+        try:
+            result = self.ai_manager.example(word)
+            return result
+        except Exception as e:
+            log_error(f"生成例句失败: {str(e)}")
+            return "生成例句失败"
+    
+    def evaluate_spelling(self, expected, user_input):
+        """评估拼写结果
+        
+        Args:
+            expected: 期望的正确单词
+            user_input: 用户输入的单词
+            
+        Returns:
+            包含准确率和反馈的字典
+        """
+        if not self.ai_available:
+            # 如果AI不可用，使用简单的字符串比较
+            is_correct = self.check_spelling(expected, user_input)
+            return {
+                "accuracy": 1.0 if is_correct else 0.0,
+                "feedback": "正确" if is_correct else "错误"
+            }
+        
+        try:
+            result = self.ai_manager.evaluate(expected, user_input)
+            return result
+        except Exception as e:
+            log_error(f"评估拼写失败: {str(e)}")
+            # 回退到简单比较
+            is_correct = self.check_spelling(expected, user_input)
+            return {
+                "accuracy": 1.0 if is_correct else 0.0,
+                "feedback": "正确" if is_correct else "错误"
+            }
+    
+    def get_study_advice(self):
+        """获取个性化学习建议
+        
+        Returns:
+            学习建议文本
+        """
+        if not self.ai_available:
+            log_warning("AI功能暂不可用")
+            return "AI功能暂不可用"
+        
+        try:
+            # 准备用户统计数据
+            user_stats = {
+                "total_words": len(self.word_dict),
+                "mastered": sum(1 for word, weight in self.word_weights.items() if weight < 0.5),
+                "review_needed": sum(1 for word, count in self.wrong_words.items() if count > 2),
+                "average_score": self.progress.get("correct_rate", 0.0)
+            }
+            
+            result = self.ai_manager.advise(user_stats)
+            return result
+        except Exception as e:
+            log_error(f"获取学习建议失败: {str(e)}")
+            return "获取学习建议失败"
+    
+    def _init_ai_manager(self):
+        """初始化AI管理器（延迟加载方式）"""
+        try:
+            self.ai_manager = AIManager()
+            self.ai_available = True
+        except Exception as e:
+            log_error(f"初始化AI管理器失败: {str(e)}")
+            self.ai_available = False
+            
+    def is_ai_available(self):
+        """检查AI功能是否可用
+        
+        Returns:
+            bool: AI功能是否可用
+        """
+        if self.ai_manager is None:
+            self._init_ai_manager()
+            
+        if not self.ai_available:
+            return False
+            
+        try:
+            # 尝试导入requests模块
+            import requests
+            
+            # 尝试连接Ollama API进行可用性检查
+            try:
+                response = requests.post(
+                    "http://localhost:11434/api/generate",
+                    json={
+                        "model": self.ai_manager.model,
+                        "prompt": "test",
+                        "stream": False,
+                        "options": {"num_predict": 1}  # 最小化预测数量以快速响应
+                    },
+                    timeout=5  # 快速超时检查
+                )
+                return response.status_code == 200
+            except requests.RequestException:
+                # 如果连接失败，返回False
+                return False
+                
+        except ImportError:
+            # 如果requests模块不可用，返回False
             return False
