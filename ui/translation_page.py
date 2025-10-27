@@ -2,26 +2,36 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 import sys
 import os
+import threading
 
 # 添加项目根目录到Python路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from logger import log_info, log_wrong_word
+from audio_player import AudioPlayer
 
 
-class TranslationPage:
+class TranslationPage(tk.Frame):
     """翻译练习页面"""
     
-    def __init__(self, parent, word_manager, font_config):
+    def __init__(self, parent, word_manager, settings_manager=None, font_config=None):
         """初始化翻译练习页面"""
+        super().__init__(parent, bg='white')
         self.parent = parent
         self.word_manager = word_manager
-        self.font_config = font_config
+        self.settings_manager = settings_manager
+        self.font_config = font_config if font_config else {'header': ('SimHei', 16, 'bold'), 'normal': ('SimHei', 12), 'button': ('SimHei', 12, 'bold')}
         
         # 当前练习状态
         self.current_word = None
         self.current_translation = None
         self.is_english_to_chinese = True
+        self.current_example = ""
+        self.is_example_visible = False
+        
+        # 初始化音频播放器
+        self.audio_player = AudioPlayer()
+        self.audio_available = self.audio_player.is_available()
         
         # 创建UI
         self._create_ui()
@@ -98,6 +108,24 @@ class TranslationPage:
         )
         self.word_label.pack(pady=20)
         
+        # 例句框架
+        self.example_frame = tk.Frame(self.main_frame, bg="#f9f9f9", bd=1, relief=tk.SUNKEN)
+        self.example_frame.pack(fill=tk.X, pady=15, padx=50, side=tk.BOTTOM)
+        
+        # 例句显示标签
+        self.example_label = tk.Label(
+            self.example_frame,
+            text="",
+            font=self.font_config['normal'],
+            bg="#f9f9f9",
+            fg="#333333",
+            wraplength=600,
+            justify=tk.LEFT,
+            padx=15,
+            pady=10
+        )
+        self.example_label.pack(fill=tk.X)
+        
         # 输入区域
         input_frame = tk.Frame(self.main_frame, bg='white')
         input_frame.pack(pady=20)
@@ -128,6 +156,30 @@ class TranslationPage:
         # 按钮区域
         buttons_frame = tk.Frame(self.main_frame, bg='white')
         buttons_frame.pack(pady=30)
+        
+        self.pronounce_button = tk.Button(
+            buttons_frame,
+            text="🔊 发音",
+            font=self.font_config['button'],
+            width=12,
+            height=2,
+            command=self._play_pronunciation,
+            bg="#4CAF50",
+            fg="white"
+        )
+        self.pronounce_button.pack(side=tk.LEFT, padx=10)
+        
+        self.example_button = tk.Button(
+            buttons_frame,
+            text="📝 显示例句",
+            font=self.font_config['button'],
+            width=15,
+            height=2,
+            command=self._toggle_example,
+            bg="#2196F3",
+            fg="white"
+        )
+        self.example_button.pack(side=tk.LEFT, padx=10)
         
         self.check_button = tk.Button(
             buttons_frame,
@@ -194,6 +246,24 @@ class TranslationPage:
         # 加载第一个单词
         self._next_translation()
     
+    def _play_pronunciation(self):
+        """播放单词发音"""
+        if not self.current_word:
+            return
+        
+        word_to_pronounce = self.current_word
+        
+        # 如果是中译英模式，需要考虑是否需要发音中文
+        # 这里只对英文单词进行发音
+        if not self.is_english_to_chinese:
+            # 在中译英模式下，current_word可能是中文
+            # 如果需要中文发音功能，可以在这里添加
+            pass
+        
+        success = self.audio_player.play_pronunciation(word_to_pronounce)
+        if not success and self.audio_available:
+            messagebox.showerror("播放失败", "无法播放单词发音，请检查网络连接。")
+    
     def _on_direction_change(self):
         """翻译方向改变时的处理"""
         self.is_english_to_chinese = self.direction_var.get()
@@ -224,6 +294,16 @@ class TranslationPage:
         # 清空输入和结果
         self.translation_text.delete(1.0, tk.END)
         self.result_var.set("")
+        
+        # 重置例句状态
+        self.is_example_visible = False
+        self.current_example = ""
+        self.example_label.config(text="")
+        self.example_button.config(text="📝 显示例句")
+        
+        # 如果例句功能启用，异步获取例句
+        if self.settings_manager and self.settings_manager.get_setting("example_enabled", True):
+            threading.Thread(target=self._fetch_example_async, daemon=True).start()
         
         # 设置焦点到输入框
         self.translation_text.focus_set()
@@ -310,8 +390,19 @@ class TranslationPage:
         progress = self.word_manager.get_progress()
         self.status_var.set(f"正确率: {progress.get('correct_rate', 0) * 100:.1f}% | 判断方式: {ai_judgment_source}")
         
-        # 延长显示时间，让用户有更充分的时间查看结果和AI建议
-        self.main_frame.after(4000, self._next_translation)
+        # 检查是否需要自动下一个单词
+        auto_next = False
+        if is_correct:
+            auto_next = self.settings_manager.get_setting("auto_next_correct", False) if self.settings_manager else False
+        else:
+            auto_next = self.settings_manager.get_setting("auto_next_wrong", False) if self.settings_manager else False
+        
+        if auto_next:
+            # 延迟一小段时间再自动下一个单词，让用户有时间看到反馈
+            self.after(1000, self._next_translation)
+        else:
+            # 延长显示时间，让用户有更充分的时间查看结果和AI建议
+            self.main_frame.after(4000, self._next_translation)
     
     def _skip_translation(self):
         """跳过当前翻译"""
@@ -340,8 +431,15 @@ class TranslationPage:
         self.result_label.config(fg='#FF9800')
         log_info(f"跳过翻译: {self.current_word}")
         
-        # 显示下一个
-        self.main_frame.after(2000, self._next_translation)
+        # 检查是否需要自动下一个单词
+        auto_next = self.settings_manager.get_setting("auto_next_wrong", False) if self.settings_manager else False
+        
+        if auto_next:
+            # 延迟一小段时间再自动下一个单词
+            self.after(1000, self._next_translation)
+        else:
+            # 显示下一个
+            self.main_frame.after(2000, self._next_translation)
     
     def _flash_background(self, color):
         """短暂闪烁背景色以增强视觉反馈"""
@@ -357,6 +455,37 @@ class TranslationPage:
             self.main_frame.after(900, lambda: self.main_frame.config(bg=original_bg))
         
         flash()
+    
+    def _fetch_example_async(self):
+        """异步获取单词例句"""
+        if self.current_word and hasattr(self.word_manager, 'get_word_example'):
+            example = self.word_manager.get_word_example(self.current_word)
+            self.current_example = example
+    
+    def _toggle_example(self):
+        """切换例句显示状态"""
+        if not self.current_word:
+            return
+            
+        if not self.is_example_visible:
+            # 显示例句
+            if self.current_example:
+                self.example_label.config(text=self.current_example)
+                self.is_example_visible = True
+                self.example_button.config(text="📝 隐藏例句")
+            elif self.settings_manager and self.settings_manager.get_setting("example_enabled", True) and hasattr(self.word_manager, 'get_word_example'):
+                # 如果还没有例句，尝试同步获取
+                self.example_label.config(text="正在获取例句...")
+                example = self.word_manager.get_word_example(self.current_word)
+                self.current_example = example
+                self.example_label.config(text=example if example else "无法获取例句")
+                self.is_example_visible = True
+                self.example_button.config(text="📝 隐藏例句")
+        else:
+            # 隐藏例句
+            self.example_label.config(text="")
+            self.is_example_visible = False
+            self.example_button.config(text="📝 显示例句")
     
     def _show_add_word_dialog(self):
         """显示添加单词对话框"""

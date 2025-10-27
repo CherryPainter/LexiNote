@@ -10,8 +10,11 @@ from ui.dictation_page import DictationPage
 from ui.translation_page import TranslationPage
 from ui.review_page import ReviewPage
 from ui.learning_page import LearningPage
+from ui.settings_page import SettingsPage
 from word_manager import WordManager
 from core.learning import LearningManager
+from core.settings_manager import SettingsManager
+from audio_player import AudioPlayer
 from logger import log_info
 
 
@@ -28,8 +31,10 @@ class MainWindow:
         # 设置中文字体
         self._set_fonts()
         
-        # 初始化单词管理器
+        # 初始化核心管理器
         self.word_manager = WordManager()
+        self.settings_manager = SettingsManager()
+        self.audio_player = AudioPlayer()
         
         # 创建UI
         self._create_ui()
@@ -78,7 +83,7 @@ class MainWindow:
             ("🌐 翻译练习", self._show_translation_page),
             ("📊 单词复习", self._show_review_page),
             ("📈 学习统计", self._show_statistics),
-            ("⚙️ 设置", self._show_settings)
+            ("⚙️ 设置", self._show_settings_page)
         ]
         
         for text, command in nav_buttons:
@@ -108,6 +113,21 @@ class MainWindow:
         """清空内容区域"""
         for widget in self.content_area.winfo_children():
             widget.destroy()
+    
+    def _show_settings_page(self):
+        """显示设置页面"""
+        self._clear_content_area()
+        
+        # 创建设置页面
+        self.current_page = SettingsPage(
+            self.content_area,
+            settings_manager=self.settings_manager,
+            word_manager=self.word_manager,
+            font_config=self.font_config
+        )
+        self.current_page.pack(fill=tk.BOTH, expand=True)
+        
+        log_info("切换到设置页面")
     
     def _show_welcome_page(self):
         """显示欢迎页面"""
@@ -164,39 +184,68 @@ class MainWindow:
     def _show_dictation_page(self):
         """显示听写练习页面"""
         self._clear_content_area()
-        DictationPage(self.content_area, self.word_manager, self.font_config)
+        self.current_page = DictationPage(
+            self.content_area,
+            word_manager=self.word_manager,
+            settings_manager=self.settings_manager,
+            font_config=self.font_config
+        )
+        self.current_page.pack(fill=tk.BOTH, expand=True)
+        
+        log_info("切换到听写练习页面")
     
     def _show_translation_page(self):
         """显示翻译练习页面"""
         self._clear_content_area()
-        TranslationPage(self.content_area, self.word_manager, self.font_config)
+        # 确保传递settings_manager到翻译页面
+        self.current_page = TranslationPage(
+            self.content_area,
+            word_manager=self.word_manager,
+            settings_manager=self.settings_manager,
+            font_config=self.font_config
+        )
+        self.current_page.pack(fill=tk.BOTH, expand=True)
+        
+        log_info("切换到翻译练习页面")
     
     def _show_review_page(self):
         """显示单词复习页面"""
         self._clear_content_area()
-        ReviewPage(self.content_area, self.word_manager, self.font_config)
+        # 确保传递settings_manager到复习页面
+        self.current_page = ReviewPage(
+            self.content_area,
+            word_manager=self.word_manager,
+            settings_manager=self.settings_manager,
+            font_config=self.font_config
+        )
+        self.current_page.pack(fill=tk.BOTH, expand=True)
+        
+        log_info("切换到单词复习页面")
     
     def _show_learning_page(self):
         """显示学习模式页面"""
         self._clear_content_area()
-        # 导入audio_player和logger模块
-        from audio_player import AudioPlayer
-        from logger import log_info, log_error
         
-        # 创建音频播放器实例
-        audio_player = AudioPlayer()
-        
-        # 初始化LearningManager，将word_manager直接作为data_manager和scheduler
-        # 修复：直接使用word_manager作为scheduler参数，而不是访问不存在的scheduler属性
+        # 创建学习管理器
         learning_manager = LearningManager(
             data_manager=self.word_manager,
             scheduler=self.word_manager,
-            audio_player=audio_player,
+            audio_player=self.audio_player,
             logger=self.word_manager
         )
-        # 创建并显示学习页面，确保添加到content_area中
-        learning_page = LearningPage(self.content_area, learning_manager)
-        learning_page.pack(fill=tk.BOTH, expand=True)
+        
+        # 创建学习页面并确保传递settings_manager
+        self.current_page = LearningPage(
+            self.content_area,
+            learning_manager=learning_manager,
+            word_manager=self.word_manager,
+            settings_manager=self.settings_manager,
+            font_config=self.font_config,
+            bg='white'
+        )
+        self.current_page.pack(fill=tk.BOTH, expand=True)
+        
+        log_info("切换到学习模式页面")
     
     def _show_statistics(self):
         """显示学习统计页面"""
@@ -250,44 +299,7 @@ class MainWindow:
             )
             value.pack(side=tk.LEFT, padx=20)
     
-    def _show_settings(self):
-        """显示设置页面"""
-        self._clear_content_area()
-        
-        settings_frame = tk.Frame(self.content_area, bg='white')
-        settings_frame.pack(expand=True, fill=tk.BOTH)
-        
-        title_label = tk.Label(
-            settings_frame, 
-            text="设置", 
-            font=self.font_config['header'],
-            bg='white'
-        )
-        title_label.pack(pady=30)
-        
-        # 应用每日权重衰减按钮
-        decay_button = tk.Button(
-            settings_frame,
-            text="应用每日单词权重衰减",
-            font=self.font_config['button'],
-            width=30,
-            height=2,
-            command=self._apply_decay
-        )
-        decay_button.pack(pady=20)
-        
-        # 关于信息
-        about_frame = tk.Frame(settings_frame, bg='white')
-        about_frame.pack(pady=50)
-        
-        about_label = tk.Label(
-            about_frame,
-            text="LexiNote v1.0.0\n个人英语学习工具\n\n基于权重的智能学习系统",
-            font=self.font_config['normal'],
-            bg='white',
-            justify=tk.CENTER
-        )
-        about_label.pack()
+    # _show_settings方法已被_settings_page替代，保留_apply_decay方法用于设置页面
     
     def _apply_decay(self):
         """应用每日权重衰减"""

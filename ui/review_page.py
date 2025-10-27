@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 import sys
 import os
+import threading
 
 # 添加项目根目录到Python路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -10,13 +11,15 @@ from audio_player import AudioPlayer
 from logger import log_info
 
 
-class ReviewPage:
+class ReviewPage(tk.Frame):
     """单词复习页面"""
     
-    def __init__(self, parent, word_manager, font_config):
+    def __init__(self, parent, word_manager, settings_manager, font_config):
         """初始化单词复习页面"""
+        super().__init__(parent, bg='white')
         self.parent = parent
         self.word_manager = word_manager
+        self.settings_manager = settings_manager
         self.font_config = font_config
         
         # 初始化音频播放器
@@ -25,6 +28,8 @@ class ReviewPage:
         
         # 当前显示模式
         self.show_translation = False
+        self.is_example_visible = False
+        self.current_example = ""
         
         # 当前单词列表和索引
         self.review_words = []
@@ -39,7 +44,7 @@ class ReviewPage:
     def _create_ui(self):
         """创建用户界面"""
         # 主框架
-        self.main_frame = tk.Frame(self.parent, bg='white')
+        self.main_frame = tk.Frame(self, bg='white')
         self.main_frame.pack(expand=True, fill=tk.BOTH, padx=50, pady=30)
         
         # 标题
@@ -191,6 +196,19 @@ class ReviewPage:
         )
         self.mark_button.pack(side=tk.LEFT, padx=5)
         
+        # 例句按钮
+        self.example_button = tk.Button(
+            action_buttons_frame,
+            text="📝 显示例句",
+            font=self.font_config['button'],
+            width=12,
+            height=2,
+            command=self._toggle_example,
+            bg='#2196F3',
+            fg='white'
+        )
+        self.example_button.pack(side=tk.LEFT, padx=5)
+        
         # 进度信息
         self.progress_var = tk.StringVar()
         self.progress_label = tk.Label(
@@ -221,8 +239,11 @@ class ReviewPage:
                                 for word in all_words 
                                 if word in weights and weights[word] > 1.5]
         
-        # 重置索引
+        # 重置索引和状态
         self.current_index = 0
+        self.show_translation = False
+        self.is_example_visible = False
+        self.current_example = ""
         
         # 更新显示
         self._update_word_display()
@@ -236,24 +257,42 @@ class ReviewPage:
             self.show_button.config(state=tk.DISABLED)
             self.pronounce_button.config(state=tk.DISABLED)
             self.mark_button.config(state=tk.DISABLED)
+            self.example_button.config(state=tk.DISABLED)
             return
         
         # 启用按钮
         self.show_button.config(state=tk.NORMAL)
         self.pronounce_button.config(state=tk.NORMAL)
         self.mark_button.config(state=tk.NORMAL)
+        self.example_button.config(state=tk.NORMAL)
         
         # 显示当前单词
         word, translation = self.review_words[self.current_index]
         self.word_var.set(word)
         
-        # 根据模式显示翻译
+        # 获取例句
+        # 使用word_manager的get_word_example方法获取例句
+        self.current_example = getattr(self.word_manager, "get_word_example", lambda x: "")(word)
+        
+        # 根据模式显示翻译和例句
         if self.show_translation:
-            self.translation_var.set(f"翻译: {translation}")
+            display_text = f"翻译: {translation}"
+            if self.is_example_visible and self.current_example:
+                display_text += f"\n\n📝 例句: {self.current_example}"
+            self.translation_var.set(display_text)
             self.show_button.config(text="🙈 隐藏翻译")
         else:
-            self.translation_var.set("点击显示按钮查看翻译")
+            if self.is_example_visible and self.current_example:
+                self.translation_var.set(f"📝 例句: {self.current_example}")
+            else:
+                self.translation_var.set("点击显示按钮查看翻译")
             self.show_button.config(text="👁️ 显示翻译")
+            
+        # 更新例句按钮文本
+        if self.is_example_visible:
+            self.example_button.config(text="📝 隐藏例句")
+        else:
+            self.example_button.config(text="📝 显示例句")
     
     def _update_progress(self):
         """更新进度信息"""
@@ -276,15 +315,31 @@ class ReviewPage:
         if self.current_index > 0:
             self.current_index -= 1
             self.show_translation = False
+            self.is_example_visible = False
             self._update_word_display()
             self._update_progress()
             log_info(f"显示上一个单词: {self.review_words[self.current_index][0]}")
+    
+    def _toggle_example(self):
+        """切换例句显示状态"""
+        if not self.review_words:
+            return
+            
+        self.is_example_visible = not self.is_example_visible
+        self._update_word_display()
+        
+        # 检查是否需要自动下一个单词
+        auto_next = self.settings_manager.get_setting("auto_next_example", False)
+        if auto_next and self.is_example_visible:
+            # 延迟一段时间后自动切换到下一个单词
+            self.after(self.settings_manager.get_setting("auto_next_delay", 2000), self._next_word)
     
     def _next_word(self):
         """显示下一个单词"""
         if self.current_index < len(self.review_words) - 1:
             self.current_index += 1
             self.show_translation = False
+            self.is_example_visible = False
             self._update_word_display()
             self._update_progress()
             log_info(f"显示下一个单词: {self.review_words[self.current_index][0]}")
@@ -325,4 +380,5 @@ class ReviewPage:
     def _on_filter_change(self):
         """过滤条件改变时重新加载单词"""
         self.show_translation = False
+        self.is_example_visible = False
         self._load_words()

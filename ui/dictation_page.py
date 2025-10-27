@@ -10,14 +10,16 @@ from audio_player import AudioPlayer
 from logger import log_info, log_wrong_word
 
 
-class DictationPage:
+class DictationPage(tk.Frame):
     """听写练习页面"""
     
-    def __init__(self, parent, word_manager, font_config):
-        """初始化听写练习页面"""
+    def __init__(self, parent, word_manager, settings_manager=None, font_config=None):
+        """初始化听写页面"""
+        super().__init__(parent, bg='white')
         self.parent = parent
         self.word_manager = word_manager
-        self.font_config = font_config
+        self.settings_manager = settings_manager
+        self.font_config = font_config or {'header': ('SimHei', 16, 'bold'), 'normal': ('SimHei', 12), 'button': ('SimHei', 12, 'bold')}
         
         # 初始化音频播放器
         self.audio_player = AudioPlayer()
@@ -43,7 +45,7 @@ class DictationPage:
     def _create_ui(self):
         """创建用户界面"""
         # 主框架
-        self.main_frame = tk.Frame(self.parent, bg='white')
+        self.main_frame = tk.Frame(self, bg='white')
         self.main_frame.pack(expand=True, fill=tk.BOTH, padx=50, pady=30)
         
         # 标题

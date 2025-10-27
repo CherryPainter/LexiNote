@@ -435,6 +435,28 @@ class WordManager:
             log_error(f"生成例句失败: {str(e)}")
             return "生成例句失败"
     
+    def get_word_example(self, word):
+        """获取单词的例句
+        
+        Args:
+            word: 要获取例句的单词
+            
+        Returns:
+            例句字符串，如果无法获取则返回空字符串
+        """
+        try:
+            # 尝试生成例句
+            example = self.generate_example(word)
+            
+            # 过滤无效结果
+            if example in ["AI功能暂不可用", "生成例句失败"]:
+                return ""
+            
+            return example
+        except Exception as e:
+            log_error(f"获取单词例句失败: {str(e)}")
+            return ""
+    
     def evaluate_spelling(self, expected, user_input):
         """评估拼写结果
         
@@ -491,13 +513,42 @@ class WordManager:
             return "获取学习建议失败"
     
     def _init_ai_manager(self):
-        """初始化AI管理器（延迟加载方式）"""
+        """初始化AI管理器"""
         try:
             self.ai_manager = AIManager()
             self.ai_available = True
+            log_info("AI管理器初始化成功")
         except Exception as e:
-            log_error(f"初始化AI管理器失败: {str(e)}")
+            log_warning(f"AI管理器初始化失败: {str(e)}")
+            self.ai_manager = None
             self.ai_available = False
+            
+    def get_word_example(self, word):
+        """获取单词的例句
+        
+        Args:
+            word: 要获取例句的单词
+            
+        Returns:
+            str: 包含例句和翻译的文本，如果获取失败返回空字符串
+        """
+        try:
+            # 首先检查AI功能是否可用
+            if self.ai_available and self.ai_manager:
+                # 调用AI接口获取例句
+                example = self.ai_manager.example(word)
+                if example and "AI功能暂不可用" not in example:
+                    log_info(f"获取例句成功: {word}")
+                    return example
+                else:
+                    log_warning(f"获取例句失败: {word}, AI返回: {example}")
+            else:
+                log_warning(f"获取例句失败: AI功能不可用")
+            # 返回空字符串表示失败
+            return ""
+        except Exception as e:
+            log_error(f"获取例句异常: {str(e)}")
+            return ""
             
     def is_ai_available(self):
         """检查AI功能是否可用

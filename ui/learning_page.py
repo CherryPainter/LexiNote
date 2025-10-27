@@ -6,6 +6,7 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 from typing import List, Callable, Optional
+import threading
 
 
 class LearningPage(tk.Frame):
@@ -13,24 +14,32 @@ class LearningPage(tk.Frame):
     学习模式页面，用于用户主动学习单词
     """
     
-    def __init__(self, parent, learning_manager, **kwargs):
+    def __init__(self, parent, learning_manager, word_manager=None, settings_manager=None, font_config=None, **kwargs):
         """
         初始化学习页面
         
         Args:
             parent: 父窗口组件
             learning_manager: 学习管理器实例
+            word_manager: 单词管理器实例
+            settings_manager: 设置管理器实例
+            font_config: 字体配置字典
             **kwargs: 其他参数
         """
         super().__init__(parent, **kwargs)
         self.parent = parent
         self.learning_manager = learning_manager
+        self.word_manager = word_manager
+        self.settings_manager = settings_manager
+        self.font_config = font_config or {'title': ("Arial", 48, "bold"), 'header': ("Arial", 24), 'normal': ("Arial", 12), 'button': ("Arial", 12)}
         
         # 学习状态
         self.current_batch = []  # 当前学习批次的单词列表
         self.current_index = -1  # 当前单词索引
         self.current_word = None  # 当前单词
         self.is_playing = False  # 发音播放状态
+        self.current_example = ""  # 当前单词例句
+        self.is_example_visible = False  # 例句是否可见
         
         # 创建UI组件
         self._create_widgets()
@@ -112,7 +121,7 @@ class LearningPage(tk.Frame):
         self.word_label = tk.Label(
             card_frame,
             text="请点击开始学习",
-            font=("Arial", 48, "bold"),
+            font=self.font_config.get('title', ("Arial", 48, "bold")),
             bg="white",
             fg="#333333"
         )
@@ -122,18 +131,36 @@ class LearningPage(tk.Frame):
         self.definition_label = tk.Label(
             card_frame,
             text="",
-            font=("Arial", 24),
+            font=self.font_config.get('header', ("Arial", 24)),
             bg="white",
             fg="#666666"
         )
         self.definition_label.pack(pady=20)
+        
+        # 例句框架
+        self.example_frame = tk.Frame(card_frame, bg="#f9f9f9", bd=1, relief=tk.SUNKEN)
+        self.example_frame.pack(fill=tk.X, pady=15, padx=20, side=tk.BOTTOM)
+        
+        # 例句显示标签
+        self.example_label = tk.Label(
+            self.example_frame,
+            text="",
+            font=self.font_config.get('normal', ("Arial", 12)),
+            bg="#f9f9f9",
+            fg="#333333",
+            wraplength=600,
+            justify=tk.LEFT,
+            padx=15,
+            pady=10
+        )
+        self.example_label.pack(fill=tk.X)
         
         # 发音播放按钮
         self.pronounce_button = tk.Button(
             card_frame,
             text="🔊 播放发音",
             command=self.play_pronunciation,
-            font=("Arial", 12),
+            font=self.font_config.get('button', ("Arial", 12)),
             bg="#2196F3",
             fg="white",
             relief=tk.RAISED,
@@ -147,12 +174,27 @@ class LearningPage(tk.Frame):
         action_frame = tk.Frame(self, bg="#f0f0f0", pady=20)
         action_frame.pack(fill=tk.X, side=tk.BOTTOM)
         
+        # 例句按钮
+        self.example_button = tk.Button(
+            action_frame,
+            text="📝 显示例句",
+            command=self.toggle_example,
+            font=self.font_config.get('button', ("Arial", 12)),
+            bg="#2196F3",
+            fg="white",
+            relief=tk.RAISED,
+            padx=15,
+            pady=10,
+            state=tk.DISABLED
+        )
+        self.example_button.pack(side=tk.LEFT, padx=10)
+        
         # 需复习按钮
         self.review_button = tk.Button(
             action_frame,
             text="需复习",
             command=self.mark_review,
-            font=("Arial", 14),
+            font=self.font_config.get('button', ("Arial", 14)),
             bg="#FF9800",
             fg="white",
             relief=tk.RAISED,
@@ -167,7 +209,7 @@ class LearningPage(tk.Frame):
             action_frame,
             text="已掌握",
             command=self.mark_mastered,
-            font=("Arial", 14),
+            font=self.font_config.get('button', ("Arial", 14)),
             bg="#4CAF50",
             fg="white",
             relief=tk.RAISED,
@@ -218,6 +260,17 @@ class LearningPage(tk.Frame):
             # 获取并显示释义
             definition = self.learning_manager.get_word_definition(self.current_word)
             self.definition_label.config(text=definition or "无释义")
+            
+            # 重置例句状态
+            self.is_example_visible = False
+            self.current_example = ""
+            self.example_label.config(text="")
+            if hasattr(self, 'example_button'):
+                self.example_button.config(text="📝 显示例句")
+            
+            # 如果例句功能启用且有单词管理器，异步获取例句
+            if self.word_manager and self.settings_manager and self.settings_manager.get_setting("example_enabled", True):
+                threading.Thread(target=self._fetch_example_async, daemon=True).start()
     
     def _update_progress(self):
         """
@@ -237,6 +290,8 @@ class LearningPage(tk.Frame):
         self.pronounce_button.config(state=tk.NORMAL)
         self.review_button.config(state=tk.NORMAL)
         self.mastered_button.config(state=tk.NORMAL)
+        if hasattr(self, 'example_button'):
+            self.example_button.config(state=tk.NORMAL)
     
     def _disable_buttons(self):
         """
@@ -245,6 +300,8 @@ class LearningPage(tk.Frame):
         self.pronounce_button.config(state=tk.DISABLED)
         self.review_button.config(state=tk.DISABLED)
         self.mastered_button.config(state=tk.DISABLED)
+        if hasattr(self, 'example_button'):
+            self.example_button.config(state=tk.DISABLED)
     
     def play_pronunciation(self):
         """
@@ -275,7 +332,14 @@ class LearningPage(tk.Frame):
         """
         if self.current_word:
             self.learning_manager.mark_mastered(self.current_word)
-            self._move_to_next_word()
+            
+            # 检查是否需要自动下一个单词
+            if self.settings_manager and self.settings_manager.get_setting("auto_next_correct", False):
+                # 延迟一小段时间再自动下一个单词，让用户有时间看到反馈
+                self.after(500, self._move_to_next_word)
+            else:
+                # 手动下一个单词
+                self._move_to_next_word()
     
     def mark_review(self):
         """
@@ -283,7 +347,14 @@ class LearningPage(tk.Frame):
         """
         if self.current_word:
             self.learning_manager.mark_review(self.current_word)
-            self._move_to_next_word()
+            
+            # 检查是否需要自动下一个单词
+            if self.settings_manager and self.settings_manager.get_setting("auto_next_wrong", False):
+                # 延迟一小段时间再自动下一个单词，让用户有时间看到反馈
+                self.after(500, self._move_to_next_word)
+            else:
+                # 手动下一个单词
+                self._move_to_next_word()
     
     def _move_to_next_word(self):
         """
@@ -327,9 +398,13 @@ class LearningPage(tk.Frame):
         self.current_batch = []
         self.current_index = -1
         self.current_word = None
+        self.current_example = ""
+        self.is_example_visible = False
         
         self.word_label.config(text="请点击开始学习")
         self.definition_label.config(text="")
+        if hasattr(self, 'example_label'):
+            self.example_label.config(text="")
         self._update_progress()
         self._disable_buttons()
     
@@ -356,6 +431,41 @@ class LearningPage(tk.Frame):
         # 只有在焦点不在输入框时才响应
         if not isinstance(event.widget, (tk.Entry, ttk.Combobox)):
             self.play_pronunciation()
+    
+    def _fetch_example_async(self):
+        """
+        异步获取单词例句
+        """
+        if self.current_word and self.word_manager:
+            example = self.word_manager.get_word_example(self.current_word)
+            self.current_example = example
+    
+    def toggle_example(self):
+        """
+        切换例句显示状态
+        """
+        if not self.current_word:
+            return
+            
+        if not self.is_example_visible:
+            # 显示例句
+            if self.current_example:
+                self.example_label.config(text=self.current_example)
+                self.is_example_visible = True
+                self.example_button.config(text="📝 隐藏例句")
+            elif self.word_manager and self.settings_manager and self.settings_manager.get_setting("example_enabled", True):
+                # 如果还没有例句，尝试同步获取
+                self.example_label.config(text="正在获取例句...")
+                example = self.word_manager.get_word_example(self.current_word)
+                self.current_example = example
+                self.example_label.config(text=example if example else "无法获取例句")
+                self.is_example_visible = True
+                self.example_button.config(text="📝 隐藏例句")
+        else:
+            # 隐藏例句
+            self.example_label.config(text="")
+            self.is_example_visible = False
+            self.example_button.config(text="📝 显示例句")
     
     def on_leave(self):
         """
