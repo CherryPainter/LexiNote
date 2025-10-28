@@ -2,6 +2,13 @@
 
 ## 版本历史
 
+### v1.4.2 (2025-10-29)
+- 实现今日学习进度检测与听写提醒逻辑功能
+- 添加补丁规格文档并完善相关测试
+- 在word_manager.py中添加check_today_progress_completed方法
+- 修改dictation_page.py，添加学习进度检查和用户提醒对话框
+- 更新learning.py，实现学习完成标记功能
+
 ### v1.4.1 - 新增听写核心模块与学习功能增强
 - 新增core/dictation.py核心模块，实现听写练习的底层逻辑
 - 更新core/learning.py，增强学习功能的实现
