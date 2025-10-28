@@ -618,8 +618,12 @@ class DictationPage(tk.Frame):
             # 单个模式，显示下一个单词
             self.main_frame.after(1000, self._next_word)
         else:
-            # 队列模式，直接获取下一个单词
-            self.main_frame.after(1000, self._next_word_in_queue)
+            # 队列模式，需要先检查是否已经到达队列末尾
+            # 使用队列索引进行精确判断，避免索引越界
+            if self.dictation_manager.current_queue_index < len(self.dictation_manager.current_queue):
+                self.main_frame.after(1000, self._next_word_in_queue)
+            else:
+                self.main_frame.after(1000, self._show_summary)
 
     def _next_word(self):
         """获取下一个单词（单个模式）"""
@@ -651,6 +655,13 @@ class DictationPage(tk.Frame):
         # 停止之前的计时器
         self._stop_timer()
 
+        # 先检查是否已经到达队列末尾，避免获取第11个单词
+        if (not self.dictation_manager.current_queue or 
+            self.dictation_manager.current_queue_index >= len(self.dictation_manager.current_queue)):
+            # 已到达队列末尾，直接显示总结
+            self._show_summary()
+            return
+
         # 获取下一个单词
         self.current_word = self.dictation_manager.next_in_queue()
 
@@ -660,7 +671,7 @@ class DictationPage(tk.Frame):
             self.word_start_time = datetime.now()
 
         if not self.current_word:
-            # 队列为空，显示总结
+            # 队列为空或已到达末尾，显示总结
             self._show_summary()
             return
 

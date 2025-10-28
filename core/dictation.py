@@ -449,13 +449,15 @@ class DictationManager:
         """获取队列中的下一个单词
         
         Returns:
-            下一个单词字符串，如果队列为空则返回None
+            下一个单词字符串，如果队列为空或已到达队列末尾则返回None
         """
-        if self.current_queue_index < len(self.current_queue):
-            word = self.current_queue[self.current_queue_index]
-            self.current_queue_index += 1
-            return word
-        return None
+        # 确保队列存在且索引有效
+        if not self.current_queue or self.current_queue_index >= len(self.current_queue):
+            return None
+        
+        word = self.current_queue[self.current_queue_index]
+        self.current_queue_index += 1
+        return word
     
     def skip_current_word(self, word, time_spent=0):
         """跳过当前单词，记录为错误并更新索引
