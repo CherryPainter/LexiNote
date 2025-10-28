@@ -279,12 +279,6 @@ class DictationPage(tk.Frame):
             self.current_source = "library"
         else:
             self.current_source = "familiar"
-    
-    def _has_today_words(self):
-        """检查是否有今日学习的单词"""
-        # 获取今日学习的单词
-        today_words = getattr(self.word_manager, 'get_today_learned_words', lambda: [])()
-        return len(today_words) > 0
         
         # 获取队列模式参数
         if self.current_mode == "queue":
@@ -322,6 +316,12 @@ class DictationPage(tk.Frame):
             )
             self.dictation_manager.current_mode = "queue"
             self._next_word_in_queue()
+    
+    def _has_today_words(self):
+        """检查是否有今日学习的单词"""
+        # 获取今日学习的单词
+        today_words = getattr(self.word_manager, 'get_today_learned_words', lambda: [])()
+        return len(today_words) > 0
     
     def _create_exercise_ui(self):
         """创建练习界面"""
