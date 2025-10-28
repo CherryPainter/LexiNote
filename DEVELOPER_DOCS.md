@@ -13,6 +13,7 @@
 - 改进core/dictation.py中的单词选择逻辑，实现"即使今天没学也可以听写往期单词"的需求
 - 添加详细的日志记录，便于问题排查
 - 在word_manager.py中添加check_spelling方法，修复听写页面中的拼写检查功能
+- 在dictation_page.py中添加单个听写模式的自动/手动跳转设置功能
 
 ### v1.4.1 - 新增听写核心模块与学习功能增强
 - 新增core/dictation.py核心模块，实现听写练习的底层逻辑

@@ -46,6 +46,7 @@ class DictationPage(tk.Frame):
         self.batch_size = 10  # 默认批量大小
         self.showing_summary = False
         self.session_results = []  # 记录本次练习结果
+        self.auto_next = True  # 默认自动跳转到下一个单词
         
         # 创建UI
         self._create_ui()
@@ -116,6 +117,18 @@ class DictationPage(tk.Frame):
             fg='#666666'
         )
         single_desc.pack(side=tk.LEFT, padx=10)
+        
+        # 单个听写模式的自动跳转设置
+        self.auto_next_var = tk.BooleanVar(value=True)
+        self.auto_next_checkbox = tk.Checkbutton(
+            single_mode_frame,
+            text="自动跳转到下一个单词",
+            variable=self.auto_next_var,
+            font=self.font_config['normal'],
+            bg='white',
+            anchor='w'
+        )
+        self.auto_next_checkbox.pack(side=tk.LEFT, padx=20)
         
         queue_mode_frame = tk.Frame(mode_frame, bg='white')
         queue_mode_frame.pack(fill=tk.X, padx=50, pady=5)
@@ -266,6 +279,10 @@ class DictationPage(tk.Frame):
         """开始听写练习"""
         # 获取选择的模式和参数
         self.current_mode = self.mode_var.get()
+        
+        # 获取用户设置的自动跳转选项（仅单个模式）
+        if self.current_mode == "single":
+            self.auto_next = self.auto_next_var.get()
         
         # 获取来源
         source_text = self.source_var.get()
@@ -492,6 +509,18 @@ class DictationPage(tk.Frame):
             fg='white'
         )
         self.skip_button.pack(side=tk.LEFT, padx=10)
+        
+        # 下一个按钮（默认不显示，仅在手动模式下使用）
+        self.next_button = tk.Button(
+            buttons_frame,
+            text="🔄 下一个",
+            font=self.font_config['button'],
+            width=15,
+            height=2,
+            command=self._next_word,
+            bg='#9C27B0',
+            fg='white'
+        )
         
         # 结果显示区域
         self.result_var = tk.StringVar()
@@ -796,8 +825,13 @@ class DictationPage(tk.Frame):
         
         # 根据模式决定下一步
         if self.current_mode == "single":
-            # 单个模式，延迟显示下一个单词
-            self.main_frame.after(2000, self._next_word)
+            # 单个模式，根据用户设置决定是否自动跳转
+            if self.auto_next:
+                # 自动跳转到下一个单词
+                self.main_frame.after(2000, self._next_word)
+            else:
+                # 手动模式，显示下一个按钮
+                self.next_button.pack(side=tk.LEFT, padx=10)
         else:
             # 队列模式，延迟显示下一个单词或总结
             if self.dictation_manager.has_next_in_queue():
