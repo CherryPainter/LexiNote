@@ -185,8 +185,9 @@ class DictationManager:
             # 确保不超过限制数量
             words = words[:limit]
         
-        # 确保队列严格遵守限制
-        words = words[:limit]
+        # 确保队列严格遵守限制，最多为limit个单词
+        # 使用limit-1是为了防止索引逻辑导致显示额外的单词
+        words = words[:limit-1]
         
         # 保存当前队列信息
         self.current_queue = words
