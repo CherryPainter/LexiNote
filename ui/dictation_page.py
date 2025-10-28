@@ -47,6 +47,7 @@ class DictationPage(tk.Frame):
         self.showing_summary = False
         self.session_results = []  # 记录本次练习结果
         self.auto_next = True  # 默认自动跳转到下一个单词
+        self.word_start_time = None  # 记录当前单词开始的时间
         
         # 创建UI
         self._create_ui()
@@ -611,6 +612,11 @@ class DictationPage(tk.Frame):
         # 获取下一个单词
         self.current_word = self.dictation_manager.next_in_queue()
         
+        # 记录单词开始时间
+        if self.current_word:
+            from datetime import datetime
+            self.word_start_time = datetime.now()
+        
         if not self.current_word:
             # 队列为空，显示总结
             self._show_summary()
@@ -786,15 +792,21 @@ class DictationPage(tk.Frame):
         # 检查拼写
         is_correct = self.word_manager.check_spelling(self.current_word, user_input)
         
+        # 计算拼写所用时间
+        from datetime import datetime
+        time_spent = 0
+        if self.word_start_time:
+            time_spent = (datetime.now() - self.word_start_time).total_seconds()
+        
         # 使用dictation_manager记录结果
-        self.dictation_manager.record_result(self.current_word, is_correct)
+        self.dictation_manager.record_result(self.current_word, is_correct, time_spent)
         
         # 记录到本次练习结果
-        from datetime import datetime
         self.session_results.append({
             'word': self.current_word,
             'input': user_input,
             'correct': is_correct,
+            'time_spent': time_spent,
             'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         })
         

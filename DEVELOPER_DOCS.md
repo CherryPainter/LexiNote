@@ -148,7 +148,7 @@
   - `get_weighted_random_word(exclude_words=None)`：根据单词权重随机选择单词
   - `check_translation(word, user_translation, update_stats=True)`：检查翻译正确性并更新学习统计
   - `translate_text(text, mode)`：翻译文本（英→中/中→英）
-  - `update_word_weight(word, factor)`：更新单词权重，影响练习时的出现频率
+  - `update_word_weight(word, is_correct, time_spent)`：更新单词权重，考虑正确与否和响应时间，影响练习时的出现频率
   - `update_word_familiarity(word, delta)`：更新单词熟悉度（0-1范围）
   - `add_wrong_word(word)`：记录错误单词并增加其权重
   - `get_today_learned_words()`：获取今日学习的单词列表，用于听写功能前置检查

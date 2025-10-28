@@ -234,26 +234,41 @@ class DictationManager:
             log_error(f"获取今日学习单词失败: {str(e)}")
             return []
     
-    def record_result(self, word, is_correct):
+    def record_result(self, word, is_correct, time_spent=0):
         """记录听写结果并更新单词进度和权重
         
         Args:
             word: 单词
             is_correct: 是否正确
+            time_spent: 拼写所用时间（秒）
         """
         # 更新单词进度
         if word not in self.word_progress:
             self.word_progress[word] = {
                 "learned": True,
                 "weight": 1.0,
-                "last_practice": None
+                "last_practice": None,
+                "avg_response_time": 0,
+                "response_times": []  # 确保初始化响应时间列表
             }
+        # 检查现有单词记录是否缺少response_times键
+        elif "response_times" not in self.word_progress[word]:
+            self.word_progress[word]["response_times"] = []
+            self.word_progress[word]["avg_response_time"] = 0
         
         # 更新进度信息
         self.word_progress[word]["last_practice"] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         
-        # 更新权重（复用WordManager的逻辑）
-        self.word_manager.update_word_weight(word, is_correct)
+        # 记录响应时间
+        self.word_progress[word]["response_times"].append(time_spent)
+        # 保持最近10次的记录
+        if len(self.word_progress[word]["response_times"]) > 10:
+            self.word_progress[word]["response_times"] = self.word_progress[word]["response_times"][-10:]
+        # 更新平均响应时间
+        self.word_progress[word]["avg_response_time"] = sum(self.word_progress[word]["response_times"]) / len(self.word_progress[word]["response_times"])
+        
+        # 更新权重（复用WordManager的逻辑，并考虑时间因素）
+        self.word_manager.update_word_weight(word, is_correct, time_spent)
         
         # 更新熟悉度
         if hasattr(self.word_manager, 'update_word_familiarity'):
@@ -269,8 +284,8 @@ class DictationManager:
         # 更新熟词库
         self._update_familiar_words(word, is_correct)
         
-        # 记录到听写历史
-        self._record_to_history(word, "correct" if is_correct else "misspelled")
+        # 记录到历史记录
+        self._record_to_history(word, "correct" if is_correct else "misspelled", time_spent)
     
     def _update_familiar_words(self, word, is_correct):
         """更新熟词库
@@ -318,8 +333,14 @@ class DictationManager:
             
             self._save_data(self.familiar_words_file, {word: self.familiar_words[word]})
     
-    def _record_to_history(self, word, result):
-        """记录到听写历史"""
+    def _record_to_history(self, word, result, time_spent):
+        """将听写结果记录到历史记录中
+        
+        Args:
+            word: 单词
+            result: 结果（correct/misspelled）
+            time_spent: 拼写所用时间（秒）
+        """
         today = datetime.now().strftime('%Y-%m-%d')
         
         if today not in self.dictation_history:
@@ -332,6 +353,7 @@ class DictationManager:
         self.dictation_history[today]["words"].append({
             "word": word,
             "result": result,
+            "time_spent": time_spent,
             "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         })
         
@@ -366,11 +388,27 @@ class DictationManager:
         suggestion = "继续保持练习！"
         try:
             if self.word_manager.ai_available:
+                # 计算平均响应时间
+                total_time_spent = sum(r.get("time_spent", 0) for r in queue_records)
+                avg_response_time = total_time_spent / len(queue_records) if queue_records else 0
+                
+                # 计算正确和错误的响应时间
+                correct_records = [r for r in queue_records if r["result"] == "correct"]
+                incorrect_records = [r for r in queue_records if r["result"] != "correct"]
+                
+                avg_correct_time = sum(r.get("time_spent", 0) for r in correct_records) / len(correct_records) if correct_records else 0
+                avg_incorrect_time = sum(r.get("time_spent", 0) for r in incorrect_records) / len(incorrect_records) if incorrect_records else 0
+                
+                # 准备详细的统计信息给AI
                 user_stats = {
                     "total_words": total,
                     "mastered": correct,
                     "review_needed": len(missed),
-                    "average_score": accuracy
+                    "average_score": accuracy,
+                    "average_response_time": avg_response_time,
+                    "avg_correct_response_time": avg_correct_time,
+                    "avg_incorrect_response_time": avg_incorrect_time,
+                    "detailed_results": [{"word": r["word"], "correct": r["result"] == "correct", "time": r.get("time_spent", 0)} for r in queue_records]
                 }
                 suggestion = self.word_manager.ai_manager.advise(user_stats)
         except Exception as e:

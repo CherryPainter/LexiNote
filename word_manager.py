@@ -311,17 +311,42 @@ class WordManager:
             return random.choices(available_words, weights=weights, k=1)[0]
         return None
 
-    def update_word_weight(self, word: str, factor: float):
-        """更新单词权重
+    def update_word_weight(self, word: str, is_correct: bool, time_spent: float = 0):
+        """更新单词权重，考虑正确与否和响应时间
 
         Args:
             word: 单词
-            factor: 权重调整因子（大于1增加权重，小于1减少权重）
+            is_correct: 是否拼写正确
+            time_spent: 拼写所用时间（秒）
         """
         try:
             word_lower = word.lower()
+            
+            # 根据正确与否和响应时间确定权重调整因子
+            if is_correct:
+                # 正确拼写时降低权重
+                base_factor = 0.8
+                
+                # 如果响应时间很长（超过10秒），降低权重的程度减小
+                if time_spent > 10:
+                    base_factor = 0.9
+                elif time_spent > 5:
+                    base_factor = 0.85
+                # 响应很快（小于2秒），可以更大程度降低权重
+                elif time_spent < 2:
+                    base_factor = 0.7
+            else:
+                # 错误拼写时增加权重
+                base_factor = 1.5
+                
+                # 错误时响应时间越短，可能表示用户快速但不准确，权重增加更多
+                if time_spent < 3:
+                    base_factor = 1.8
+                elif time_spent > 8:
+                    base_factor = 1.3
+            
             if word_lower in self.word_weights:
-                self.word_weights[word_lower] *= factor
+                self.word_weights[word_lower] *= base_factor
                 # 确保权重在合理范围内
                 self.word_weights[word_lower] = max(
                     0.1, min(self.word_weights[word_lower], 10.0)
@@ -329,7 +354,7 @@ class WordManager:
                 self._save_data(self.word_weights_file, self.word_weights)
             else:
                 # 如果权重不存在，初始化为1.0并应用因子
-                self.word_weights[word_lower] = 1.0 * factor
+                self.word_weights[word_lower] = 1.0 * base_factor
                 self._save_data(
                     self.word_weights_file,
                     self.word_weights
@@ -486,7 +511,8 @@ class WordManager:
                 self.wrong_words[word_lower] = 1
             self._save_data(self.wrong_words_file, self.wrong_words)
             # 增加权重
-            self.update_word_weight(word_lower, 1.5)
+            # 错误拼写，增加权重，没有时间统计使用默认值
+            self.update_word_weight(word_lower, False, 0)
             # 降低熟悉度
             self.update_word_familiarity(word_lower, -0.2)
             log_info(
@@ -886,7 +912,8 @@ class WordManager:
                 if is_correct:
                     # 翻译正确，增加熟悉度，降低权重
                     self.update_word_familiarity(word_lower, 0.1)
-                    self.update_word_weight(word_lower, 0.9)
+                    # 正确拼写，略微降低权重，没有时间统计使用默认值
+                    self.update_word_weight(word_lower, True, 0)
                     log_info(f"翻译正确: {word} -> {user_translation}")
                 else:
                     # 翻译错误，记录错误单词，增加权重

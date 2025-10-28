@@ -323,7 +323,8 @@ class TranslationPage(tk.Frame):
             is_correct = self.word_manager.check_translation(self.current_translation, user_input, False)
         
         # 更新单词权重
-        self.word_manager.update_word_weight(self.current_word, is_correct)
+        # 因为这里没有时间统计，使用0作为默认值
+        self.word_manager.update_word_weight(self.current_word, is_correct, 0)
         
         # 获取AI翻译参考（无论英译中还是中译英都提供）
         ai_reference = ""
@@ -407,7 +408,8 @@ class TranslationPage(tk.Frame):
     def _skip_translation(self):
         """跳过当前翻译"""
         # 标记为错误
-        self.word_manager.update_word_weight(self.current_word, False)
+        # 因为这里没有时间统计，使用0作为默认值
+        self.word_manager.update_word_weight(self.current_word, False, 0)
         
         # 获取AI翻译参考（为跳过的单词也提供AI参考）
         ai_reference = ""

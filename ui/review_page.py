@@ -511,7 +511,8 @@ class ReviewPage(tk.Frame):
         if hasattr(self.word_manager, 'update_word_weight'):
             try:
                 current_weight = getattr(self.word_manager, 'word_weights', {}).get(word, 1.0)
-                self.word_manager.update_word_weight(word, False)  # False表示不认识，增加权重
+                # 因为这里没有时间统计，使用0作为默认值
+                self.word_manager.update_word_weight(word, False, 0)  # False表示不认识，增加权重
             except Exception as e:
                 log_error(f"更新单词权重失败: {str(e)}")
         

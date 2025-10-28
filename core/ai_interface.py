@@ -120,16 +120,20 @@ class AIManager:
             }
     
     def advise(self, user_stats: dict) -> str:
-        """生成学习建议
+        """生成学习建议，考虑正确性和响应时间
         
         Args:
-            user_stats: 用户学习统计数据
+            user_stats: 用户学习统计数据，包含正确率和响应时间等信息
             
         Returns:
             个性化学习建议
         """
-        stats_str = json.dumps(user_stats, ensure_ascii=False)
-        prompt = f"请根据以下学习数据，生成一段个性化学习建议：\n{stats_str}"
+        # 构建更详细的提示词，引导AI关注时间因素
+        prompt = f"你是一名专业的英语学习顾问，请根据以下学习数据生成详细的个性化建议。\n"
+        prompt += f"特别关注用户的响应时间数据，分析用户在哪些单词上花费时间较长或较短，并提供针对性的建议。\n"
+        prompt += f"如果用户对某些单词反应很快且正确率高，可以建议减少复习频率；如果反应慢或正确率低，建议增加练习。\n"
+        prompt += f"数据详情：\n{json.dumps(user_stats, ensure_ascii=False)}\n"
+        prompt += f"请提供3-5点具体建议，包括单词学习策略、练习方法和时间管理建议。"
         return self._ask(prompt)
 
 
