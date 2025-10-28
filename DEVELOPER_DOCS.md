@@ -8,6 +8,10 @@
 - 在word_manager.py中添加check_today_progress_completed方法
 - 修改dictation_page.py，添加学习进度检查和用户提醒对话框
 - 更新learning.py，实现学习完成标记功能
+- 优化dictation_page.py中的学习进度检查逻辑，允许用户在未完成今日学习时选择其他来源
+- 大幅增强word_manager.py中的get_today_learned_words方法，提高单词检测准确率
+- 改进core/dictation.py中的单词选择逻辑，实现"即使今天没学也可以听写往期单词"的需求
+- 添加详细的日志记录，便于问题排查
 
 ### v1.4.1 - 新增听写核心模块与学习功能增强
 - 新增core/dictation.py核心模块，实现听写练习的底层逻辑
