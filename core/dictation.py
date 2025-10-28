@@ -454,6 +454,23 @@ class DictationManager:
             return word
         return None
     
+    def skip_current_word(self, word, time_spent=0):
+        """跳过当前单词，记录为错误并更新索引
+
+        Args:
+            word: 要跳过的单词
+            time_spent: 跳过所用时间（秒）
+
+        Returns:
+            bool: 是否成功处理
+        """
+        # 记录为错误
+        self.record_result(word, False, time_spent)
+
+        # 增加索引（注意：这里不增加索引，索引增加将在下一次获取单词时完成）
+        # 因为我们已经在调用此方法前获取了当前单词
+        return True
+    
     def has_next_in_queue(self):
         """检查队列中是否还有单词
         
