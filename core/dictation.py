@@ -172,7 +172,7 @@ class DictationManager:
                 if len(words) >= limit:
                     break
         
-        # 处理过滤选项
+        # 处理过滤选项并确保不超过限制数量
         if filter_familiar and source != "familiar":
             # 只保留熟词
             filtered_words = [w for w in words if w in familiar_words]
@@ -180,14 +180,13 @@ class DictationManager:
             if filtered_words:
                 words = filtered_words[:limit]
             else:
-                words = words[:limit]  # 确保不超过限制数量
+                words = words[:limit]
         else:
             # 确保不超过限制数量
             words = words[:limit]
-        
-        # 确保队列严格遵守限制，最多为limit个单词
-        # 使用limit-1是为了防止索引逻辑导致显示额外的单词
-        words = words[:limit-1]
+
+        # 最终使用 limit 截断以保证返回的单词数与用户设置一致。
+        # 之前的 limit-1 是不正确的“补丁”，会导致实际单词数小于用户期望，已移除。
         
         # 保存当前队列信息
         self.current_queue = words
@@ -378,15 +377,29 @@ class DictationManager:
         # 从历史记录中获取当前队列的结果
         today = datetime.now().strftime('%Y-%m-%d')
         today_records = self.dictation_history.get(today, {}).get("words", [])
-        
-        # 筛选当前队列的记录
-        queue_records = [r for r in today_records if r["word"] in queue]
-        
-        # 计算统计信息
-        total = len(queue_records)  # 使用实际练习的单词数量，而不是队列长度
-        correct = sum(1 for r in queue_records if r["result"] == "correct")
+
+        # 为了避免重复计数（同一单词在今日被多次记录），
+        # 如果有传入 queue，则按 queue 的顺序从今日历史中挑选每个单词的首次匹配记录（未被重复使用），
+        # 最多收集 len(queue) 条记录。这样 summary 的 total 不会超过 queue 的长度。
+        queue_records = []
+        if queue:
+            used = set()
+            for rec in today_records:
+                w = rec.get("word")
+                if w in queue and w not in used:
+                    queue_records.append(rec)
+                    used.add(w)
+                    if len(queue_records) >= len(queue):
+                        break
+        else:
+            # 如果没有传入 queue，则回退到之前的做法：筛选所有今日记录
+            queue_records = list(today_records)
+
+        # 计算统计信息（total 使用实际收集到的记录数）
+        total = len(queue_records)
+        correct = sum(1 for r in queue_records if r.get("result") == "correct")
         accuracy = correct / total if total > 0 else 0
-        missed = [r["word"] for r in queue_records if r["result"] != "correct"]
+        missed = [r.get("word") for r in queue_records if r.get("result") != "correct"]
         
         # 尝试获取AI建议
         suggestion = "继续保持练习！"
@@ -441,8 +454,12 @@ class DictationManager:
         Returns:
             包含当前索引和队列长度的字典
         """
+        # current_queue_index 在 next_in_queue() 中会在返回单词后自增，
+        # 因此此处直接使用 current_queue_index 表示已完成/当前项的计数。
+        # 使用 min/max 保证数值在合理范围内。
+        current = max(0, min(self.current_queue_index, len(self.current_queue)))
         return {
-            "current": self.current_queue_index + 1,
+            "current": current,
             "total": len(self.current_queue)
         }
     

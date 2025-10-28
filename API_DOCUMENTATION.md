@@ -405,6 +405,117 @@ def stop(self):
     """
 ```
 
+## DictationManager API
+
+DictationManager负责听写练习的核心逻辑管理，包括队列控制和单词结果记录。
+
+### 初始化
+
+```python
+def __init__(self, word_manager, logger=None):
+    """初始化DictationManager
+    
+    Args:
+        word_manager: WordManager实例
+        logger: 日志记录器实例，可选
+    """
+```
+
+### 队列管理方法
+
+#### create_queue
+
+```python
+def create_queue(self, words, queue_size=10):
+    """创建听写练习队列
+    
+    Args:
+        words (list): 可选单词列表
+        queue_size (int): 队列大小
+        
+    Returns:
+        list: 创建的单词队列
+    """
+```
+
+#### next_in_queue
+
+```python
+def next_in_queue(self):
+    """获取队列中的下一个单词
+    
+    严格检查队列是否存在和索引有效性，确保不会返回超出队列范围的单词
+    
+    Returns:
+        str: 单词字符串，如果队列为空或已到达队列末尾则返回None
+    """
+```
+
+#### skip_current_word
+
+```python
+def skip_current_word(self):
+    """跳过当前单词，确保队列索引正确更新
+    
+    Returns:
+        bool: 跳过成功返回True
+    """
+```
+
+#### has_next
+
+```python
+def has_next(self):
+    """检查队列是否还有下一个单词
+    
+    包含空队列检查，确保在队列为None或空时返回False
+    
+    Returns:
+        bool: 有下一个单词返回True
+    """
+```
+
+#### get_current_position
+
+```python
+def get_current_position(self):
+    """获取当前队列位置信息
+    
+    使用min/max保证数值在合理范围内，避免索引越界
+    
+    Returns:
+        dict: 包含current和total信息的字典
+    """
+```
+
+#### get_remaining_count
+
+```python
+def get_remaining_count(self):
+    """获取剩余单词数量
+    
+    Returns:
+        int: 剩余单词数
+    """
+```
+
+### 结果记录方法
+
+#### record_result
+
+```python
+def record_result(self, word, is_correct, time_spent=0):
+    """记录单词练习结果，影响单词权重
+    
+    Args:
+        word (str): 单词
+        is_correct (bool): 是否正确
+        time_spent (float): 花费的时间（秒）
+    
+    结果会被保存并用于统计准确率和影响单词复习权重
+    """
+```
+
 ## UI模块接口
 
 ### MainWindow
@@ -489,6 +600,75 @@ def __init__(self, parent, word_manager, audio_player):
         parent: 父窗口
         word_manager: WordManager实例
         audio_player: AudioPlayer实例
+    """
+```
+
+#### start_exercise
+
+```python
+def start_exercise(self):
+    """开始听写练习
+    
+    根据用户选择的来源和数量创建单词队列并开始练习
+    """
+```
+
+#### _play_word
+
+```python
+def _play_word(self):
+    """播放当前单词发音并启动计时器
+    """
+```
+
+#### _check_answer
+
+```python
+def _check_answer(self):
+    """检查用户输入答案的正确性
+    
+    记录结果并影响单词权重
+    """
+```
+
+#### _handle_timeout
+
+```python
+def _handle_timeout(self):
+    """处理单词超时情况
+    
+    将超时单词视为未掌握，增加其复习权重
+    记录超时信息并更新UI显示
+    """
+```
+
+#### _stop_timer
+
+```python
+def _stop_timer(self):
+    """停止当前计时器
+    
+    安全处理，确保计时器ID存在
+    """
+```
+
+#### _skip_word
+
+```python
+def _skip_word(self):
+    """跳过当前单词
+    
+    记录跳过操作，增加单词复习权重
+    """
+```
+
+#### _next_word_in_queue
+
+```python
+def _next_word_in_queue(self):
+    """获取并显示队列中的下一个单词
+    
+    更新进度显示
     """
 ```
 
