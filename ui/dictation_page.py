@@ -7,7 +7,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from audio_player import AudioPlayer
-from logger import log_info, log_wrong_word
+from logger import log_info, log_wrong_word, log_error
 from core.dictation import DictationManager
 
 
@@ -269,23 +269,43 @@ class DictationPage(tk.Frame):
         
         # 获取来源
         source_text = self.source_var.get()
+        
+        # 设置当前来源
         if source_text == "今日学习单词":
             self.current_source = "today"
-            # 检查是否完成今日学习进度
-            if hasattr(self.word_manager, 'check_today_progress_completed'):
-                if not self.word_manager.check_today_progress_completed():
-                    # 显示提示消息
-                    response = messagebox.askyesno("学习进度提醒", 
-                                                  "您今天还没有完成单词学习哦~ 请先完成今日学习进度再进行听写练习！\n\n是否现在去学习？")
+            
+            # 检查是否有今日学习的单词
+            has_today_words = self._has_today_words()
+            
+            # 如果没有今日学习单词，则提示用户
+            if not has_today_words:
+                # 检查是否完成了今日学习进度（即使没有单词记录）
+                progress_completed = False
+                if hasattr(self.word_manager, 'check_today_progress_completed'):
+                    progress_completed = self.word_manager.check_today_progress_completed()
+                
+                # 如果完成了进度但没有单词，可能是系统记录问题
+                if progress_completed:
+                    response = messagebox.askyesno("学习记录问题", 
+                                                  "系统显示您已完成今日学习，但未找到今日学习的单词记录。\n\n建议：\n1. 重新学习少量单词以更新记录\n2. 或选择其他来源进行听写\n\n是否现在去学习？")
                     if response:
                         # 如果用户选择去学习，切换到学习页面
                         self.parent.show_page("learning")
-                    return
+                else:
+                    response = messagebox.askyesno("学习进度提醒", 
+                                                  "您今天似乎还没有学习单词或学习记录未保存。\n\n建议：\n1. 先去学习单词\n2. 或选择其他来源进行听写\n\n是否现在去学习？")
+                    if response:
+                        # 如果用户选择去学习，切换到学习页面
+                        self.parent.show_page("learning")
+                        return
+                    else:
+                        # 如果用户不选择学习，不阻止其选择其他来源
+                        return
             
-            # 检查是否有今日学习的单词
-            if not self._has_today_words():
-                messagebox.showwarning("提示", "今日还没有学习单词，无法选择此来源进行听写。")
-                return
+            # 如果有今日学习单词，但未完成进度，则给予友好提示但不阻止
+            elif has_today_words and hasattr(self.word_manager, 'check_today_progress_completed'):
+                if not self.word_manager.check_today_progress_completed():
+                    messagebox.showinfo("提示", "您今天已学习了一些单词，但可能尚未完成所有计划的学习内容。\n\n您可以继续进行听写练习。")
         elif source_text == "全词库随机":
             self.current_source = "library"
         else:
@@ -332,7 +352,15 @@ class DictationPage(tk.Frame):
         """检查是否有今日学习的单词"""
         # 获取今日学习的单词
         today_words = getattr(self.word_manager, 'get_today_learned_words', lambda: [])()
-        return len(today_words) > 0
+        has_words = len(today_words) > 0
+        
+        # 记录日志
+        if has_words:
+            log_info(f"发现今日学习的单词数量: {len(today_words)}")
+        else:
+            log_info("未发现今日学习的单词记录")
+            
+        return has_words
     
     def _create_exercise_ui(self):
         """创建练习界面"""

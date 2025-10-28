@@ -109,6 +109,8 @@ class DictationManager:
             today_words = self._get_today_learned_words()
             if today_words:
                 return random.choice(today_words)
+            else:
+                log_info("没有今日学习的单词，将从词库中随机选择")
         elif source == "familiar":
             # 从熟词库中选择
             familiar_words = list(self.familiar_words.keys())
@@ -116,7 +118,14 @@ class DictationManager:
                 return random.choice(familiar_words)
         
         # 默认使用加权随机选择
-        return self.word_manager.get_word_by_weight()
+        # 优先使用错误次数多的单词（困难单词）
+        result = self.word_manager.get_word_by_weight()
+        
+        # 如果加权选择失败，使用随机选择
+        if not result:
+            result = self.word_manager.get_random_word()
+        
+        return result
     
     def build_queue(self, source="today", limit=10, filter_familiar=False):
         """构建听写队列
@@ -186,16 +195,44 @@ class DictationManager:
     
     def _get_today_learned_words(self):
         """获取今日学习过的单词"""
-        today = datetime.now().strftime('%Y-%m-%d')
-        today_words = []
-        
-        for word, progress in self.word_progress.items():
-            if progress.get("learned", False) and progress.get("last_practice"):
-                practice_date = progress["last_practice"].split(' ')[0] if isinstance(progress["last_practice"], str) else None
-                if practice_date == today:
-                    today_words.append(word)
-        
-        return today_words
+        try:
+            # 尝试直接使用word_manager中的方法，这样可以保持逻辑一致性
+            if hasattr(self.word_manager, 'get_today_learned_words'):
+                words = self.word_manager.get_today_learned_words()
+                if words:
+                    log_info(f"从word_manager获取今日学习单词: {len(words)}个")
+                    return words
+            
+            # 备用方法：直接从word_progress中获取
+            today = datetime.now().strftime('%Y-%m-%d')
+            today_words = []
+            
+            for word, progress in self.word_progress.items():
+                # 检查单词是否已学习
+                if progress.get("learned", False):
+                    # 检查最后练习日期或最后学习日期
+                    last_date = None
+                    
+                    # 尝试从last_practice获取
+                    if progress.get("last_practice"):
+                        last_date = progress["last_practice"].split(' ')[0] if isinstance(progress["last_practice"], str) else None
+                    # 尝试从last_learned获取（兼容learning.py中的记录方式）
+                    elif progress.get("last_learned"):
+                        last_learned = progress["last_learned"]
+                        if isinstance(last_learned, str):
+                            if 'T' in last_learned:  # ISO格式
+                                last_date = last_learned.split('T')[0]
+                            else:  # 普通格式
+                                last_date = last_learned.split(' ')[0]
+                    
+                    if last_date == today:
+                        today_words.append(word)
+            
+            log_info(f"从word_progress获取今日学习单词: {len(today_words)}个")
+            return today_words
+        except Exception as e:
+            log_error(f"获取今日学习单词失败: {str(e)}")
+            return []
     
     def record_result(self, word, is_correct):
         """记录听写结果并更新单词进度和权重
