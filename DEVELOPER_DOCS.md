@@ -12,6 +12,7 @@
 - 大幅增强word_manager.py中的get_today_learned_words方法，提高单词检测准确率
 - 改进core/dictation.py中的单词选择逻辑，实现"即使今天没学也可以听写往期单词"的需求
 - 添加详细的日志记录，便于问题排查
+- 在word_manager.py中添加check_spelling方法，修复听写页面中的拼写检查功能
 
 ### v1.4.1 - 新增听写核心模块与学习功能增强
 - 新增core/dictation.py核心模块，实现听写练习的底层逻辑

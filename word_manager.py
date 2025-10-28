@@ -170,6 +170,23 @@ class WordManager:
             log_error(f"添加单词失败: {str(e)}")
             return False
 
+    def check_spelling(self, correct_word: str, user_input: str) -> bool:
+        """检查拼写是否正确
+        
+        Args:
+            correct_word: 正确的单词
+            user_input: 用户输入的单词
+            
+        Returns:
+            bool: 拼写是否正确（不区分大小写）
+        """
+        try:
+            # 不区分大小写的比较
+            return correct_word.lower() == user_input.lower().strip()
+        except Exception as e:
+            log_error(f"检查拼写时出错: {str(e)}")
+            return False
+            
     def remove_word(self, word: str):
         """删除单词
 
