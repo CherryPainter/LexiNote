@@ -150,7 +150,7 @@ class DictationManager:
         if source == "today":
             # 获取今日学习单词
             today_words = self._get_today_learned_words()
-            words = today_words[:limit]
+            words = today_words[:limit]  # 限制数量为指定的limit
         elif source == "familiar":
             # 从熟词库中选择
             if hasattr(self.word_manager, 'get_familiar_words'):
@@ -168,29 +168,29 @@ class DictationManager:
                 word = self.word_manager.get_word_by_weight()
                 if word and word not in words:
                     words.append(word)
+                # 防止无限循环
+                if len(words) >= limit:
+                    break
         
         # 处理过滤选项
         if filter_familiar and source != "familiar":
             # 只保留熟词
-            words = [w for w in words if w in familiar_words]
-        
-        # 如果过滤后没有单词，使用原始单词列表
-        if not words:
-            if source == "today":
-                words = self._get_today_learned_words()
-            elif source == "library":
-                words = list(self.word_manager.word_dict.keys())[:limit]
-            elif source == "familiar":
-                if hasattr(self.word_manager, 'get_familiar_words'):
-                    words = self.word_manager.get_familiar_words()[:limit]
-                else:
-                    words = list(self.familiar_words.keys())[:limit]
+            filtered_words = [w for w in words if w in familiar_words]
+            # 如果过滤后没有单词，使用原始单词列表但限制数量
+            if filtered_words:
+                words = filtered_words[:limit]
+            else:
+                words = words[:limit]  # 确保不超过限制数量
+        else:
+            # 确保不超过限制数量
+            words = words[:limit]
         
         # 保存当前队列信息
         self.current_queue = words
         self.current_queue_index = 0
         self.current_source = source
         
+        log_info(f"构建听写队列成功，包含 {len(words)} 个单词")
         return words
     
     def _get_today_learned_words(self):
@@ -379,7 +379,7 @@ class DictationManager:
         queue_records = [r for r in today_records if r["word"] in queue]
         
         # 计算统计信息
-        total = len(queue)
+        total = len(queue_records)  # 使用实际练习的单词数量，而不是队列长度
         correct = sum(1 for r in queue_records if r["result"] == "correct")
         accuracy = correct / total if total > 0 else 0
         missed = [r["word"] for r in queue_records if r["result"] != "correct"]
