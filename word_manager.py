@@ -755,6 +755,32 @@ class WordManager:
 
         return words
     
+    def check_today_progress_completed(self) -> bool:
+        """
+        检查单词学习模块是否标记为完成状态
+        
+        Returns:
+            True/False: 今日学习是否已完成
+        """
+        try:
+            from datetime import datetime
+            today = datetime.now().strftime('%Y-%m-%d')
+            daily_learning_file = os.path.join(self.data_dir, 'daily_learning.json')
+            
+            # 读取daily_learning.json文件
+            daily_learning_data = self._load_data(daily_learning_file)
+            
+            # 检查今日记录是否存在且标记为完成
+            if today in daily_learning_data and daily_learning_data[today].get('completed', False):
+                log_info("今日学习进度已完成")
+                return True
+            
+            log_info("今日学习进度未完成")
+            return False
+        except Exception as e:
+            log_error(f"检查今日学习进度失败: {str(e)}")
+            return False
+    
     def check_translation(self, word: str, user_translation: str, update_stats: bool = True) -> bool:
         """检查用户翻译是否正确
         

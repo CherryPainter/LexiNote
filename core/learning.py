@@ -266,6 +266,9 @@ class LearningManager:
             # 使用word_manager的_save_data方法，指定完整路径
             self.data_manager._save_data('data/word_progress.json', self.word_progress)
             
+            # 更新每日学习记录
+            self._update_daily_learning()
+            
             # 记录学习统计
             self.logger.log_info(
                 f"保存学习进度成功，本轮学习: {len(self.current_batch)} 词，"
@@ -277,6 +280,34 @@ class LearningManager:
             # 使用word_manager作为logger记录错误
             self.logger.log_error(f"保存学习进度失败: {str(e)}")
             return False
+    
+    def _update_daily_learning(self):
+        """
+        更新每日学习记录，标记今日学习为已完成
+        """
+        try:
+            from datetime import datetime
+            today = datetime.now().strftime('%Y-%m-%d')
+            
+            # 获取当前的每日学习记录
+            daily_learning = self.data_manager._load_data('data/daily_learning.json')
+            
+            # 更新今日记录
+            if today not in daily_learning:
+                daily_learning[today] = {}
+            
+            # 标记为已完成
+            daily_learning[today]['completed'] = True
+            daily_learning[today]['completed_at'] = datetime.now().isoformat()
+            daily_learning[today]['words_learned'] = self.mastered_count
+            daily_learning[today]['words_to_review'] = self.review_count
+            
+            # 保存更新后的记录
+            self.data_manager._save_data('data/daily_learning.json', daily_learning)
+            
+            self.logger.log_info(f"更新每日学习记录，今日学习已完成")
+        except Exception as e:
+            self.logger.log_error(f"更新每日学习记录失败: {str(e)}")
     
     def _apply_daily_decay(self):
         """

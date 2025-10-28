@@ -271,6 +271,17 @@ class DictationPage(tk.Frame):
         source_text = self.source_var.get()
         if source_text == "今日学习单词":
             self.current_source = "today"
+            # 检查是否完成今日学习进度
+            if hasattr(self.word_manager, 'check_today_progress_completed'):
+                if not self.word_manager.check_today_progress_completed():
+                    # 显示提示消息
+                    response = messagebox.askyesno("学习进度提醒", 
+                                                  "您今天还没有完成单词学习哦~ 请先完成今日学习进度再进行听写练习！\n\n是否现在去学习？")
+                    if response:
+                        # 如果用户选择去学习，切换到学习页面
+                        self.parent.show_page("learning")
+                    return
+            
             # 检查是否有今日学习的单词
             if not self._has_today_words():
                 messagebox.showwarning("提示", "今日还没有学习单词，无法选择此来源进行听写。")
