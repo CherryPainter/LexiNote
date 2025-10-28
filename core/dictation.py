@@ -185,6 +185,9 @@ class DictationManager:
             # 确保不超过限制数量
             words = words[:limit]
         
+        # 确保队列严格遵守限制
+        words = words[:limit]
+        
         # 保存当前队列信息
         self.current_queue = words
         self.current_queue_index = 0
@@ -477,7 +480,7 @@ class DictationManager:
         Returns:
             是否还有下一个单词
         """
-        return self.current_queue_index < len(self.current_queue)
+        return self.current_queue and self.current_queue_index < len(self.current_queue)
     
     def filter_familiar_words(self, words):
         """过滤出熟词

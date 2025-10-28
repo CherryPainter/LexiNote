@@ -894,7 +894,8 @@ class DictationPage(tk.Frame):
                 self.next_button.pack(side=tk.LEFT, padx=10)
         else:
             # 队列模式，延迟显示下一个单词或总结
-            if self.dictation_manager.has_next_in_queue():
+            # 使用队列索引进行精确判断，避免索引越界
+            if self.dictation_manager.current_queue_index < len(self.dictation_manager.current_queue):
                 self.main_frame.after(2000, self._next_word_in_queue)
             else:
                 self.main_frame.after(2000, self._show_summary)
