@@ -20,6 +20,7 @@ class ClozeTestModule:
         # 当前练习状态
         self.current_test = None
         self.user_answers = []
+        self._current_mode = None  # 保存当前实际使用的模式
     
     def get_mode(self) -> str:
         """获取当前模式（在线/离线）
@@ -27,6 +28,10 @@ class ClozeTestModule:
         Returns:
             str: 模式名称
         """
+        # 如果有明确设置的模式，则返回该模式
+        if self._current_mode is not None:
+            return self._current_mode
+        # 否则根据AI是否可用判断
         return "online" if self.ai_service.is_ai_available() else "offline"
     
     def start_new_test(self, mode: str = None, level: str = "中级", 
@@ -49,7 +54,10 @@ class ClozeTestModule:
                 
                 # 如果未指定模式，自动检测
                 if mode is None:
-                    mode = self.get_mode()
+                    mode = "online" if self.ai_service.is_ai_available() else "offline"
+                
+                # 保存当前实际使用的模式
+                self._current_mode = mode
                 
                 if mode == "online" and self.ai_service.is_ai_available():
                     # 在线模式：AI生成题目
