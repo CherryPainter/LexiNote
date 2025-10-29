@@ -8,6 +8,13 @@
 
 新增的`word_importer.py`模块提供了从JSON文件批量导入单词到数据库的功能。该模块既可以作为独立脚本运行，也可以通过`WordManager`接口调用。
 
+**主要特性**：
+- 支持从标准JSON格式批量导入单词
+- 自动处理重复单词和无效数据
+- 提供详细的导入统计信息
+- 完整的错误处理和日志记录
+- 支持作为独立脚本或通过API调用
+
 ## 目录
 
 - [WordManager API](#wordmanager-api)
@@ -16,6 +23,42 @@
 - [AudioPlayer API](#audioplayer-api)
 - [AI助手模块](#ai助手模块)
 - [UI 模块接口](#ui模块接口)
+
+## 单词批量导入模块 API
+
+### WordImporter 类
+
+```python
+class WordImporter:
+    """
+    单词批量导入器类，负责从JSON文件导入单词到数据库
+    
+    提供独立的单词导入功能，可作为脚本直接运行或通过WordManager调用
+    """
+    
+    def __init__(self, logger=None):
+        """
+        初始化WordImporter
+        
+        参数:
+            logger: 可选的日志记录器实例
+        """
+        
+    def import_words_from_json(self, json_file_path: str) -> Dict:
+        """
+        从JSON文件导入单词到数据库
+        
+        参数:
+            json_file_path: JSON文件路径，文件格式应为 {"word1": "translation1", "word2": "translation2", ...}
+        
+        返回:
+            Dict: 导入结果统计信息，包含以下字段：
+                - success: 布尔值，表示导入是否成功
+                - total: 整数，文件中总单词数量
+                - imported: 整数，成功导入的单词数量
+                - skipped: 整数，跳过的单词数量（包括重复和无效单词）
+                - errors: 列表，包含错误信息（如果有）
+        """
 
 ## WordManager API
 
