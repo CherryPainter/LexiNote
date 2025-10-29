@@ -3,13 +3,18 @@
 ## Unreleased
 
 ## [v1.6.1] - 2025-10-31
+### Added
+- 实现完形填空和阅读理解题目删除功能，包括确认对话框和删除日志记录
+- 在数据库中添加delete_logs表，用于记录删除的题目数据以便恢复
 ### Fixed
 - 修复scrollable_frame.py中Canvas.create_window方法的参数错误
 - 修复cloze_test_page.py中缺少ttk导入的问题
 - 修复main_window.py中ttk导入顺序问题
 - 修复cloze_test_page.py中调用不存在的_on_options_configure方法的错误
+- 修复删除按钮不响应问题，添加_current_mode属性正确跟踪实际使用的模式
 ### Changed
 - 修改cloze_test_page.py中选项显示方式，改为水平排列并添加间距
+- 在cloze_test.py和reading_comprehension.py中增强get_mode方法，准确反映当前实际使用的模式
 
 ## [v1.6.0] - 2025-10-31
 ### Fixed
