@@ -8,7 +8,8 @@ from logger import log_info, log_error
 
 
 class DatabaseManager:
-    """数据库管理器，负责所有数据库操作"""
+    """数据库管理器，负责所有数据库操作
+    版本更新：确保core目录文件正确同步"""
     
     _instance = None
     _lock = threading.Lock()
