@@ -13,6 +13,7 @@ from ui.learning_page import LearningPage
 from ui.settings_page import SettingsPage
 from ui.cloze_test_page import ClozeTestPage
 from ui.reading_comprehension_page import ReadingComprehensionPage
+from ui.ai_assistant_page import AIAssistantPage
 from word_manager import WordManager
 from core.learning import LearningManager
 from core.settings_manager import SettingsManager
@@ -89,6 +90,7 @@ class MainWindow:
             ("📊 单词复习", self._show_review_page),
             ("🔤 完形填空", self._show_cloze_test_page),
             ("📖 阅读理解", self._show_reading_comprehension_page),
+            ("🤖 AI助手", self._show_ai_assistant_page),
             ("📈 学习统计", self._show_statistics),
             ("⚙️ 设置", self._show_settings_page)
         ]
@@ -432,6 +434,34 @@ class MainWindow:
             value.pack(side=tk.LEFT, padx=20)
     
     # _show_settings方法已被_settings_page替代，保留_apply_decay方法用于设置页面
+    
+    def _show_ai_assistant_page(self):
+        """显示AI助手页面"""
+        page_key = "ai_assistant"
+        
+        # 懒加载页面，避免在初始化时连接AI
+        if page_key not in self._pages:
+            # 先创建页面但不pack
+            self._pages[page_key] = AIAssistantPage(
+                self.content_area,
+                self
+            )
+        
+        # 先获取页面实例
+        page = self._pages[page_key]
+        
+        # 清空内容区域
+        self._clear_content_area()
+        
+        # 再设置当前页面并pack
+        self.current_page = page
+        self.current_page.pack(fill=tk.BOTH, expand=True)
+        
+        # 调用页面的on_show方法
+        if hasattr(self.current_page, 'on_show'):
+            self.current_page.on_show()
+            
+        log_info("切换到AI助手页面")
     
     def _apply_decay(self):
         """应用每日权重衰减"""
