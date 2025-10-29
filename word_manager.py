@@ -100,6 +100,57 @@ class WordManager:
             log_warning(f"检查AI可用性时发生错误: {str(e)}")
             return False
     
+    def _load_data(self, file_path: str) -> dict:
+        """加载数据文件
+        
+        Args:
+            file_path: 文件路径
+            
+        Returns:
+            dict: 加载的数据，如果文件不存在则返回空字典
+        """
+        import json
+        try:
+            # 确保数据目录存在
+            if not os.path.exists('data'):
+                os.makedirs('data')
+            
+            # 检查文件是否存在
+            if not os.path.exists(file_path):
+                log_info(f"数据文件不存在，创建空文件: {file_path}")
+                # 创建空文件
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    json.dump({}, f, ensure_ascii=False, indent=2)
+                return {}
+            
+            # 加载文件内容
+            with open(file_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception as e:
+            log_error(f"加载数据文件失败: {file_path}, 错误: {str(e)}")
+            return {}
+    
+    def _save_data(self, file_path: str, data: dict):
+        """保存数据到文件
+        
+        Args:
+            file_path: 文件路径
+            data: 要保存的数据
+        """
+        import json
+        try:
+            # 确保数据目录存在
+            if not os.path.exists('data'):
+                os.makedirs('data')
+            
+            # 保存数据
+            with open(file_path, 'w', encoding='utf-8') as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+            
+            log_info(f"数据保存成功: {file_path}")
+        except Exception as e:
+            log_error(f"保存数据文件失败: {file_path}, 错误: {str(e)}")
+    
     @functools.lru_cache(maxsize=1000)
     def get_translation(self, word: str) -> Optional[str]:
         """获取单词翻译（带缓存）
