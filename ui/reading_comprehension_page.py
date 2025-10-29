@@ -135,7 +135,7 @@ class ReadingComprehensionPage(tk.Frame):
         self.article_title.pack(side=tk.LEFT, fill=tk.X, expand=True)
         
         # 标题右侧添加删除按钮
-        self.delete_button = tk.Button(title_frame, text="🗑️ 删除", command=self._on_delete_question,
+        self.delete_button = tk.Button(title_frame, text="🗑️删除", command=self._on_delete_question,
                                      font=self.font_config['button'], fg="#f44336", relief=tk.FLAT,
                                      state=tk.DISABLED)
         self.delete_button.pack(side=tk.RIGHT, padx=10)

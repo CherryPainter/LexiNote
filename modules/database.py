@@ -68,6 +68,17 @@ class ComprehensionDatabase:
                 )
             ''')
             
+            # 创建删除日志表
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS delete_logs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    question_id INTEGER NOT NULL,
+                    module_type TEXT NOT NULL,  -- 'cloze' 或 'reading'
+                    question_data TEXT NOT NULL,  -- JSON格式存储被删除的数据
+                    delete_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            
             conn.commit()
             conn.close()
             log_info("理解类练习数据库表初始化完成")
@@ -281,6 +292,27 @@ class ComprehensionDatabase:
             log_error(f"获取所有阅读理解题目失败: {str(e)}")
             return []
     
+    def _log_deletion(self, conn, question_id: int, module_type: str, question_data: Dict):
+        """记录删除操作到日志表
+        
+        Args:
+            conn: 数据库连接
+            question_id: 题目ID
+            module_type: 模块类型 ('cloze' 或 'reading')
+            question_data: 被删除的题目数据
+        """
+        try:
+            cursor = conn.cursor()
+            data_json = json.dumps(question_data, ensure_ascii=False)
+            cursor.execute(
+                '''INSERT INTO delete_logs (question_id, module_type, question_data)
+                   VALUES (?, ?, ?)''',
+                (question_id, module_type, data_json)
+            )
+            log_info(f"记录删除日志成功，ID: {question_id}, 类型: {module_type}")
+        except Exception as e:
+            log_error(f"记录删除日志失败: {str(e)}")
+    
     def delete_cloze_test(self, test_id: int) -> bool:
         """删除完形填空题目
         
@@ -294,15 +326,36 @@ class ComprehensionDatabase:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             
-            cursor.execute('DELETE FROM cloze_tests WHERE id = ?', (test_id,))
-            affected_rows = cursor.rowcount
+            # 先获取要删除的数据用于日志记录
+            cursor.execute('SELECT * FROM cloze_tests WHERE id = ?', (test_id,))
+            row = cursor.fetchone()
             
-            conn.commit()
+            if row:
+                # 构建题目数据字典
+                question_data = {
+                    'id': row[0],
+                    'title': row[1],
+                    'content': row[2],
+                    'options': json.loads(row[3]) if row[3] else [],
+                    'answer': row[4],
+                    'explanation': row[5],
+                    'source': row[6],
+                    'date_created': row[7]
+                }
+                
+                # 执行删除
+                cursor.execute('DELETE FROM cloze_tests WHERE id = ?', (test_id,))
+                affected_rows = cursor.rowcount
+                
+                if affected_rows > 0:
+                    # 记录删除日志
+                    self._log_deletion(conn, test_id, 'cloze', question_data)
+                    conn.commit()
+                    conn.close()
+                    log_info(f"删除完形填空题目成功，ID: {test_id}")
+                    return True
+                
             conn.close()
-            
-            if affected_rows > 0:
-                log_info(f"删除完形填空题目成功，ID: {test_id}")
-                return True
             return False
             
         except Exception as e:
@@ -322,15 +375,35 @@ class ComprehensionDatabase:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             
-            cursor.execute('DELETE FROM reading_comprehensions WHERE id = ?', (test_id,))
-            affected_rows = cursor.rowcount
+            # 先获取要删除的数据用于日志记录
+            cursor.execute('SELECT * FROM reading_comprehensions WHERE id = ?', (test_id,))
+            row = cursor.fetchone()
             
-            conn.commit()
+            if row:
+                # 构建题目数据字典
+                question_data = {
+                    'id': row[0],
+                    'article': row[1],
+                    'questions': json.loads(row[2]) if row[2] else [],
+                    'answers': json.loads(row[3]) if row[3] else [],
+                    'explanations': json.loads(row[4]) if row[4] else [],
+                    'source': row[5],
+                    'date_created': row[6]
+                }
+                
+                # 执行删除
+                cursor.execute('DELETE FROM reading_comprehensions WHERE id = ?', (test_id,))
+                affected_rows = cursor.rowcount
+                
+                if affected_rows > 0:
+                    # 记录删除日志
+                    self._log_deletion(conn, test_id, 'reading', question_data)
+                    conn.commit()
+                    conn.close()
+                    log_info(f"删除阅读理解题目成功，ID: {test_id}")
+                    return True
+            
             conn.close()
-            
-            if affected_rows > 0:
-                log_info(f"删除阅读理解题目成功，ID: {test_id}")
-                return True
             return False
             
         except Exception as e:
