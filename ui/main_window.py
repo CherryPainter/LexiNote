@@ -183,18 +183,9 @@ class MainWindow:
     
     def _show_dictation_page(self):
         """显示听写练习页面"""
-        # 检查今日是否学习过单词
+        # 允许用户进入听写页面，即使今日没有学习单词
+        # 具体的功能访问限制将在dictation_page中处理
         today_words = self.word_manager.get_today_learned_words()
-        if not today_words:
-            # 如果今日没有学习过单词，显示提示消息
-            messagebox.showinfo(
-                "提示",
-                "您今天还没有学习任何单词，请先进行单词学习后再进行听写练习。"
-            )
-            log_info("用户尝试进入听写页面，但今日未学习单词")
-            return
-        
-        # 今日有学习过单词，显示听写页面
         self._clear_content_area()
         self.current_page = DictationPage(
             self.content_area,

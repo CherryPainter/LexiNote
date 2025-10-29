@@ -15,17 +15,21 @@ from logger import log_info, log_error
 class ReviewPage(tk.Frame):
     """单词复习页面"""
     
-    def __init__(self, parent, word_manager, settings_manager, font_config):
-        """初始化单词复习页面"""
-        super().__init__(parent, bg='white')
+    def __init__(self, parent, settings_manager=None, word_manager=None, font_config=None, audio_player=None, **kwargs):
+        """初始化复习页面"""
+        super().__init__(parent, **kwargs)
         self.parent = parent
-        self.word_manager = word_manager
         self.settings_manager = settings_manager
-        self.font_config = font_config
+        self.word_manager = word_manager
+        self.font_config = font_config or {'title': ('Arial', 24), 'normal': ('Arial', 16), 'small': ('Arial', 12)}
+        self.audio_player = audio_player
         
-        # 初始化音频播放器
-        self.audio_player = AudioPlayer()
-        self.audio_available = self.audio_player.is_available()
+        # 注册设置监听器
+        if self.settings_manager:
+            self.settings_manager.register_listener(
+                'auto_mode_review',
+                self._on_auto_mode_review_change
+            )
         
         # 当前显示模式
         self.show_translation = False
@@ -49,6 +53,11 @@ class ReviewPage(tk.Frame):
         
         # 加载单词列表
         self._load_words()
+        # 注册设置监听器（用于未来扩展，使得运行时切换生效）
+        try:
+            self.settings_manager.register_listener('auto_mode_review', self._on_auto_mode_review_change)
+        except Exception:
+            pass
     
     def _create_ui(self):
         """创建用户界面"""
@@ -393,12 +402,28 @@ class ReviewPage(tk.Frame):
         self.is_example_visible = not self.is_example_visible
         self._update_word_display()
         
-        # 检查是否需要自动下一个单词
-        auto_next = self.settings_manager.get_setting("auto_next_example", False)
+        # 模块级别的自动/手动设置控制是否允许自动切换
+        try:
+            module_mode = self.settings_manager.get_auto_mode('review') if self.settings_manager else 'manual'
+        except Exception:
+            module_mode = 'manual'
+
+        auto_next = False
+        if module_mode == 'auto':
+            auto_next = self.settings_manager.get_setting("auto_next_example", False)
+
         if auto_next and self.is_example_visible:
             # 延迟一段时间后自动切换到下一个单词
             self.after(self.settings_manager.get_setting("auto_next_delay", 2000), self._next_word)
-    
+
+    def _on_auto_mode_review_change(self, key, value):
+        """当复习模块的自动/手动模式改变时的回调（目前为占位实现）"""
+        try:
+            # 目前无需复杂UI更新，保留接口以便未来扩展
+            pass
+        except Exception:
+            pass
+
     def _next_word(self):
         """显示下一个单词"""
         if self.current_index < len(self.review_words) - 1:
@@ -409,15 +434,74 @@ class ReviewPage(tk.Frame):
             self._update_progress()
             log_info(f"显示下一个单词: {self.review_words[self.current_index][0]}")
     
+    def _on_auto_mode_review_change(self, key, value):
+        """设置变更回调：自动/手动切换变动时更新 UI 行为"""
+        try:
+            # 检查当前页面是否已初始化完成
+            if not hasattr(self, 'next_button'):
+                return
+            
+            if value == 'auto':
+                # 自动模式，根据是否显示了例句决定是否显示下一个按钮
+                if self.is_example_visible:
+                    # 例句已显示且是自动模式，隐藏按钮
+                    try:
+                        self.next_button.pack_forget()
+                        # 设置延迟自动下一个
+                        delay = self.settings_manager.get_setting("auto_next_delay", 1000)
+                        self.after(delay, self._next_word)
+                    except Exception:
+                        pass
+            else:
+                # 手动模式时，如果例句已显示则显示下一个按钮
+                if self.is_example_visible:
+                    try:
+                        self.next_button.pack(side=tk.LEFT, padx=10)
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+            
     def _play_pronunciation(self):
         """播放单词发音"""
         if not self.review_words:
             return
-        
         word, _ = self.review_words[self.current_index]
-        success = self.audio_player.play_pronunciation(word)
-        if not success and self.audio_available:
-            messagebox.showerror("播放失败", "无法播放单词发音，请检查网络连接。")
+
+        # 在后台线程播放，避免阻塞UI
+        def _play():
+            try:
+                result = self.audio_player.play_pronunciation(word)
+            except Exception as e:
+                log_error(f"播放线程异常: {str(e)}")
+                result = False
+
+            def _on_done():
+                try:
+                    self.pronounce_button.config(state=tk.NORMAL, text="🔊 发音")
+                except Exception:
+                    pass
+
+                if not result and self.audio_available:
+                    messagebox.showerror("播放失败", "无法播放单词发音，请检查网络连接。")
+                else:
+                    try:
+                        self.progress_var.set(f"{self.current_index + 1} / {len(self.review_words)}")
+                    except Exception:
+                        pass
+
+            try:
+                self.main_frame.after(0, _on_done)
+            except Exception:
+                _on_done()
+
+        try:
+            self.pronounce_button.config(state=tk.DISABLED, text="🔊 播放中...")
+            self.status_var.set("正在播放...")
+        except Exception:
+            pass
+
+        threading.Thread(target=_play, daemon=True).start()
     
     def _mark_as_important(self):
         """标记为重点单词（增加权重）"""

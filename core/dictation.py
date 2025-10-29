@@ -1,102 +1,178 @@
 import json
 import os
 import random
-from datetime import datetime
+import asyncio
+import threading
+from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple, Any
+from concurrent.futures import ThreadPoolExecutor
+
 from logger import log_info, log_error, log_warning, log_wrong_word, log_exercise_start
+from .database_manager import DatabaseManager
+from .cache_manager import get_cache_manager
 
 
 class DictationManager:
-    """听写管理器，负责听写练习的核心逻辑"""
+    """优化版听写管理器，负责听写练习的核心逻辑，支持异步操作和缓存"""
     
     def __init__(self, word_manager):
         """初始化听写管理器
         
         Args:
-            word_manager: WordManager实例，用于获取单词数据
+            word_manager: 单词管理器实例
         """
         self.word_manager = word_manager
-        self.data_dir = 'data'
+        self.db_manager = word_manager.db_manager  # 直接使用单词管理器的数据库连接
+        self.current_words = []  # 当前听写的单词列表
+        self.completed_words = []  # 已完成的单词
+        self.current_index = 0  # 当前单词索引
+        self.score = 0  # 得分
+        self.start_time = None  # 开始时间
+        self.duration = 0  # 持续时间
         
-        # 数据文件路径
-        self.dictation_history_file = os.path.join(self.data_dir, 'dictation_history.json')
-        self.word_progress_file = os.path.join(self.data_dir, 'word_progress.json')
-        self.familiar_words_file = os.path.join(self.data_dir, 'familiar_words.json')
+        # 迁移数据（如果存在旧的JSON文件）
+        self._migrate_old_data()
         
-        # 确保数据目录存在
-        os.makedirs(self.data_dir, exist_ok=True)
-        
-        # 初始化数据文件
-        self._initialize_data_files()
-        
-        # 加载数据
-        self.dictation_history = self._load_data(self.dictation_history_file)
-        self.word_progress = self._load_data(self.word_progress_file)
-        self.familiar_words = self._load_data(self.familiar_words_file)
-        
-        # 当前听写队列
-        self.current_queue = []
-        self.current_queue_index = 0
-        self.current_mode = None
-        self.current_source = None
-        
-    def _initialize_data_files(self):
-        """初始化数据文件，确保文件存在并包含基本结构"""
-        # 初始化听写历史
-        if not os.path.exists(self.dictation_history_file):
-            self._save_data(self.dictation_history_file, {})
-            log_info("初始化听写历史文件")
-        
-        # 初始化单词进度
-        if not os.path.exists(self.word_progress_file):
-            initial_progress = {}
-            # 为现有单词初始化进度
-            for word in self.word_manager.word_dict:
-                initial_progress[word] = {
-                    "learned": False,
-                    "weight": 1.0,
-                    "last_practice": None
-                }
-            self._save_data(self.word_progress_file, initial_progress)
-            log_info("初始化单词进度文件")
-        
-        # 初始化熟词库
-        if not os.path.exists(self.familiar_words_file):
-            self._save_data(self.familiar_words_file, {})
-            log_info("初始化熟词库文件")
-    
-    def _load_data(self, file_path):
-        """加载JSON数据文件"""
+    def _migrate_old_data(self):
+        """迁移旧的JSON数据到数据库"""
         try:
-            if os.path.exists(file_path):
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    return json.load(f)
-            return {}
+            # 检查是否需要迁移
+            # 我们只需要迁移一次，所以这里只是尝试导入，不需要额外的标志
+            
+            # 迁移单词数据（如果存在）
+            if os.path.exists('data/word_dict.json'):
+                log_info("发现旧的单词数据，开始迁移...")
+                import json
+                try:
+                    with open('data/word_dict.json', 'r', encoding='utf-8') as f:
+                        word_dict = json.load(f)
+                    
+                    # 批量插入单词
+                    word_data = [(word, translation) for word, translation in word_dict.items()]
+                    if word_data:
+                        self.db_manager.execute_write_many(
+                            "INSERT OR IGNORE INTO words (word, translation) VALUES (?, ?)",
+                            word_data
+                        )
+                    
+                    log_info(f"成功迁移 {len(word_dict)} 个单词到数据库")
+                except Exception as e:
+                    log_warning(f"迁移单词数据失败: {str(e)}")
+            
+            # 迁移学习进度数据（如果存在）
+            if os.path.exists('data/word_progress.json'):
+                log_info("发现旧的学习进度数据，开始迁移...")
+                try:
+                    import json
+                    with open('data/word_progress.json', 'r', encoding='utf-8') as f:
+                        progress_data = json.load(f)
+                    
+                    # 批量更新熟练度
+                    update_data = []
+                    for word, progress in progress_data.items():
+                        if isinstance(progress, dict):
+                            # 计算熟练度
+                            correct_count = progress.get('correct', 0)
+                            total_count = progress.get('total', 1)
+                            proficiency = min(1.0, correct_count / total_count)
+                            update_data.append((proficiency, word))
+                    
+                    if update_data:
+                        self.db_manager.execute_write_many(
+                            "UPDATE words SET proficiency = ? WHERE word = ?",
+                            update_data
+                        )
+                    
+                    log_info(f"成功迁移学习进度数据到数据库")
+                except Exception as e:
+                    log_warning(f"迁移学习进度数据失败: {str(e)}")
+            
+            log_info("数据迁移完成")
+            
         except Exception as e:
-            log_error(f"加载文件 {file_path} 失败: {str(e)}")
-            return {}
+            log_error(f"迁移数据时发生错误: {str(e)}")
     
-    def _save_data(self, file_path, data):
-        """保存数据到JSON文件，先读取并合并旧数据"""
-        try:
-            # 先读取旧数据
-            old_data = {}
-            if os.path.exists(file_path):
-                old_data = self._load_data(file_path)
-            
-            # 合并数据
-            old_data.update(data)
-            
-            # 保存合并后的数据
-            with open(file_path, 'w', encoding='utf-8') as f:
-                json.dump(old_data, f, ensure_ascii=False, indent=2)
-            return True
-        except Exception as e:
-            log_error(f"保存文件 {file_path} 失败: {str(e)}")
-            return False
+    # 已移除缓存相关方法，完全使用数据库
     
     def select_word(self, source="library"):
-        """选择一个单词用于单个听写模式
+        """选择一个单词用于单个听写模式（同步版本）
+        
+        Args:
+            source: 单词来源，可选值："today", "library", "familiar"
+            
+        Returns:
+            选中的单词字符串或None
+        """
+        try:
+            if source == "today":
+                # 获取今日学习单词
+                today_words = self._get_today_learned_words()
+                if today_words:
+                    return random.choice(today_words)
+                # 不自动回退到其它来源，让上层 UI 处理没有单词的情况
+                log_info("没有今日学习的单词，返回 None 以提示用户重新选择来源")
+                return None
+                
+            if source == "familiar":
+                # 从熟词库中选择
+                familiar_words = self.db_manager.execute_read(
+                    """
+                    SELECT word FROM words 
+                    WHERE proficiency > 0.8 AND (last_review IS NULL OR last_review < datetime('now', '-1 day'))
+                    ORDER BY RANDOM() LIMIT 1
+                    """
+                )
+                if familiar_words:
+                    return familiar_words[0]['word']
+                # 不自动回退到其它来源，让上层 UI 处理没有单词的情况
+                log_info("没有符合条件的熟词，返回 None 以提示用户重新选择来源")
+                return None
+                
+            # 默认使用词库选择
+            if source == "library":
+                # 优先选择最近错误率高的单词
+                word = self.db_manager.execute_read(
+                    """
+                    SELECT word FROM words 
+                    WHERE proficiency < 0.5 
+                    AND last_review < datetime('now', '-1 day')
+                    ORDER BY 
+                        RANDOM() * (1.0 - COALESCE(proficiency, 0)) DESC 
+                    LIMIT 1
+                    """
+                )
+                if word:
+                    return word[0]['word']
+                    
+                # 如果没有合适的单词，随机选择一个很久没复习的单词
+                word = self.db_manager.execute_read(
+                    """
+                    SELECT word FROM words 
+                    WHERE last_review IS NULL 
+                    OR last_review < datetime('now', '-7 days')
+                    ORDER BY last_review ASC, RANDOM()
+                    LIMIT 1
+                    """
+                )
+                if word:
+                    return word[0]['word']
+                    
+                # 最后的备选：完全随机选择
+                word = self.db_manager.execute_read(
+                    "SELECT word FROM words ORDER BY RANDOM() LIMIT 1"
+                )
+                if word:
+                    return word[0]['word']
+                    
+                log_error(f"无法从来源 {source} 选择单词，返回 None")
+            return None
+            
+        except Exception as e:
+            log_error(f"选择单词时发生错误: {str(e)}")
+            return None
+    
+    async def select_word_async(self, source="library"):
+        """异步选择一个单词用于单个听写模式
         
         Args:
             source: 单词来源，可选值："today", "library", "familiar"
@@ -104,31 +180,20 @@ class DictationManager:
         Returns:
             选中的单词字符串
         """
-        if source == "today":
-            # 获取今日学习单词
-            today_words = self._get_today_learned_words()
-            if today_words:
-                return random.choice(today_words)
-            else:
-                log_info("没有今日学习的单词，将从词库中随机选择")
-        elif source == "familiar":
-            # 从熟词库中选择
-            familiar_words = list(self.familiar_words.keys())
-            if familiar_words:
-                return random.choice(familiar_words)
-        
-        # 默认使用加权随机选择
-        # 优先使用错误次数多的单词（困难单词）
-        result = self.word_manager.get_word_by_weight()
-        
-        # 如果加权选择失败，使用随机选择
-        if not result:
-            result = self.word_manager.get_random_word()
-        
-        return result
+        # 在线程池中执行同步操作
+        loop = asyncio.get_event_loop()
+        executor = ThreadPoolExecutor(max_workers=1)
+        try:
+            return await loop.run_in_executor(
+                executor,
+                self.select_word,
+                source
+            )
+        finally:
+            executor.shutdown(wait=False)
     
     def build_queue(self, source="today", limit=10, filter_familiar=False):
-        """构建听写队列
+        """构建听写队列（同步版本）
         
         Args:
             source: 单词来源，可选值："today", "library", "familiar"
@@ -138,157 +203,445 @@ class DictationManager:
         Returns:
             单词列表
         """
-        words = []
-        
-        # 获取熟词列表
-        familiar_words = []
-        if hasattr(self.word_manager, 'get_familiar_words'):
-            familiar_words = self.word_manager.get_familiar_words()
-        else:
-            familiar_words = list(self.familiar_words.keys())
-        
-        if source == "today":
-            # 获取今日学习单词
-            today_words = self._get_today_learned_words()
-            words = today_words[:limit]  # 限制数量为指定的limit
-        elif source == "familiar":
-            # 从熟词库中选择
-            if hasattr(self.word_manager, 'get_familiar_words'):
-                words = self.word_manager.get_familiar_words()
-            else:
-                words = list(self.familiar_words.keys())
-            
-            # 随机选择指定数量的单词
-            if len(words) > limit:
-                words = random.sample(words, limit)
-        else:
-            # 从全词库按权重选择
-            all_words = list(self.word_manager.word_dict.keys())
-            for _ in range(min(limit, len(all_words))):
-                word = self.word_manager.get_word_by_weight()
-                if word and word not in words:
-                    words.append(word)
-                # 防止无限循环
-                if len(words) >= limit:
-                    break
-        
-        # 处理过滤选项并确保不超过限制数量
-        if filter_familiar and source != "familiar":
-            # 只保留熟词
-            filtered_words = [w for w in words if w in familiar_words]
-            # 如果过滤后没有单词，使用原始单词列表但限制数量
-            if filtered_words:
-                words = filtered_words[:limit]
-            else:
-                words = words[:limit]
-        else:
-            # 确保不超过限制数量
-            words = words[:limit]
-
-        # 最终使用 limit 截断以保证返回的单词数与用户设置一致。
-        # 之前的 limit-1 是不正确的“补丁”，会导致实际单词数小于用户期望，已移除。
-        
-        # 保存当前队列信息
-        self.current_queue = words
-        self.current_queue_index = 0
-        self.current_source = source
-        
-        log_info(f"构建听写队列成功，包含 {len(words)} 个单词")
-        return words
-    
-    def _get_today_learned_words(self):
-        """获取今日学习过的单词"""
         try:
-            # 尝试直接使用word_manager中的方法，这样可以保持逻辑一致性
-            if hasattr(self.word_manager, 'get_today_learned_words'):
-                words = self.word_manager.get_today_learned_words()
-                if words:
-                    log_info(f"从word_manager获取今日学习单词: {len(words)}个")
-                    return words
+            words = []
+            if source == "today":
+                # 获取今日学习单词
+                words = self._get_today_learned_words()
+                if not words:
+                    # 不自动回退到其它来源，让上层 UI 处理没有单词的情况
+                    log_info("没有今日学习的单词，返回空队列以提示用户重新选择来源")
+                    return []
             
-            # 备用方法：直接从word_progress中获取
-            today = datetime.now().strftime('%Y-%m-%d')
-            today_words = []
+            if source == "familiar" or (filter_familiar and source != "today"):
+                # 从熟词库中选择，避免重复练习最近复习过的单词
+                words = self.db_manager.execute_read(
+                    """
+                    SELECT word FROM words 
+                    WHERE proficiency > 0.8 
+                    AND (last_review IS NULL OR last_review < datetime('now', '-1 day'))
+                    ORDER BY 
+                        CASE 
+                            WHEN last_review IS NULL THEN 1 
+                            ELSE 0 
+                        END DESC,
+                        last_review ASC,
+                        RANDOM()
+                    LIMIT ?
+                    """,
+                    (limit,)
+                )
+                words = [row['word'] for row in words]
+                if not words:
+                    log_info("没有符合条件的熟词，返回空队列以提示用户重新选择来源")
+                    return []
             
-            for word, progress in self.word_progress.items():
-                # 检查单词是否已学习
-                if progress.get("learned", False):
-                    # 检查最后练习日期或最后学习日期
-                    last_date = None
-                    
-                    # 尝试从last_practice获取
-                    if progress.get("last_practice"):
-                        last_date = progress["last_practice"].split(' ')[0] if isinstance(progress["last_practice"], str) else None
-                    # 尝试从last_learned获取（兼容learning.py中的记录方式）
-                    elif progress.get("last_learned"):
-                        last_learned = progress["last_learned"]
-                        if isinstance(last_learned, str):
-                            if 'T' in last_learned:  # ISO格式
-                                last_date = last_learned.split('T')[0]
-                            else:  # 普通格式
-                                last_date = last_learned.split(' ')[0]
-                    
-                    if last_date == today:
-                        today_words.append(word)
+            if not words and source == "library":
+                # 智能选择策略：
+                # 1. 40% 最近错误率高的单词
+                difficult_limit = int(limit * 0.4)
+                difficult_words = self.db_manager.execute_read(
+                    """
+                    SELECT word FROM words 
+                    WHERE proficiency < 0.5
+                    AND (last_review IS NULL OR last_review < datetime('now', '-1 day'))
+                    ORDER BY 
+                        RANDOM() * (1.0 - COALESCE(proficiency, 0)) DESC 
+                    LIMIT ?
+                    """,
+                    (difficult_limit,)
+                )
+                words.extend([row['word'] for row in difficult_words])
+                
+                # 2. 30% 很久没复习的单词
+                old_limit = int(limit * 0.3)
+                if old_limit > 0:
+                    old_words = self.db_manager.execute_read(
+                        """
+                        SELECT word FROM words 
+                        WHERE word NOT IN (SELECT word FROM (
+                            SELECT DISTINCT word 
+                            FROM dictation_history 
+                            WHERE practice_date > datetime('now', '-7 days')
+                        ))
+                        ORDER BY last_review ASC, RANDOM()
+                        LIMIT ?
+                        """,
+                        (old_limit,)
+                    )
+                    words.extend([row['word'] for row in old_words])
+                
+                # 3. 30% 完全随机选择
+                remaining_limit = limit - len(words)
+                if remaining_limit > 0:
+                    random_words = self.db_manager.execute_read(
+                        """
+                        SELECT word FROM words 
+                        WHERE word NOT IN (?)
+                        ORDER BY RANDOM() 
+                        LIMIT ?
+                        """,
+                        (','.join(words), remaining_limit)
+                    )
+                    words.extend([row['word'] for row in random_words])
             
-            log_info(f"从word_progress获取今日学习单词: {len(today_words)}个")
-            return today_words
+            # 确保不重复并限制数量
+            words = list(dict.fromkeys(words))[:limit]
+            random.shuffle(words)
+            
+            # 更新队列状态
+            self.current_queue = words
+            self.current_queue_index = 0
+            self.current_source = source
+            
+            log_info(f"构建听写队列成功，包含 {len(words)} 个单词")
+            return words
+            
         except Exception as e:
-            log_error(f"获取今日学习单词失败: {str(e)}")
+            log_error(f"构建听写队列失败: {str(e)}")
             return []
     
+    async def build_queue_async(self, source="today", limit=10, filter_familiar=False):
+        """异步构建听写队列
+        
+        Args:
+            source: 单词来源，可选值："today", "library", "familiar"
+            limit: 队列大小限制
+            filter_familiar: 是否只包含熟词
+            
+        Returns:
+            单词列表
+        """
+        # 在线程池中执行同步操作
+        loop = asyncio.get_event_loop()
+        executor = ThreadPoolExecutor(max_workers=1)
+        try:
+            return await loop.run_in_executor(
+                executor,
+                self.build_queue,
+                source,
+                limit,
+                filter_familiar
+            )
+        finally:
+            executor.shutdown(wait=False)
+    
+    def _get_today_learned_words(self):
+        """获取今日学习过的单词（从数据库）"""
+        try:
+            today = datetime.now().strftime('%Y-%m-%d')
+            
+            # 从数据库查询今日学习的单词
+            words = self.db_manager.execute_read(
+                "SELECT DISTINCT word FROM dictation_history WHERE practice_date LIKE ? ORDER BY practice_date DESC",
+                (f"{today}%",)
+            )
+            
+            word_list = [row['word'] for row in words]
+            
+            return word_list
+        except Exception as e:
+            log_error(f"获取今日学习单词失败: {str(e)}")
+            # 回退到word_manager的方法
+            try:
+                if hasattr(self.word_manager, 'get_today_learned_words'):
+                    words = self.word_manager.get_today_learned_words()
+                    if words:
+                        log_info(f"从word_manager获取今日学习单词: {len(words)}个")
+                        return words
+            except Exception as fallback_error:
+                log_error(f"回退方法失败: {str(fallback_error)}")
+            
+            # 如果所有方法都失败，返回空列表
+            return []
+    
+    def process_result(self, word, user_input, is_correct, time_spent=0):
+        """处理听写结果（同步版本）
+        
+        Args:
+            word: 单词
+            user_input: 用户输入
+            is_correct: 是否正确
+            time_spent: 拼写所用时间（秒）
+        """
+        try:
+            # 调用新的记录方法
+            self.record_dictation_result(word, user_input, is_correct, 1.0 if is_correct else 0.0)
+            
+            # 更新单词权重（复用WordManager的逻辑）
+            if hasattr(self.word_manager, 'update_word_weight'):
+                self.word_manager.update_word_weight(word, is_correct, time_spent)
+            
+            # 更新熟悉度
+            if hasattr(self.word_manager, 'update_word_familiarity'):
+                if is_correct:
+                    self.word_manager.update_word_familiarity(word, 0.1)  # 正确增加熟悉度
+                else:
+                    self.word_manager.update_word_familiarity(word, -0.15)  # 错误降低熟悉度
+                    
+            # 更新熟词库
+            self._update_familiar_words(word, is_correct)
+            
+            # 记录错误单词
+            if not is_correct:
+                # 记录错误单词到日志，并通知 word_manager 增加错误计数
+                log_wrong_word(word, user_input)
+                try:
+                    if hasattr(self.word_manager, 'add_wrong_word'):
+                        self.word_manager.add_wrong_word(word)
+                except Exception:
+                    pass
+            
+        except Exception as e:
+            log_error(f"记录听写结果失败: {str(e)}")
+    
     def record_result(self, word, is_correct, time_spent=0):
-        """记录听写结果并更新单词进度和权重
+        """记录听写结果并更新单词进度和权重（兼容旧版本）
         
         Args:
             word: 单词
             is_correct: 是否正确
             time_spent: 拼写所用时间（秒）
         """
-        # 更新单词进度
-        if word not in self.word_progress:
-            self.word_progress[word] = {
-                "learned": True,
-                "weight": 1.0,
-                "last_practice": None,
-                "avg_response_time": 0,
-                "response_times": []  # 确保初始化响应时间列表
-            }
-        # 检查现有单词记录是否缺少response_times键
-        elif "response_times" not in self.word_progress[word]:
-            self.word_progress[word]["response_times"] = []
-            self.word_progress[word]["avg_response_time"] = 0
+        # 调用新版本的方法，保持向后兼容
+        self.process_result(word, "", is_correct, time_spent)
+            
+    # 已移除重复的process_result方法
+    
+    def record_dictation_result(self, word: str, user_input: str, is_correct: bool, similarity: float = 0.0):
+        """记录听写结果（同步版本）
         
-        # 更新进度信息
-        self.word_progress[word]["last_practice"] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        Args:
+            word: 单词
+            user_input: 用户输入
+            is_correct: 是否正确
+            similarity: 相似度（0-1）
+        """
+        try:
+            # 优先使用数据库
+            if self.db_manager:
+                timestamp = datetime.now().isoformat()
+                is_correct_int = 1 if is_correct else 0
+                
+                # 如果未提供相似度，简单比较计算
+                if similarity == 0.0 and user_input and word:
+                    similarity = 1.0 if user_input == word else 0.0
+                
+                # 1. 插入听写历史记录
+                self.db_manager.execute_write(
+                    """INSERT INTO dictation_history (word, user_input, is_correct, similarity, practice_date) 
+                       VALUES (?, ?, ?, ?, ?)""",
+                    (word, user_input, is_correct_int, similarity, timestamp)
+                )
+                
+                # 2. 记录到 progress 表（按行记录 is_correct），之后通过聚合查询计算熟练度
+                proficiency_change = 0.1 if is_correct else -0.15
+                try:
+                    self.db_manager.add_progress_record(word, is_correct, proficiency_change)
+                except Exception:
+                    # 如果add_progress_record不可用，则回退为直接插入单条记录
+                    self.db_manager.execute_write(
+                        "INSERT INTO progress (word, is_correct, proficiency_change, practice_date) VALUES (?, ?, ?, ?)",
+                        (word, is_correct_int, proficiency_change, timestamp)
+                    )
+                
+                log_info(f"使用数据库记录听写结果: {word} - {'正确' if is_correct else '错误'}")
+
+                # 更新单词熟练度（基于 progress 表的聚合）
+                try:
+                    wp = self.db_manager.get_word_progress(word)
+                    if wp and 'proficiency' in wp:
+                        self.db_manager.update_proficiency(word, wp['proficiency'])
+                except Exception:
+                    pass
+                
+                # 记录错误单词
+                if not is_correct:
+                    # 日志记录并让 word_manager 跟踪错误单词
+                    log_wrong_word(word, user_input)
+                    try:
+                        if hasattr(self.word_manager, 'add_wrong_word'):
+                            self.word_manager.add_wrong_word(word)
+                    except Exception:
+                        pass
+                
+                # 清除相关缓存
+                with self._cache_lock:
+                    # 清除今日单词缓存
+                    today = datetime.now().strftime('%Y-%m-%d')
+                    if f"today_words_{today}" in self._memory_cache:
+                        del self._memory_cache[f"today_words_{today}"]
+                    
+                    # 清除单词进度缓存（如果存在）
+                pass  # 不再使用缓存，所以不需要清除
+            
+        except Exception as e:
+            log_error(f"记录听写结果失败: {str(e)}")
+    
+    async def record_dictation_result_async(self, word: str, user_input: str, is_correct: bool, similarity: float = 0.0):
+        """异步记录听写结果
         
-        # 记录响应时间
-        self.word_progress[word]["response_times"].append(time_spent)
-        # 保持最近10次的记录
-        if len(self.word_progress[word]["response_times"]) > 10:
-            self.word_progress[word]["response_times"] = self.word_progress[word]["response_times"][-10:]
-        # 更新平均响应时间
-        self.word_progress[word]["avg_response_time"] = sum(self.word_progress[word]["response_times"]) / len(self.word_progress[word]["response_times"])
+        Args:
+            word: 单词
+            user_input: 用户输入
+            is_correct: 是否正确
+            similarity: 相似度（0-1）
+        """
+        # 在线程池中执行同步操作
+        loop = asyncio.get_event_loop()
+        executor = ThreadPoolExecutor(max_workers=1)
+        try:
+            await loop.run_in_executor(
+                executor,
+                self.record_dictation_result,
+                word,
+                user_input,
+                is_correct,
+                similarity
+            )
+        finally:
+            executor.shutdown(wait=False)
+    
+    def _update_word_progress(self, word: str, is_correct: bool):
+        """更新单词学习进度
         
-        # 更新权重（复用WordManager的逻辑，并考虑时间因素）
-        self.word_manager.update_word_weight(word, is_correct, time_spent)
-        
-        # 更新熟悉度
-        if hasattr(self.word_manager, 'update_word_familiarity'):
-            if is_correct:
-                self.word_manager.update_word_familiarity(word, 0.1)  # 正确增加熟悉度
+        Args:
+            word: 单词
+            is_correct: 是否正确
+        """
+        try:
+            # 获取当前进度
+            current_progress = self.db_manager.get_word_progress(word)
+            
+            if current_progress:
+                # 更新现有进度
+                correct_count = current_progress.get('correct_count', 0)
+                total_count = current_progress.get('total_count', 0) + 1
+                
+                if is_correct:
+                    correct_count += 1
+                
+                # 计算熟练度
+                proficiency = correct_count / total_count if total_count > 0 else 0
+                
+                # 更新数据库
+                self.db_manager.execute_write(
+                    """UPDATE progress SET 
+                           correct_count = ?, 
+                           total_count = ?, 
+                           practice_date = ? 
+                       WHERE word = ?""",
+                    (correct_count, total_count, datetime.now().isoformat(), word)
+                )
             else:
-                self.word_manager.update_word_familiarity(word, -0.15)  # 错误降低熟悉度
+                # 创建新的进度记录
+                correct_count = 1 if is_correct else 0
+                total_count = 1
+                proficiency = correct_count / total_count
+                
+                # 插入数据库
+                self.db_manager.execute_write(
+                    """INSERT INTO progress (word, correct_count, total_count, practice_date) 
+                       VALUES (?, ?, ?, ?)""",
+                    (word, correct_count, total_count, datetime.now().isoformat())
+                )
+                
+        except Exception as e:
+            log_error(f"更新单词进度失败: {str(e)}")
+    
+    def get_dictation_stats(self, days: int = 7):
+        """获取听写统计信息（同步版本）
         
-        # 同步更新到单词进度文件
-        self.word_progress[word]["weight"] = self.word_manager.word_weights.get(word, 1.0)
-        self._save_data(self.word_progress_file, {word: self.word_progress[word]})
+        Args:
+            days: 统计天数
+            
+        Returns:
+            统计信息字典
+        """
+        try:
+            # 计算开始日期
+            start_date = (datetime.now() - timedelta(days=days)).isoformat()
+            
+            # 查询总练习次数
+            total_practices = self.db_manager.execute_read(
+                "SELECT COUNT(*) as count FROM dictation_history WHERE practice_date >= ?",
+                (start_date,)
+            )[0]['count']
+            
+            # 查询正确次数
+            correct_practices = self.db_manager.execute_read(
+                "SELECT COUNT(*) as count FROM dictation_history WHERE practice_date >= ? AND is_correct = 1",
+                (start_date,)
+            )[0]['count']
+            
+            # 查询练习的单词数
+            unique_words = self.db_manager.execute_read(
+                "SELECT COUNT(DISTINCT word) as count FROM dictation_history WHERE practice_date >= ?",
+                (start_date,)
+            )[0]['count']
+            
+            # 查询最常错的单词
+            most_wrong_words = self.db_manager.execute_read(
+                """SELECT word, 
+                        SUM(CASE WHEN is_correct = 0 THEN 1 ELSE 0 END) as wrong_count 
+                   FROM dictation_history 
+                   WHERE practice_date >= ? 
+                   GROUP BY word 
+                   ORDER BY wrong_count DESC 
+                   LIMIT 5""",
+                (start_date,)
+            )
+            
+            stats = {
+                'total_practices': total_practices,
+                'correct_practices': correct_practices,
+                'accuracy': correct_practices / total_practices if total_practices > 0 else 0,
+                'unique_words': unique_words,
+                'most_wrong_words': [{'word': row['word'], 'count': row['wrong_count']} for row in most_wrong_words]
+            }
+            
+            return stats
+            
+        except Exception as e:
+            log_error(f"获取听写统计失败: {str(e)}")
+            # 回退到基本统计
+            return {
+                'total_practices': 0,
+                'correct_practices': 0,
+                'accuracy': 0,
+                'unique_words': 0,
+                'most_wrong_words': []
+            }
+    
+    async def get_dictation_stats_async(self, days: int = 7):
+        """异步获取听写统计信息
         
-        # 更新熟词库
-        self._update_familiar_words(word, is_correct)
-        
-        # 记录到历史记录
-        self._record_to_history(word, "correct" if is_correct else "misspelled", time_spent)
+        Args:
+            days: 统计天数
+            
+        Returns:
+            统计信息字典
+        """
+        # 在线程池中执行同步操作
+        loop = asyncio.get_event_loop()
+        executor = ThreadPoolExecutor(max_workers=1)
+        try:
+            return await loop.run_in_executor(
+                executor,
+                self.get_dictation_stats,
+                days
+            )
+        finally:
+            executor.shutdown(wait=False)
+    
+    def cleanup(self):
+        """清理资源"""
+        # 由于不再使用固定的executor，这里只记录日志
+        log_info("听写管理器资源清理完成")
+    
+    # 已移除_load_data方法，完全使用数据库存储
+    
+    # 已移除_save_data方法，完全使用数据库存储
     
     def _update_familiar_words(self, word, is_correct):
         """更新熟词库
@@ -297,44 +650,32 @@ class DictationManager:
             word: 单词
             is_correct: 是否正确
         """
-        # 优先使用WordManager的熟悉度管理功能
-        if hasattr(self.word_manager, 'get_familiar_words'):
-            familiar_words = self.word_manager.get_familiar_words()
-            if set(familiar_words) != set(self.familiar_words.keys()):
-                # 同步WordManager的熟词列表
-                new_familiar_words = {}
-                for familiar_word in familiar_words:
-                    if familiar_word not in self.familiar_words:
-                        new_familiar_words[familiar_word] = {
-                            "mastered": True,
-                            "practice_count": 3  # 默认练习次数
-                        }
-                
-                # 合并新的熟词数据
-                if new_familiar_words:
-                    self.familiar_words.update(new_familiar_words)
-                    self._save_data(self.familiar_words_file, new_familiar_words)
-        else:
-            # 传统逻辑作为备用
-            if word not in self.familiar_words:
-                self.familiar_words[word] = {
-                    "mastered": False,
-                    "practice_count": 0
-                }
-            
-            # 更新练习次数
-            self.familiar_words[word]["practice_count"] += 1
-            
-            # 如果连续正确多次，标记为掌握
-            if is_correct:
-                # 假设连续3次正确视为掌握
-                if self.familiar_words[word]["practice_count"] >= 3:
-                    self.familiar_words[word]["mastered"] = True
-            else:
-                # 错误时重置掌握状态
-                self.familiar_words[word]["mastered"] = False
-            
-            self._save_data(self.familiar_words_file, {word: self.familiar_words[word]})
+        # 只使用数据库操作，不再维护独立的文件存储
+        try:
+            # 将熟悉度直接更新到 words.proficiency 字段（基于现有熟练度）
+            try:
+                res = self.db_manager.execute_read(
+                    "SELECT proficiency FROM words WHERE word = ?",
+                    (word,)
+                )
+                current = res[0]['proficiency'] if res else 0.0
+            except Exception:
+                current = 0.0
+
+            delta = 0.1 if is_correct else -0.15
+            new_prof = max(0.0, min(1.0, current + delta))
+            # 使用立即写入以尽快反映变化
+            try:
+                self.db_manager.update_proficiency(word, new_prof)
+            except Exception:
+                # 回退：直接执行SQL
+                self.db_manager.execute_write(
+                    "UPDATE words SET proficiency = ?, last_review = CURRENT_TIMESTAMP WHERE word = ?",
+                    (new_prof, word)
+                )
+
+        except Exception as e:
+            log_warning(f"更新熟词库失败: {str(e)}")
     
     def _record_to_history(self, word, result, time_spent):
         """将听写结果记录到历史记录中
@@ -344,23 +685,22 @@ class DictationManager:
             result: 结果（correct/misspelled）
             time_spent: 拼写所用时间（秒）
         """
-        today = datetime.now().strftime('%Y-%m-%d')
-        
-        if today not in self.dictation_history:
-            self.dictation_history[today] = {
-                "mode": self.current_mode or "single",
-                "words": []
-            }
-        
-        # 添加单词记录
-        self.dictation_history[today]["words"].append({
-            "word": word,
-            "result": result,
-            "time_spent": time_spent,
-            "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        })
-        
-        self._save_data(self.dictation_history_file, {today: self.dictation_history[today]})
+        try:
+            # 只使用数据库记录历史
+            timestamp = datetime.now().isoformat()
+            is_correct = 1 if result == "correct" else 0
+            
+            # 插入历史记录
+            self.db_manager.execute_write(
+                """INSERT INTO dictation_history (word, user_input, is_correct, similarity, practice_date) 
+                   VALUES (?, ?, ?, ?, ?)""",
+                (word, word, is_correct, 1.0 if is_correct else 0.0, timestamp)
+            )
+            
+            log_info(f"使用数据库记录历史: {word} - {result}")
+            
+        except Exception as e:
+            log_error(f"记录历史失败: {str(e)}")
     
     def summarize(self, queue=None):
         """生成听写总结报告
@@ -374,10 +714,32 @@ class DictationManager:
         if queue is None:
             queue = self.current_queue
         
-        # 从历史记录中获取当前队列的结果
-        today = datetime.now().strftime('%Y-%m-%d')
-        today_records = self.dictation_history.get(today, {}).get("words", [])
-
+        try:
+            # 从数据库获取历史记录
+            today = datetime.now().strftime('%Y-%m-%d')
+            
+            # 查询今日的听写历史
+            records = self.db_manager.execute_read(
+                """SELECT word, is_correct, practice_date 
+                   FROM dictation_history 
+                   WHERE practice_date LIKE ? 
+                   ORDER BY practice_date ASC""",
+                (f"{today}%",)
+            )
+            
+            # 转换数据库记录为应用需要的格式
+            today_records = []
+            for record in records:
+                today_records.append({
+                    "word": record['word'],
+                    "result": "correct" if record['is_correct'] == 1 else "misspelled",
+                    "time_spent": 0,  # 数据库记录中可能没有时间，设置默认值
+                    "timestamp": record['practice_date']
+                })
+        except Exception as e:
+            log_error(f"从数据库获取历史记录失败: {str(e)}")
+            today_records = []
+        
         # 为了避免重复计数（同一单词在今日被多次记录），
         # 如果有传入 queue，则按 queue 的顺序从今日历史中挑选每个单词的首次匹配记录（未被重复使用），
         # 最多收集 len(queue) 条记录。这样 summary 的 total 不会超过 queue 的长度。
@@ -392,10 +754,10 @@ class DictationManager:
                     if len(queue_records) >= len(queue):
                         break
         else:
-            # 如果没有传入 queue，则回退到之前的做法：筛选所有今日记录
+            # 如果没有传入 queue，则使用所有今日记录
             queue_records = list(today_records)
-
-        # 计算统计信息（total 使用实际收集到的记录数）
+        
+        # 计算统计信息
         total = len(queue_records)
         correct = sum(1 for r in queue_records if r.get("result") == "correct")
         accuracy = correct / total if total > 0 else 0
@@ -404,17 +766,11 @@ class DictationManager:
         # 尝试获取AI建议
         suggestion = "继续保持练习！"
         try:
-            if self.word_manager.ai_available:
-                # 计算平均响应时间
-                total_time_spent = sum(r.get("time_spent", 0) for r in queue_records)
-                avg_response_time = total_time_spent / len(queue_records) if queue_records else 0
-                
-                # 计算正确和错误的响应时间
-                correct_records = [r for r in queue_records if r["result"] == "correct"]
-                incorrect_records = [r for r in queue_records if r["result"] != "correct"]
-                
-                avg_correct_time = sum(r.get("time_spent", 0) for r in correct_records) / len(correct_records) if correct_records else 0
-                avg_incorrect_time = sum(r.get("time_spent", 0) for r in incorrect_records) / len(incorrect_records) if incorrect_records else 0
+            if hasattr(self.word_manager, 'ai_available') and self.word_manager.ai_available:
+                # 计算平均响应时间（这里使用默认值，因为数据库可能没有记录）
+                avg_response_time = 0
+                avg_correct_time = 0
+                avg_incorrect_time = 0
                 
                 # 准备详细的统计信息给AI
                 user_stats = {
@@ -427,7 +783,8 @@ class DictationManager:
                     "avg_incorrect_response_time": avg_incorrect_time,
                     "detailed_results": [{"word": r["word"], "correct": r["result"] == "correct", "time": r.get("time_spent", 0)} for r in queue_records]
                 }
-                suggestion = self.word_manager.ai_manager.advise(user_stats)
+                if hasattr(self.word_manager, 'ai_manager'):
+                    suggestion = self.word_manager.ai_manager.advise(user_stats)
         except Exception as e:
             log_error(f"获取AI建议失败: {str(e)}")
         
@@ -516,7 +873,17 @@ class DictationManager:
             familiar_words = self.word_manager.get_familiar_words()
             return [w for w in words if w in familiar_words]
         else:
-            return [w for w in words if w in self.familiar_words]
+            # 从数据库获取熟词（熟练度高的单词）
+            try:
+                familiar_words = self.db_manager.execute_read(
+                    "SELECT word FROM words WHERE proficiency > 0.8",
+                    ()
+                )
+                familiar_word_list = [row['word'] for row in familiar_words]
+                return [w for w in words if w in familiar_word_list]
+            except Exception as e:
+                log_error(f"从数据库获取熟词失败: {str(e)}")
+                return []
     
     def mark_word_as_learned(self, word):
         """标记单词为已学习
@@ -524,17 +891,27 @@ class DictationManager:
         Args:
             word: 单词
         """
-        if word not in self.word_progress:
-            self.word_progress[word] = {
-                "learned": True,
-                "weight": 1.0,
-                "last_practice": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            }
-        else:
-            self.word_progress[word]["learned"] = True
-            self.word_progress[word]["last_practice"] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        
-        self._save_data(self.word_progress_file, {word: self.word_progress[word]})
+        try:
+            # 使用数据库更新单词学习状态
+            self.db_manager.execute_write(
+                """UPDATE progress 
+                   SET learned = 1, 
+                       last_practice = ? 
+                   WHERE word = ?""",
+                (datetime.now().isoformat(), word)
+            )
+            
+            # 如果记录不存在，创建新记录
+            row_count = self.db_manager.last_row_count()
+            if row_count == 0:
+                self.db_manager.execute_write(
+                    """INSERT INTO progress (word, learned) 
+                       VALUES (?, 1)""",
+                    (word,)
+                )
+                
+        except Exception as e:
+            log_error(f"标记单词为已学习失败: {str(e)}")
     
     def get_familiar_words_count(self):
         """获取熟词数量
@@ -542,7 +919,16 @@ class DictationManager:
         Returns:
             熟词数量
         """
-        return len([w for w, info in self.familiar_words.items() if info.get("mastered", False)])
+        try:
+            # 从数据库获取熟练度高的单词数量
+            result = self.db_manager.execute_read(
+                "SELECT COUNT(*) as count FROM words WHERE proficiency > 0.8",
+                ()
+            )
+            return result[0]['count'] if result else 0
+        except Exception as e:
+            log_error(f"获取熟词数量失败: {str(e)}")
+            return 0
     
     def get_today_progress(self):
         """获取今日听写进度
@@ -550,15 +936,36 @@ class DictationManager:
         Returns:
             今日听写统计信息
         """
-        today = datetime.now().strftime('%Y-%m-%d')
-        today_records = self.dictation_history.get(today, {}).get("words", [])
-        
-        total = len(today_records)
-        correct = sum(1 for r in today_records if r["result"] == "correct")
-        accuracy = correct / total if total > 0 else 0
-        
-        return {
-            "total": total,
-            "correct": correct,
-            "accuracy": round(accuracy, 2)
-        }
+        try:
+            today = datetime.now().strftime('%Y-%m-%d')
+            
+            # 从数据库获取今日的听写统计
+            # 总练习次数
+            total_result = self.db_manager.execute_read(
+                "SELECT COUNT(*) as count FROM dictation_history WHERE practice_date LIKE ?",
+                (f"{today}%",)
+            )
+            total = total_result[0]['count'] if total_result else 0
+            
+            # 正确次数
+            correct_result = self.db_manager.execute_read(
+                "SELECT COUNT(*) as count FROM dictation_history WHERE practice_date LIKE ? AND is_correct = 1",
+                (f"{today}%",)
+            )
+            correct = correct_result[0]['count'] if correct_result else 0
+            
+            # 计算准确率
+            accuracy = correct / total if total > 0 else 0
+            
+            return {
+                "total": total,
+                "correct": correct,
+                "accuracy": round(accuracy, 2)
+            }
+        except Exception as e:
+            log_error(f"获取今日听写进度失败: {str(e)}")
+            return {
+                "total": 0,
+                "correct": 0,
+                "accuracy": 0.0
+            }

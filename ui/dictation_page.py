@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import messagebox, ttk
+import threading
 import sys
 import os
 
@@ -19,7 +20,8 @@ class DictationPage(tk.Frame):
         super().__init__(parent, bg='white')
         self.parent = parent
         self.word_manager = word_manager
-        self.settings_manager = settings_manager
+        from core.settings_manager import SettingsManager
+        self.settings_manager = settings_manager or SettingsManager()
         self.font_config = font_config or {'header': ('SimHei', 16, 'bold'), 'normal': (
             'SimHei', 12), 'button': ('SimHei', 12, 'bold')}
 
@@ -52,6 +54,12 @@ class DictationPage(tk.Frame):
 
         # 创建UI
         self._create_ui()
+
+        # 注册设置监听器，实时响应自动/手动模式切换
+        try:
+            self.settings_manager.register_listener('auto_mode_word_learning', self._on_auto_mode_word_learning_change)
+        except Exception:
+            pass
 
         # 开始练习
         self.word_manager.start_exercise("听写")
@@ -284,7 +292,26 @@ class DictationPage(tk.Frame):
 
         # 获取用户设置的自动跳转选项（仅单个模式）
         if self.current_mode == "single":
-            self.auto_next = self.auto_next_var.get()
+            # 全局设置优先：如果模块被设置为 auto，则强制自动跳转并禁用本地开关
+            try:
+                mode = self.settings_manager.get_auto_mode('word_learning') if self.settings_manager else 'manual'
+            except Exception:
+                mode = 'manual'
+
+            if mode == 'auto':
+                self.auto_next = True
+                try:
+                    self.auto_next_var.set(True)
+                    self.auto_next_checkbox.config(state=tk.DISABLED)
+                except Exception:
+                    pass
+            else:
+                # 手动模式：使用用户选择的本地开关
+                self.auto_next = self.auto_next_var.get()
+                try:
+                    self.auto_next_checkbox.config(state=tk.NORMAL)
+                except Exception:
+                    pass
 
         # 获取来源
         source_text = self.source_var.get()
@@ -292,44 +319,14 @@ class DictationPage(tk.Frame):
         # 设置当前来源
         if source_text == "今日学习单词":
             self.current_source = "today"
-
-            # 检查是否有今日学习的单词
-            has_today_words = self._has_today_words()
-
-            # 如果没有今日学习单词，则提示用户
-            if not has_today_words:
-                # 检查是否完成了今日学习进度（即使没有单词记录）
-                progress_completed = False
-                if hasattr(self.word_manager, 'check_today_progress_completed'):
-                    progress_completed = self.word_manager.check_today_progress_completed()
-
-                # 如果完成了进度但没有单词，可能是系统记录问题
-                if progress_completed:
-                    response = messagebox.askyesno("学习记录问题", 
-                                                  "系统显示您已完成今日学习，但未找到今日学习的单词记录。\n\n建议：\n1. 重新学习少量单词以更新记录\n2. 或选择其他来源进行听写\n\n是否现在去学习？")
-                    if response:
-                        # 如果用户选择去学习，切换到学习页面
-                        self.parent.show_page("learning")
-                else:
-                    response = messagebox.askyesno("学习进度提醒", 
-                                                  "您今天似乎还没有学习单词或学习记录未保存。\n\n建议：\n1. 先去学习单词\n2. 或选择其他来源进行听写\n\n是否现在去学习？")
-                    if response:
-                        # 如果用户选择去学习，切换到学习页面
-                        self.parent.show_page("learning")
-                        return
-                    else:
-                        # 如果用户不选择学习，不阻止其选择其他来源
-                        return
-
-            # 如果有今日学习单词，但未完成进度，则给予友好提示但不阻止
-            elif has_today_words and hasattr(self.word_manager, 'check_today_progress_completed'):
-                if not self.word_manager.check_today_progress_completed():
-                    messagebox.showinfo(
-                        "提示", "您今天已学习了一些单词，但可能尚未完成所有计划的学习内容。\n\n您可以继续进行听写练习。")
         elif source_text == "全词库随机":
             self.current_source = "library"
         else:
             self.current_source = "familiar"
+
+        # 统一检查所选来源是否有可用单词（无则要求用户重新选择或去学习）
+        if not self._ensure_source_has_words():
+            return
 
         # 获取队列模式参数
         if self.current_mode == "queue":
@@ -358,7 +355,7 @@ class DictationPage(tk.Frame):
         if self.current_mode == "single":
             self._next_word()
         else:
-            # 构建队列
+            # 构建队列（已在上方检查来源是否可用）
             filter_familiar = self.filter_var.get()
             self.dictation_manager.build_queue(
                 source=self.current_source,
@@ -382,6 +379,50 @@ class DictationPage(tk.Frame):
             log_info("未发现今日学习的单词记录")
 
         return has_words
+
+    def _ensure_source_has_words(self) -> bool:
+        """检查当前选择的来源是否有单词；如果没有，提示用户并返回 False。
+
+        返回:
+            True: 可继续练习
+            False: 需要用户重新选择来源或去学习
+        """
+        try:
+            has_words = False
+            if self.current_source == "today":
+                has_words = self._has_today_words()
+            elif self.current_source == "familiar":
+                familiar_words = self.word_manager.get_familiar_words() if hasattr(self.word_manager, 'get_familiar_words') else []
+                has_words = len(familiar_words) > 0
+            elif self.current_source == "library":
+                all_words = self.word_manager.get_all_words() if hasattr(self.word_manager, 'get_all_words') else []
+                has_words = len(all_words) > 0
+
+            if has_words:
+                return True
+
+            # 没有单词，提示并要求用户选择
+            source_name = self.source_var.get()
+            # 对于今日学习，额外询问是否跳转去学习
+            if self.current_source == "today":
+                resp = messagebox.askyesno(
+                    "无可用单词",
+                    f"系统未找到来自 '{source_name}' 的单词记录。\n\n是否现在去学习以生成今日学习单词？"
+                )
+                if resp:
+                    self.parent.show_page("learning")
+                return False
+
+            # 其他来源直接提示用户选择其他来源
+            messagebox.showinfo(
+                "无可用单词",
+                f"当前选择的来源 '{source_name}' 没有可用的单词。\n\n请在来源下拉中选择其他来源后重试。"
+            )
+            return False
+        except Exception as e:
+            log_error(f"检查单词来源时出错: {str(e)}")
+            messagebox.showerror("错误", "检查单词来源时发生错误，请查看日志。")
+            return False
 
     def _create_exercise_ui(self):
         """创建练习界面"""
@@ -526,6 +567,14 @@ class DictationPage(tk.Frame):
             fg='white'
         )
 
+        # 根据全局设置决定是否显示手动的下一个按钮（手动时显示）
+        try:
+            mode = self.settings_manager.get_auto_mode('word_learning') if self.settings_manager else 'manual'
+            if mode == 'manual' and self.current_mode == 'single':
+                self.next_button.pack(side=tk.LEFT, padx=10)
+        except Exception:
+            pass
+
         # 结果显示区域
         self.result_var = tk.StringVar()
         self.result_var.set("")
@@ -554,12 +603,87 @@ class DictationPage(tk.Frame):
 
     def _play_pronunciation(self):
         """播放单词发音"""
-        if self.current_word:
-            success = self.audio_player.play_pronunciation(self.current_word)
-            if not success and self.audio_available:
-                messagebox.showerror("播放失败", "无法播放单词发音，请检查网络连接。")
-            elif not self.audio_available:
-                messagebox.showinfo("提示", f"当前单词: {self.current_word}")
+        if not self.current_word:
+            return
+
+        # 在后台线程播放，避免阻塞UI
+        def _play():
+            try:
+                result = self.audio_player.play_pronunciation(self.current_word)
+            except Exception as e:
+                log_error(f"播放线程异常: {str(e)}")
+                result = False
+
+            # 在主线程中恢复UI状态并显示可能的错误信息
+            def _on_done():
+                try:
+                    log_info("播放完成回调触发")
+                    # 恢复播放按钮状态
+                    try:
+                        self.play_button.config(state=tk.NORMAL)
+                    except Exception:
+                        pass
+
+                    if not result and self.audio_available:
+                        messagebox.showerror("播放失败", "无法播放单词发音，请检查网络连接。")
+                    elif not self.audio_available:
+                        messagebox.showinfo("提示", f"当前单词: {self.current_word}")
+                    else:
+                        # 更新状态栏为已播放
+                        try:
+                            self.status_var.set(f"已播放: {self.current_word}")
+                        except Exception:
+                            pass
+                except Exception as e:
+                    log_error(f"播放完成回调异常: {str(e)}")
+
+            try:
+                # 使用 after 将回调切回主线程
+                self.main_frame.after(0, _on_done)
+            except Exception:
+                # 如果UI线程不可用，直接调用
+                _on_done()
+
+        # 禁用按钮以防重复点击
+        try:
+            self.play_button.config(state=tk.DISABLED)
+            self.status_var.set("正在播放...")
+        except Exception:
+            pass
+
+        t = threading.Thread(target=_play, daemon=True)
+        t.start()
+
+    def _on_auto_mode_word_learning_change(self, key, value):
+        """设置变更回调：自动/手动切换变动时更新 UI 行为"""
+        try:
+            if value == 'auto':
+                # 强制自动
+                self.auto_next = True
+                try:
+                    self.auto_next_var.set(True)
+                    self.auto_next_checkbox.config(state=tk.DISABLED)
+                except Exception:
+                    pass
+                # 隐藏手动下一个按钮
+                try:
+                    self.next_button.pack_forget()
+                except Exception:
+                    pass
+            else:
+                # 手动模式
+                try:
+                    self.auto_next_checkbox.config(state=tk.NORMAL)
+                except Exception:
+                    pass
+                # 显示下一个按钮仅在单个模式下
+                try:
+                    if self.current_mode == 'single':
+                        self.next_button.pack(side=tk.LEFT, padx=10)
+                except Exception:
+                    pass
+        except Exception:
+            pass
 
     def _start_timer(self):
         """开始倒计时器"""
@@ -872,11 +996,17 @@ class DictationPage(tk.Frame):
             self.result_label.config(fg='#4CAF50')
             log_info(f"听写正确: {self.current_word}")
         else:
-            translation = self.word_manager.word_dict.get(
-                self.current_word, "")
+            # 使用兼容方法获取翻译（get_translation 接受单个参数）
+            translation = self.word_manager.get_word_translation(self.current_word) or ""
             self.result_var.set(
                 f"✗ 错误！正确答案: {self.current_word} ({translation})")
             self.result_label.config(fg='#f44336')
+            # 记录并追踪错误单词
+            try:
+                if hasattr(self.word_manager, 'add_wrong_word'):
+                    self.word_manager.add_wrong_word(self.current_word)
+            except Exception:
+                pass
             log_wrong_word(self.current_word, user_input)
 
         # 显示例句（如果有）
@@ -896,13 +1026,23 @@ class DictationPage(tk.Frame):
 
         # 根据模式决定下一步
         if self.current_mode == "single":
-            # 单个模式，根据用户设置决定是否自动跳转
-            if self.auto_next:
+            # 单个模式，根据全局/本地设置决定是否自动跳转
+            try:
+                mode = self.settings_manager.get_auto_mode('word_learning') if self.settings_manager else 'manual'
+            except Exception:
+                mode = 'manual'
+
+            effective_auto = True if mode == 'auto' else self.auto_next
+
+            if effective_auto:
                 # 自动跳转到下一个单词
                 self.main_frame.after(2000, self._next_word)
             else:
                 # 手动模式，显示下一个按钮
-                self.next_button.pack(side=tk.LEFT, padx=10)
+                try:
+                    self.next_button.pack(side=tk.LEFT, padx=10)
+                except Exception:
+                    pass
         else:
             # 队列模式，延迟显示下一个单词或总结
             # 使用队列索引进行精确判断，避免索引越界

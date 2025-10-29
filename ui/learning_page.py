@@ -308,23 +308,42 @@ class LearningPage(tk.Frame):
         播放当前单词发音
         """
         if self.current_word and not self.is_playing:
+            # 在后台线程播放以避免阻塞
+            def _play():
+                try:
+                    self.is_playing = True
+                    result = self.learning_manager.play_pronunciation(self.current_word)
+                except Exception as e:
+                    result = False
+                    try:
+                        messagebox.showerror("错误", f"播放发音失败: {str(e)}")
+                    except Exception:
+                        pass
+
+                def _on_done():
+                    try:
+                        self.is_playing = False
+                        self.pronounce_button.config(text="🔊 播放发音", state=tk.NORMAL)
+                    except Exception:
+                        pass
+
+                    if not result:
+                        try:
+                            messagebox.showinfo("提示", "发音播放失败，请检查网络连接")
+                        except Exception:
+                            pass
+
+                try:
+                    self.main_frame.after(0, _on_done)
+                except Exception:
+                    _on_done()
+
             try:
-                # 设置播放状态
-                self.is_playing = True
-                self.pronounce_button.config(text="🔊 播放中...")
-                
-                # 播放发音
-                success = self.learning_manager.play_pronunciation(self.current_word)
-                
-                if not success:
-                    messagebox.showinfo("提示", "发音播放失败，请检查网络连接")
-                    
-            except Exception as e:
-                messagebox.showerror("错误", f"播放发音失败: {str(e)}")
-            finally:
-                # 恢复按钮状态
-                self.is_playing = False
-                self.pronounce_button.config(text="🔊 播放发音")
+                self.pronounce_button.config(text="🔊 播放中...", state=tk.DISABLED)
+            except Exception:
+                pass
+
+            threading.Thread(target=_play, daemon=True).start()
     
     def mark_mastered(self):
         """

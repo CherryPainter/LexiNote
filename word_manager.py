@@ -1,111 +1,63 @@
 """单词管理器，负责单词的增删改查、权重计算和练习功能"""
 import os
-import json
 import random
-from typing import Dict, List, Optional
+import functools
+import threading
+from typing import Dict, List, Optional, Union
+from datetime import datetime
+
 from logger import log_info, log_error, log_warning
+from core.database_manager import DatabaseManager
 
 
 class WordManager:
-    """单词管理器类，提供单词管理相关功能"""
+    """优化版单词管理器类，提供单词管理相关功能，支持异步操作和缓存"""
 
     def __init__(self):
         """初始化单词管理器"""
         self.data_dir = 'data'
-        self.word_dict_file = os.path.join(self.data_dir, 'word_dict.json')
-        self.word_weights_file = os.path.join(
-            self.data_dir, 'word_weights.json'
-        )
-        self.wrong_words_file = os.path.join(self.data_dir, 'wrong_words.json')
-        self.word_familiarity_file = os.path.join(
-            self.data_dir, 'word_familiarity.json'
-        )
-
+        
         # 确保数据目录存在
-        os.makedirs(self.data_dir, exist_ok=True)
+        if not os.path.exists(self.data_dir):
+            os.makedirs(self.data_dir)
+        
+        # 使用数据库管理器
+        self.db_manager = DatabaseManager()
+        
+        # 内存缓存
+        self._word_cache = {}  # 单词翻译缓存
+        self._weight_cache = {}  # 权重缓存
+        self._cache_lock = threading.RLock()  # 缓存锁
+        
+        # 初始化错误单词字典
+        self.wrong_words = {}
 
-        # 初始化数据文件
-        self._initialize_data_files()
-
-        # 加载数据
-        self.word_dict = self._load_data(self.word_dict_file)
-        self.word_weights = self._load_data(self.word_weights_file)
-        self.wrong_words = self._load_data(self.wrong_words_file)
-        self.word_familiarity = self._load_data(self.word_familiarity_file)
-
+        # 单词熟悉度映射（在内存中缓存，避免频繁查询数据库）
+        self.word_familiarity = {}
+        
         # 初始化AI管理器（延迟加载方式）
         self.ai_manager = None
         self.ai_available = False
         self._init_ai_manager()
-
-    def _initialize_data_files(self):
-        """初始化数据文件，确保文件存在并包含基本结构"""
-        # 初始化单词字典
-        if not os.path.exists(self.word_dict_file):
-            initial_words = {
-                "apple": "苹果",
-                "book": "书",
-                "run": "跑",
-                "beautiful": "美丽的",
-                "computer": "电脑",
-                "learn": "学习",
-                "friend": "朋友",
-                "happy": "快乐的",
-                "work": "工作",
-                "time": "时间"
-            }
-            self._save_data(self.word_dict_file, initial_words)
-            log_info("初始化单词字典文件")
-
-        # 初始化单词权重
-        if not os.path.exists(self.word_weights_file):
-            self._save_data(self.word_weights_file, {})
-            log_info("初始化单词权重文件")
-
-        # 初始化错误单词
-        if not os.path.exists(self.wrong_words_file):
-            self._save_data(self.wrong_words_file, {})
-            log_info("初始化错误单词文件")
-
-        # 初始化熟悉度
-        if not os.path.exists(self.word_familiarity_file):
-            self._save_data(self.word_familiarity_file, {})
-            log_info("初始化单词熟悉度文件")
-
-    def _load_data(self, file_path: str) -> Dict:
-        """从文件加载数据
-
-        Args:
-            file_path: 文件路径
-
-        Returns:
-            Dict: 加载的数据，如果文件不存在或读取失败返回空字典
-        """
+        
+        # 预热缓存
+        self._warmup_cache()
+        # 加载单词熟悉度到内存缓存
+        self._load_word_familiarity()
+    
+    def _warmup_cache(self):
+        """预热缓存，加载常用数据到内存"""
         try:
-            if os.path.exists(file_path):
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    return json.load(f)
+            # 加载所有单词到缓存
+            all_words = self.db_manager.get_all_words()
+            for word in all_words[:100]:  # 限制加载数量，避免内存占用过大
+                translation = self.db_manager.get_word_translation(word)
+                if translation:
+                    with self._cache_lock:
+                        self._word_cache[word] = translation
+            log_info(f"缓存预热完成，加载了{len(self._word_cache)}个单词")
         except Exception as e:
-            log_error(f"加载文件 {file_path} 失败: {str(e)}")
-        return {}
-
-    def _save_data(self, file_path: str, data: Dict):
-        """保存数据到文件
-
-        Args:
-            file_path: 文件路径
-            data: 要保存的数据
-        """
-        try:
-            # 先读取现有数据，避免覆盖
-            existing_data = self._load_data(file_path)
-            # 合并数据
-            existing_data.update(data)
-            # 保存数据
-            with open(file_path, 'w', encoding='utf-8') as f:
-                json.dump(existing_data, f, ensure_ascii=False, indent=4)
-        except Exception as e:
-            log_error(f"保存文件 {file_path} 失败: {str(e)}")
+            log_error(f"缓存预热失败: {str(e)}")
 
     def _init_ai_manager(self):
         """初始化AI管理器（延迟加载）"""
@@ -132,7 +84,7 @@ class WordManager:
             if self.ai_manager:
                 # 使用try-except捕获可能的错误，避免在初始化过程中抛出异常
                 try:
-                    test_response = self.ai_manager.example("test")
+                    test_response = self.ai_manager.example_sync("test")
                     # 检查响应是否包含错误信息
                     if test_response and "AI功能暂不可用" not in test_response:
                         log_info("AI功能测试成功，服务可用")
@@ -147,28 +99,181 @@ class WordManager:
         except Exception as e:
             log_warning(f"检查AI可用性时发生错误: {str(e)}")
             return False
-
-    def add_word(self, word: str, translation: str):
+    
+    @functools.lru_cache(maxsize=1000)
+    def get_translation(self, word: str) -> Optional[str]:
+        """获取单词翻译（带缓存）
+        
+        Args:
+            word: 单词
+            
+        Returns:
+            翻译结果
+        """
+        # 先查内存缓存
+        with self._cache_lock:
+            if word in self._word_cache:
+                return self._word_cache[word]
+        
+        # 查数据库
+        translation = self.db_manager.get_word_translation(word)
+        
+        # 更新缓存
+        if translation:
+            with self._cache_lock:
+                self._word_cache[word] = translation
+        
+        return translation
+    
+    def add_word(self, word: str, translation: str) -> bool:
         """添加单词
-
+        
         Args:
             word: 单词
             translation: 翻译
+            
+        Returns:
+            是否添加成功
         """
         try:
-            if word and translation:
-                self.word_dict[word.lower()] = translation
-                self._save_data(self.word_dict_file, self.word_dict)
-                # 初始化权重
-                if word.lower() not in self.word_weights:
-                    self.word_weights[word.lower()] = 1.0
-                    self._save_data(self.word_weights_file, self.word_weights)
-                log_info(f"添加单词成功: {word} -> {translation}")
-                return True
-            return False
+            # 添加到数据库
+            self.db_manager.add_word(word, translation)
+            
+            # 更新缓存
+            with self._cache_lock:
+                self._word_cache[word] = translation
+            
+            log_info(f"添加单词成功: {word} -> {translation}")
+            return True
         except Exception as e:
             log_error(f"添加单词失败: {str(e)}")
             return False
+    
+    def get_all_words(self) -> List[str]:
+        """获取所有单词
+        
+        Returns:
+            单词列表
+        """
+        return self.db_manager.get_all_words()
+    
+    # get_word_by_weight 已在文件后部提供更完整实现，早期占位实现已移除
+    
+    def update_word_proficiency(self, word: str, is_correct: bool):
+        """更新单词熟练度
+        
+        Args:
+            word: 单词
+            is_correct: 是否正确
+        """
+        try:
+            # 获取当前熟练度
+            results = self.db_manager.execute_read(
+                "SELECT proficiency FROM words WHERE word = ?",
+                (word,)
+            )
+            
+            current_proficiency = results[0]['proficiency'] if results else 0.0
+            
+            # 更新熟练度
+            # 正确增加0.1，错误减少0.15
+            proficiency_change = 0.1 if is_correct else -0.15
+            new_proficiency = max(0.0, min(1.0, current_proficiency + proficiency_change))
+            
+            # 更新数据库
+            self.db_manager.update_proficiency(word, new_proficiency)
+            self.db_manager.add_progress_record(word, is_correct, proficiency_change)
+            
+            # 清除相关缓存
+            with self._cache_lock:
+                if word in self._weight_cache:
+                    del self._weight_cache[word]
+            
+            log_info(f"更新单词熟练度: {word} -> {new_proficiency}")
+            
+        except Exception as e:
+            log_error(f"更新单词熟练度失败: {str(e)}")
+    
+    def get_familiar_words(self) -> List[str]:
+        """获取熟悉的单词（熟练度>0.8）
+        
+        Returns:
+            熟悉单词列表
+        """
+        try:
+            results = self.db_manager.execute_read(
+                "SELECT word FROM words WHERE proficiency > 0.8"
+            )
+            return [row['word'] for row in results]
+        except Exception as e:
+            log_error(f"获取熟悉单词失败: {str(e)}")
+            return []
+    
+    # 早期的 get_difficult_words 实现已移除，使用文件后部更通用的 get_difficult_words
+    
+    def get_learning_stats(self) -> Dict:
+        """获取学习统计信息
+        
+        Returns:
+            统计信息字典
+        """
+        try:
+            # 总单词数
+            total_words = len(self.get_all_words())
+            
+            # 今日练习次数
+            today = datetime.now().strftime('%Y-%m-%d')
+            today_practices = self.db_manager.execute_read(
+                "SELECT COUNT(*) as count FROM progress WHERE practice_date LIKE ?",
+                (f"{today}%",)
+            )[0]['count']
+            
+            # 今日正确次数
+            today_correct = self.db_manager.execute_read(
+                "SELECT COUNT(*) as count FROM progress WHERE practice_date LIKE ? AND is_correct = 1",
+                (f"{today}%",)
+            )[0]['count']
+            
+            # 平均熟练度
+            avg_proficiency = self.db_manager.execute_read(
+                "SELECT AVG(proficiency) as avg FROM words"
+            )[0]['avg'] or 0.0
+            
+            return {
+                "total_words": total_words,
+                "today_practices": today_practices,
+                "today_correct": today_correct,
+                "today_accuracy": today_correct / today_practices if today_practices > 0 else 0.0,
+                "avg_proficiency": float(avg_proficiency)
+            }
+            
+        except Exception as e:
+            log_error(f"获取学习统计失败: {str(e)}")
+            return {
+                "total_words": 0,
+                "today_practices": 0,
+                "today_correct": 0,
+                "today_accuracy": 0.0,
+                "avg_proficiency": 0.0
+            }
+    
+    def clear_cache(self):
+        """清除内存缓存"""
+        with self._cache_lock:
+            self._word_cache.clear()
+            self._weight_cache.clear()
+        self.get_translation.cache_clear()  # 清除lru_cache
+        log_info("内存缓存已清除")
+
+    def _load_word_familiarity(self):
+        """从数据库加载所有单词的熟练度到内存缓存"""
+        try:
+            rows = self.db_manager.execute_read("SELECT word, proficiency FROM words")
+            with self._cache_lock:
+                self.word_familiarity = {row['word']: row.get('proficiency', 0.0) for row in rows}
+            log_info(f"加载单词熟悉度: {len(self.word_familiarity)} 条")
+        except Exception as e:
+            log_error(f"加载单词熟悉度失败: {str(e)}")
 
     def check_spelling(self, correct_word: str, user_input: str) -> bool:
         """检查拼写是否正确
@@ -187,55 +292,53 @@ class WordManager:
             log_error(f"检查拼写时出错: {str(e)}")
             return False
             
-    def remove_word(self, word: str):
+    def remove_word(self, word: str) -> bool:
         """删除单词
 
         Args:
             word: 单词
+            
+        Returns:
+            是否删除成功
         """
         try:
-            word_lower = word.lower()
-            if word_lower in self.word_dict:
-                del self.word_dict[word_lower]
-                self._save_data(self.word_dict_file, self.word_dict)
-                # 同时删除相关数据
-                if word_lower in self.word_weights:
-                    del self.word_weights[word_lower]
-                    self._save_data(
-                        self.word_weights_file,
-                        self.word_weights
-                    )
-                if word_lower in self.wrong_words:
-                    del self.wrong_words[word_lower]
-                    self._save_data(self.wrong_words_file, self.wrong_words)
-                if word_lower in self.word_familiarity:
-                    del self.word_familiarity[word_lower]
-                    self._save_data(
-                        self.word_familiarity_file,
-                        self.word_familiarity
-                    )
+            # 从数据库删除
+            result = self.db_manager.remove_word(word)
+            
+            # 从缓存删除
+            with self._cache_lock:
+                if word in self._word_cache:
+                    del self._word_cache[word]
+                if word in self._weight_cache:
+                    del self._weight_cache[word]
+            
+            if result:
                 log_info(f"删除单词成功: {word}")
-                return True
-            return False
+            return result
         except Exception as e:
             log_error(f"删除单词失败: {str(e)}")
             return False
 
-    def update_word(self, word: str, translation: str):
+    def update_word(self, word: str, translation: str) -> bool:
         """更新单词
 
         Args:
             word: 单词
             translation: 新的翻译
+            
+        Returns:
+            是否更新成功
         """
         try:
-            word_lower = word.lower()
-            if word_lower in self.word_dict:
-                self.word_dict[word_lower] = translation
-                self._save_data(self.word_dict_file, self.word_dict)
+            # 更新数据库
+            result = self.db_manager.update_word(word, translation)
+            
+            # 更新缓存
+            if result:
+                with self._cache_lock:
+                    self._word_cache[word] = translation
                 log_info(f"更新单词成功: {word} -> {translation}")
-                return True
-            return False
+            return result
         except Exception as e:
             log_error(f"更新单词失败: {str(e)}")
             return False
@@ -249,15 +352,7 @@ class WordManager:
         Returns:
             str: 单词的翻译，如果不存在返回None
         """
-        return self.word_dict.get(word.lower())
-
-    def get_all_words(self) -> List[str]:
-        """获取所有单词
-
-        Returns:
-            List[str]: 单词列表
-        """
-        return list(self.word_dict.keys())
+        return self.get_translation(word)
 
     def get_word_count(self) -> int:
         """获取单词数量
@@ -265,7 +360,11 @@ class WordManager:
         Returns:
             int: 单词数量
         """
-        return len(self.word_dict)
+        try:
+            return len(self.get_all_words())
+        except Exception as e:
+            log_error(f"获取单词数量失败: {str(e)}")
+            return 0
 
     def get_random_word(
         self, exclude_words: List[str] = None
@@ -278,13 +377,19 @@ class WordManager:
         Returns:
             str: 随机单词，如果没有可用单词返回None
         """
-        available_words = [
-            word for word in self.word_dict.keys()
-            if exclude_words is None or word not in exclude_words
-        ]
-        if available_words:
-            return random.choice(available_words)
-        return None
+        try:
+            all_words = self.get_all_words()
+            if exclude_words:
+                available_words = [word for word in all_words if word not in exclude_words]
+            else:
+                available_words = all_words
+            
+            if available_words:
+                return random.choice(available_words)
+            return None
+        except Exception as e:
+            log_error(f"获取随机单词失败: {str(e)}")
+            return None
 
     def get_weighted_random_word(
         self, exclude_words: List[str] = None
@@ -297,19 +402,37 @@ class WordManager:
         Returns:
             str: 随机单词，如果没有可用单词返回None
         """
-        available_words = []
-        weights = []
-
-        for word in self.word_dict.keys():
-            if exclude_words is None or word not in exclude_words:
-                available_words.append(word)
-                # 获取权重，如果不存在则使用默认值1.0
-                weights.append(self.word_weights.get(word, 1.0))
-
-        if available_words:
-            # 根据权重随机选择单词
-            return random.choices(available_words, weights=weights, k=1)[0]
-        return None
+        try:
+            # 使用数据库中的熟练度作为权重
+            words = self.db_manager.execute_read(
+                "SELECT word, proficiency FROM words ORDER BY proficiency ASC"
+            )
+            
+            # 过滤排除的单词
+            if exclude_words:
+                words = [word for word in words if word['word'] not in exclude_words]
+            
+            if not words:
+                return None
+            
+            # 使用权重选择（熟练度越低，权重越高）
+            total_weight = sum((1.0 - word['proficiency']) for word in words)
+            if total_weight == 0:
+                return random.choice(words)['word']
+            
+            # 加权随机选择
+            r = random.uniform(0, total_weight)
+            cumulative = 0
+            
+            for word in words:
+                cumulative += (1.0 - word['proficiency'])
+                if r <= cumulative:
+                    return word['word']
+            
+            return words[0]['word']
+        except Exception as e:
+            log_error(f"获取加权随机单词失败: {str(e)}")
+            return self.get_random_word(exclude_words)
 
     def update_word_weight(self, word: str, is_correct: bool, time_spent: float = 0):
         """更新单词权重，考虑正确与否和响应时间
@@ -320,45 +443,39 @@ class WordManager:
             time_spent: 拼写所用时间（秒）
         """
         try:
-            word_lower = word.lower()
+            # 调用数据库更新方法，考虑时间因素调整熟练度变化量
+            proficiency_change = 0.1
             
-            # 根据正确与否和响应时间确定权重调整因子
             if is_correct:
-                # 正确拼写时降低权重
-                base_factor = 0.8
-                
-                # 如果响应时间很长（超过10秒），降低权重的程度减小
+                # 正确拼写时增加熟练度
                 if time_spent > 10:
-                    base_factor = 0.9
+                    proficiency_change = 0.05  # 响应很慢，增加较少
                 elif time_spent > 5:
-                    base_factor = 0.85
-                # 响应很快（小于2秒），可以更大程度降低权重
+                    proficiency_change = 0.08  # 响应较慢，增加中等
                 elif time_spent < 2:
-                    base_factor = 0.7
+                    proficiency_change = 0.15  # 响应很快，增加较多
             else:
-                # 错误拼写时增加权重
-                base_factor = 1.5
-                
-                # 错误时响应时间越短，可能表示用户快速但不准确，权重增加更多
+                # 错误拼写时减少熟练度
+                proficiency_change = -0.15
                 if time_spent < 3:
-                    base_factor = 1.8
+                    proficiency_change = -0.2  # 快速错误，减少更多
                 elif time_spent > 8:
-                    base_factor = 1.3
+                    proficiency_change = -0.1  # 思考后错误，减少较少
             
-            if word_lower in self.word_weights:
-                self.word_weights[word_lower] *= base_factor
-                # 确保权重在合理范围内
-                self.word_weights[word_lower] = max(
-                    0.1, min(self.word_weights[word_lower], 10.0)
-                )
-                self._save_data(self.word_weights_file, self.word_weights)
-            else:
-                # 如果权重不存在，初始化为1.0并应用因子
-                self.word_weights[word_lower] = 1.0 * base_factor
-                self._save_data(
-                    self.word_weights_file,
-                    self.word_weights
-                )
+            # 获取当前熟练度
+            results = self.db_manager.execute_read(
+                "SELECT proficiency FROM words WHERE word = ?",
+                (word,)
+            )
+            
+            current_proficiency = results[0]['proficiency'] if results else 0.0
+            new_proficiency = max(0.0, min(1.0, current_proficiency + proficiency_change))
+            
+            # 更新数据库
+            self.db_manager.update_proficiency(word, new_proficiency)
+            
+            log_info(f"更新单词权重: {word}, 熟练度从 {current_proficiency} 调整为 {new_proficiency}")
+            
         except Exception as e:
             log_error(f"更新单词权重失败: {str(e)}")
 
@@ -372,32 +489,37 @@ class WordManager:
             - last_session: 最后学习时间
         """
         try:
-            import os
-            import json
-            from datetime import datetime
-            
             # 计算总学习单词数
-            total_learned = len(self.word_dict)
+            total_learned = self.get_word_count()
             
-            # 计算正确率 (简单实现：正确单词数/(正确+错误))
-            wrong_count = sum(self.wrong_words.values())
-            if total_learned > 0:
-                # 假设每个单词至少被学习一次
-                correct_rate = max(0, (total_learned - wrong_count) / total_learned)
+            # 计算正确率
+            stats = self.get_learning_stats()
+            total_attempts = stats.get('today_practices', 0)
+            if total_attempts > 0:
+                correct_rate = stats.get('today_accuracy', 0.0)
             else:
-                correct_rate = 0.0
+                # 如果没有今日练习记录，查询历史数据
+                try:
+                    result = self.db_manager.execute_read(
+                        "SELECT COUNT(*) as total, SUM(CASE WHEN is_correct = 1 THEN 1 ELSE 0 END) as correct FROM progress"
+                    )[0]
+                    if result['total'] > 0:
+                        correct_rate = result['correct'] / result['total']
+                    else:
+                        correct_rate = 0.0
+                except Exception:
+                    correct_rate = 0.0
             
             # 获取最后学习时间
             last_session = "未开始"
-            stats_file = os.path.join("data", "learning_stats.json")
-            if os.path.exists(stats_file):
-                try:
-                    with open(stats_file, 'r', encoding='utf-8') as f:
-                        stats = json.load(f)
-                        if stats.get('last_session'):
-                            last_session = stats['last_session']
-                except Exception as e:
-                    log_info(f"读取学习统计失败: {str(e)}")
+            try:
+                result = self.db_manager.execute_read(
+                    "SELECT MAX(practice_date) as last_date FROM progress"
+                )[0]
+                if result['last_date']:
+                    last_session = result['last_date']
+            except Exception as e:
+                log_info(f"获取最后学习时间失败: {str(e)}")
             
             return {
                 'total_learned': total_learned,
@@ -420,44 +542,20 @@ class WordManager:
             exercise_type: 练习类型，如"听写"
         """
         try:
-            import os
-            import json
             from datetime import datetime
             
             # 记录练习开始日志
             log_info(f"开始{exercise_type}练习")
             
-            # 更新最后学习时间
-            stats_file = os.path.join("data", "learning_stats.json")
-            
-            # 确保data目录存在
-            os.makedirs("data", exist_ok=True)
-            
-            # 读取现有统计信息
-            stats = {}
-            if os.path.exists(stats_file):
-                try:
-                    with open(stats_file, 'r', encoding='utf-8') as f:
-                        stats = json.load(f)
-                except Exception as e:
-                    log_info(f"读取学习统计失败: {str(e)}")
-            
-            # 更新最后学习时间
-            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            stats['last_session'] = now
-            
-            # 如果是首次练习，初始化统计信息
-            if 'total_exercises' not in stats:
-                stats['total_exercises'] = 0
-            stats['total_exercises'] += 1
-            
-            # 保存更新后的统计信息
+            # 在数据库中记录练习会话
+            timestamp = datetime.now().isoformat()
             try:
-                with open(stats_file, 'w', encoding='utf-8') as f:
-                    json.dump(stats, f, ensure_ascii=False, indent=2)
-            except Exception as e:
-                log_info(f"保存学习统计失败: {str(e)}")
-                
+                self.db_manager.execute_write(
+                    "INSERT INTO exercise_sessions (exercise_type, start_time) VALUES (?, ?)",
+                    (exercise_type, timestamp)
+                )
+            except Exception as db_error:
+                log_info(f"记录练习会话失败: {str(db_error)}")
         except Exception as e:
             log_info(f"开始练习失败: {str(e)}")
     
@@ -468,32 +566,34 @@ class WordManager:
             选中的单词，如果没有单词则返回None
         """
         try:
-            # 如果没有单词，返回None
-            if not self.word_dict:
+            # 查询熟练度较低的单词
+            words = self.db_manager.execute_read(
+                "SELECT word, proficiency FROM words ORDER BY proficiency ASC LIMIT 20"
+            )
+            
+            if not words:
                 return None
-                
-            # 创建单词列表和对应的权重
-            words = []
-            weights = []
             
-            for word in self.word_dict.keys():
-                word_lower = word.lower()
-                # 错误次数越多，权重越大（优先练习错误的单词）
-                # 为确保至少有基础权重，使用max(1, 错误次数)作为权重
-                weight = max(1, self.wrong_words.get(word_lower, 0))
-                words.append(word)
-                weights.append(weight)
+            # 使用权重选择
+            # 熟练度越低，权重越高
+            total_weight = sum((1.0 - word['proficiency']) for word in words)
+            if total_weight == 0:
+                # 如果所有单词熟练度都很高，随机选择
+                return random.choice(words)['word']
             
-            # 根据权重随机选择单词
-            if words:
-                selected_word = random.choices(words, weights=weights, k=1)[0]
-                log_info(f"根据权重选择单词: {selected_word}")
-                return selected_word
+            # 加权随机选择
+            r = random.uniform(0, total_weight)
+            cumulative = 0
             
-            return None
+            for word in words:
+                cumulative += (1.0 - word['proficiency'])
+                if r <= cumulative:
+                    return word['word']
+            
+            return words[0]['word']
+            
         except Exception as e:
             log_error(f"根据权重获取单词失败: {str(e)}")
-            # 出错时返回随机单词
             return self.get_random_word()
     
     def add_wrong_word(self, word: str):
@@ -504,21 +604,11 @@ class WordManager:
         """
         try:
             word_lower = word.lower()
-            # 记录错误次数
-            if word_lower in self.wrong_words:
-                self.wrong_words[word_lower] += 1
-            else:
-                self.wrong_words[word_lower] = 1
-            self._save_data(self.wrong_words_file, self.wrong_words)
-            # 增加权重
-            # 错误拼写，增加权重，没有时间统计使用默认值
+            # 错误拼写，更新权重，没有时间统计使用默认值
             self.update_word_weight(word_lower, False, 0)
-            # 降低熟悉度
-            self.update_word_familiarity(word_lower, -0.2)
-            log_info(
-                f"添加错误单词: {word}, "
-                f"错误次数: {self.wrong_words[word_lower]}"
-            )
+            # 降低熟悉度（通过更新熟练度实现）
+            self.update_word_proficiency(word_lower, False)
+            log_info(f"添加错误单词: {word}")
         except Exception as e:
             log_error(f"添加错误单词失败: {str(e)}")
 
@@ -550,23 +640,16 @@ class WordManager:
         return difficult_words
 
     def update_word_familiarity(self, word: str, delta: float):
-        """更新单词熟悉度
+        """更新单词熟悉度（已废弃，使用update_word_proficiency替代）
 
         Args:
             word: 单词
             delta: 熟悉度变化量
         """
         try:
-            word_lower = word.lower()
-            if word_lower in self.word_familiarity:
-                self.word_familiarity[word_lower] += delta
-            else:
-                self.word_familiarity[word_lower] = delta
-            # 确保熟悉度在0-1范围内
-            self.word_familiarity[word_lower] = max(
-                0.0, min(self.word_familiarity[word_lower], 1.0)
-            )
-            self._save_data(self.word_familiarity_file, self.word_familiarity)
+            # 调用新的update_word_proficiency方法，使用参数转换
+            is_correct = delta > 0  # 正增量表示正确，负增量表示错误
+            self.update_word_proficiency(word, is_correct)
         except Exception as e:
             log_error(f"更新单词熟悉度失败: {str(e)}")
 
@@ -577,89 +660,25 @@ class WordManager:
             List[str]: 今日学习的单词列表
         """
         try:
-            from datetime import datetime
-            today = datetime.now().strftime('%Y-%m-%d')
-            today_words = set()  # 使用集合避免重复
+            # 从数据库查询今日学习记录
+            today = datetime.now().strftime("%Y-%m-%d")
+            results = self.db_manager.execute_read(
+                """
+                SELECT DISTINCT word 
+                FROM progress 
+                WHERE practice_date >= ?
+                """,
+                (today + " 00:00:00",)
+            )
             
-            # 方法1: 从熟悉度记录中查找今日学习的单词
-            for word, data in self.word_familiarity.items():
-                # 如果data是字典且包含last_learned字段
-                if isinstance(data, dict) and 'last_learned' in data:
-                    last_learned_date = data['last_learned'].split(' ')[0] if isinstance(data['last_learned'], str) else ''
-                    if last_learned_date == today:
-                        today_words.add(word)
-                # 如果data是字符串（可能是直接的时间戳）
-                elif isinstance(data, str):
-                    try:
-                        learned_date = data.split(' ')[0]
-                        if learned_date == today:
-                            today_words.add(word)
-                    except:
-                        # 忽略格式错误的时间戳
-                        pass
-            
-            # 方法2: 从word_progress.json查找今日学习的单词
-            try:
-                progress_file = os.path.join(self.data_dir, 'word_progress.json')
-                word_progress = self._load_data(progress_file)
-                
-                for word, progress in word_progress.items():
-                    if progress.get('learned', False):
-                        last_learned = progress.get('last_learned', '')
-                        if last_learned:
-                            try:
-                                # 尝试从不同格式的时间戳中提取日期
-                                if isinstance(last_learned, str):
-                                    if 'T' in last_learned:  # ISO格式
-                                        learned_date = last_learned.split('T')[0]
-                                    else:  # 普通格式
-                                        learned_date = last_learned.split(' ')[0]
-                                    
-                                    if learned_date == today:
-                                        today_words.add(word)
-                            except:
-                                # 忽略格式错误的时间戳
-                                pass
-            except Exception as e:
-                log_warning(f"从word_progress获取今日学习单词时出错: {str(e)}")
-            
-            # 方法3: 如果今日学习已完成但没有找到单词，返回最近学习的几个单词
-            # 这是为了处理记录不完整的情况
-            if not today_words:
-                try:
-                    # 检查今日学习是否已完成
-                    daily_learning_file = os.path.join(self.data_dir, 'daily_learning.json')
-                    daily_learning = self._load_data(daily_learning_file)
-                    
-                    if today in daily_learning and daily_learning[today].get('completed', False):
-                        log_info("今日学习已完成但未找到具体单词记录，尝试获取最近学习的单词")
-                        
-                        # 获取最近修改过的单词（根据权重文件，因为学习会改变权重）
-                        weights_file = os.path.join(self.data_dir, 'word_weights.json')
-                        weights_data = self._load_data(weights_file)
-                        
-                        # 如果有权重数据，返回一些单词作为备选
-                        if weights_data:
-                            # 取权重最高的10个单词
-                            sorted_words = sorted(weights_data.items(), key=lambda x: x[1], reverse=True)
-                            recent_words = [word for word, _ in sorted_words[:10]]
-                            today_words.update(recent_words)
-                except Exception as e:
-                    log_warning(f"尝试获取备选单词时出错: {str(e)}")
-            
-            result = list(today_words)
-            log_info(f"get_today_learned_words 返回 {len(result)} 个单词")
-            return result
+            today_words = [row['word'] for row in results]
+            log_info(f"get_today_learned_words 返回 {len(today_words)} 个单词")
+            return today_words
         except Exception as e:
             log_error(f"获取今日学习单词失败: {str(e)}")
-            # 出错时返回一个安全的备选方案 - 几个常用单词
-            try:
-                # 返回一些单词作为备选，避免用户无法进行听写
-                return list(self.word_dict.keys())[:10]  # 返回前10个单词作为备选
-            except:
-                return []
+            return []
     
-    def get_word_familiarity(self, word: str = None) -> float or dict:
+    def get_word_familiarity(self, word: str = None) -> Union[float, Dict[str, float]]:
         """获取单词熟悉度
         
         Args:
@@ -672,7 +691,13 @@ class WordManager:
             return self.word_familiarity.get(word.lower(), 0.0)
         else:
             # 返回所有单词的熟悉度
-            return {word: self.word_familiarity.get(word.lower(), 0.0) for word in self.word_dict.keys()}
+            # 使用数据库获取所有单词并返回熟悉度映射
+            try:
+                all_words = self.db_manager.get_all_words()
+                return {word: self.word_familiarity.get(word.lower(), 0.0) for word in all_words}
+            except Exception as e:
+                log_error(f"获取单词熟悉度映射失败: {str(e)}")
+                return {}
 
     def get_unfamiliar_words(self, threshold: float = 0.3) -> List[str]:
         """获取不熟悉的单词
@@ -701,7 +726,7 @@ class WordManager:
             # 首先检查AI功能是否可用
             if self.ai_available and self.ai_manager:
                 # 调用AI接口获取例句
-                example = self.ai_manager.example(word)
+                example = self.ai_manager.example_sync(word)
                 if (example and "AI功能暂不可用" not in example and
                         "生成例句失败" not in example):
                     # 检查返回的例句是否包含翻译
@@ -865,15 +890,18 @@ class WordManager:
             True/False: 今日学习是否已完成
         """
         try:
-            from datetime import datetime
-            today = datetime.now().strftime('%Y-%m-%d')
-            daily_learning_file = os.path.join(self.data_dir, 'daily_learning.json')
+            # 从数据库查询今日是否完成学习
+            today = datetime.now().strftime("%Y-%m-%d")
+            result = self.db_manager.execute_read(
+                """
+                SELECT COUNT(*) as count 
+                FROM exercise_sessions 
+                WHERE exercise_type = 'completed' AND start_time LIKE ?
+                """,
+                (f"{today}%",)
+            )
             
-            # 读取daily_learning.json文件
-            daily_learning_data = self._load_data(daily_learning_file)
-            
-            # 检查今日记录是否存在且标记为完成
-            if today in daily_learning_data and daily_learning_data[today].get('completed', False):
+            if result and result[0]['count'] > 0:
                 log_info("今日学习进度已完成")
                 return True
             
@@ -895,31 +923,95 @@ class WordManager:
             bool: 翻译是否正确
         """
         try:
+            import re
+
+            def normalize(s: str) -> str:
+                if s is None:
+                    return ""
+                s = s.strip().lower()
+                # 移除括号内说明
+                s = re.sub(r"\([^)]*\)", "", s)
+                s = re.sub(r"（[^）]*）", "", s)
+                # 替换常见分隔符为统一分隔符
+                for sep in [";", "；", ",", "、", "/", "|"]:
+                    s = s.replace(sep, ";")
+                # 去掉标点符号（中英文）和多余空格
+                import string as _string
+                punct = re.escape(_string.punctuation) + "，。！？；：“”‘’、（）【】—…·、、·"
+                s = re.sub(f"[{punct}]", "", s)
+                s = re.sub(r"\s+", " ", s).strip()
+                return s
+
             word_lower = word.lower()
             correct_translation = self.get_word_translation(word_lower)
-            
+
             if not correct_translation:
                 log_warning(f"无法检查翻译: 单词 '{word}' 没有对应的翻译")
                 return False
-            
-            # 简化的比较逻辑：忽略大小写和多余空格
-            correct_normalized = correct_translation.strip().lower()
-            user_normalized = user_translation.strip().lower()
-            
-            is_correct = correct_normalized == user_normalized
-            
+
+            # If AI is available, prefer AI evaluation (more robust for synonyms/phrases)
+            try:
+                if self.ai_available and self.ai_manager:
+                    try:
+                        eval_result = self.ai_manager.evaluate_sync(correct_translation, user_translation)
+                        if isinstance(eval_result, dict):
+                            ai_is_correct = bool(eval_result.get('is_correct'))
+                            similarity = float(eval_result.get('similarity', 0)) if eval_result.get('similarity') is not None else 0.0
+                            # Accept when AI says correct, or similarity is high (>=0.8)
+                            if ai_is_correct or similarity >= 0.8:
+                                if update_stats:
+                                    self.update_word_proficiency(word_lower, True)
+                                    self.update_word_weight(word_lower, True, 0)
+                                    log_info(f"AI判断翻译正确: {word} -> {user_translation}, similarity={similarity}")
+                                return True
+                            else:
+                                if update_stats:
+                                    self.update_word_proficiency(word_lower, False)
+                                    self.update_word_weight(word_lower, False, 0)
+                                    log_info(f"AI判断翻译错误: {word} -> 用户输入: {user_translation}, AI_similarity={similarity}")
+                                return False
+                    except Exception as ai_e:
+                        log_warning(f"调用AI评估翻译失败，回退本地判断: {str(ai_e)}")
+
+            except Exception:
+                # 保守处理：若任何AI交互错误，不影响后续本地判断
+                pass
+
+            user_normalized = normalize(user_translation)
+
+            # 将正确翻译按常见分隔符拆分为多个候选
+            candidates_raw = re.split(r"[;,；、/|]", correct_translation)
+            candidates = [normalize(c) for c in candidates_raw if c and c.strip()]
+
+            # 如果没有分拆出候选，则把整个翻译作为单候选
+            if not candidates:
+                candidates = [normalize(correct_translation)]
+
+            # 精确匹配或包含匹配（用户输入可能是简短形式）
+            is_correct = False
+            for cand in candidates:
+                if not cand:
+                    continue
+                if user_normalized == cand:
+                    is_correct = True
+                    break
+                # 容错：用户输入包含候选或候选包含用户输入（如只输入关键词）
+                if user_normalized and (user_normalized in cand or cand in user_normalized):
+                    is_correct = True
+                    break
+
             if update_stats:
                 if is_correct:
-                    # 翻译正确，增加熟悉度，降低权重
-                    self.update_word_familiarity(word_lower, 0.1)
-                    # 正确拼写，略微降低权重，没有时间统计使用默认值
+                    # 翻译正确，更新熟练度
+                    self.update_word_proficiency(word_lower, True)
                     self.update_word_weight(word_lower, True, 0)
                     log_info(f"翻译正确: {word} -> {user_translation}")
                 else:
-                    # 翻译错误，记录错误单词，增加权重
-                    self.add_wrong_word(word_lower)
+                    # 翻译错误，更新熟练度
+                    self.update_word_proficiency(word_lower, False)
+                    self.update_word_weight(word_lower, False, 0)
                     log_info(f"翻译错误: {word} -> 用户输入: {user_translation}, 正确翻译: {correct_translation}")
-            
+
             return is_correct
         except Exception as e:
             log_error(f"检查翻译失败: {str(e)}")

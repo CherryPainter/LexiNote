@@ -14,17 +14,22 @@ from audio_player import AudioPlayer
 class TranslationPage(tk.Frame):
     """翻译练习页面"""
     
-    def __init__(self, parent, word_manager, settings_manager=None, font_config=None):
+    def __init__(self, parent, settings_manager=None, word_manager=None, font_config=None, **kwargs):
         """初始化翻译练习页面"""
-        super().__init__(parent, bg='white')
+        super().__init__(parent, **kwargs)
         self.parent = parent
-        self.word_manager = word_manager
         self.settings_manager = settings_manager
-        self.font_config = font_config if font_config else {'header': ('SimHei', 16, 'bold'), 'normal': ('SimHei', 12), 'button': ('SimHei', 12, 'bold')}
+        self.word_manager = word_manager
+        self.font_config = font_config or {'title': ('Arial', 24), 'normal': ('Arial', 16), 'small': ('Arial', 12)}
+        self.current_word = ""
+        self.current_translation = ""
         
-        # 当前练习状态
-        self.current_word = None
-        self.current_translation = None
+        # 注册设置监听器
+        if self.settings_manager:
+            self.settings_manager.register_listener(
+                'auto_mode_translation_practice', 
+                self._on_auto_mode_translation_practice_change
+            )
         self.is_english_to_chinese = True
         self.current_example = ""
         self.is_example_visible = False
@@ -35,7 +40,12 @@ class TranslationPage(tk.Frame):
         
         # 创建UI
         self._create_ui()
-        
+        # 注册设置监听器以便运行时生效
+        try:
+            self.settings_manager.register_listener('auto_mode_translation_practice', self._on_auto_mode_translation_change)
+        except Exception:
+            pass
+
         # 开始练习
         self.word_manager.start_exercise("翻译")
     
@@ -205,6 +215,18 @@ class TranslationPage(tk.Frame):
         )
         self.skip_button.pack(side=tk.LEFT, padx=10)
         
+        # 下一个按钮（手动模式时使用）
+        self.next_button = tk.Button(
+            buttons_frame,
+            text="🔄 下一个",
+            font=self.font_config['button'],
+            width=15,
+            height=2,
+            command=self._next_translation,
+            bg='#9C27B0',
+            fg='white'
+        )
+        
         self.add_word_button = tk.Button(
             buttons_frame,
             text="➕ 添加单词",
@@ -260,9 +282,43 @@ class TranslationPage(tk.Frame):
             # 如果需要中文发音功能，可以在这里添加
             pass
         
-        success = self.audio_player.play_pronunciation(word_to_pronounce)
-        if not success and self.audio_available:
-            messagebox.showerror("播放失败", "无法播放单词发音，请检查网络连接。")
+        # 在后台线程播放，避免阻塞UI
+        def _play():
+            try:
+                result = self.audio_player.play_pronunciation(word_to_pronounce)
+            except Exception as e:
+                from logger import log_error
+                log_error(f"播放线程异常: {str(e)}")
+                result = False
+
+            def _on_done():
+                # 恢复按钮并显示可能的错误
+                try:
+                    self.pronounce_button.config(state=tk.NORMAL, text="🔊 发音")
+                except Exception:
+                    pass
+
+                if not result and self.audio_available:
+                    messagebox.showerror("播放失败", "无法播放单词发音，请检查网络连接。")
+                else:
+                    try:
+                        self.status_var.set(f"已播放: {word_to_pronounce}")
+                    except Exception:
+                        pass
+
+            try:
+                self.main_frame.after(0, _on_done)
+            except Exception:
+                _on_done()
+
+        # 禁用按钮并提供视觉反馈
+        try:
+            self.pronounce_button.config(state=tk.DISABLED, text="🔊 播放中...")
+            self.status_var.set("正在播放...")
+        except Exception:
+            pass
+
+        threading.Thread(target=_play, daemon=True).start()
     
     def _on_direction_change(self):
         """翻译方向改变时的处理"""
@@ -283,7 +339,7 @@ class TranslationPage(tk.Frame):
             return
         
         # 获取对应的翻译
-        self.current_translation = self.word_manager.word_dict.get(self.current_word, "")
+        self.current_translation = self.word_manager.get_translation(self.current_word) or ""
         
         # 显示要翻译的内容
         if self.is_english_to_chinese:
@@ -345,7 +401,7 @@ class TranslationPage(tk.Frame):
             # 出错时不影响主要功能
             pass
         
-        # 显示结果，提供明确的对错提示
+    # 显示结果，提供明确的对错提示
         if is_correct:
             # 正确答案的反馈
             result_text = f"✅ 翻译正确！[{ai_judgment_source}]\n\n"
@@ -372,7 +428,7 @@ class TranslationPage(tk.Frame):
                 if ai_reference:
                     result_text += f"AI推荐翻译:{ai_reference}"
                 else:
-                    result_text += f"参考翻译: {self.word_manager.word_dict.get(self.current_word, '')}"
+                    result_text += f"参考翻译: {self.word_manager.get_translation(self.current_word) or ''}"
             else:
                 result_text += f"中文: {self.current_translation}\n你的答案: {user_input}\n\n"
                 if ai_reference:
@@ -385,6 +441,12 @@ class TranslationPage(tk.Frame):
             self.result_label.config(fg='#C62828', font=('SimHei', 13, 'bold'))
             # 短暂闪烁背景色增强视觉反馈
             self._flash_background('#FFEBEE')
+            # 记录错误：日志 + word_manager 跟踪
+            try:
+                if hasattr(self.word_manager, 'add_wrong_word'):
+                    self.word_manager.add_wrong_word(self.current_word)
+            except Exception:
+                pass
             log_wrong_word(self.current_word, user_input)
         
         # 更新状态栏
@@ -392,19 +454,67 @@ class TranslationPage(tk.Frame):
         self.status_var.set(f"正确率: {progress.get('correct_rate', 0) * 100:.1f}% | 判断方式: {ai_judgment_source}")
         
         # 检查是否需要自动下一个单词
+        # 受模块级别的手动/自动设置控制
+        module_mode = 'manual'
+        try:
+            module_mode = self.settings_manager.get_auto_mode('translation_practice') if self.settings_manager else 'manual'
+        except Exception:
+            module_mode = 'manual'
+
         auto_next = False
-        if is_correct:
-            auto_next = self.settings_manager.get_setting("auto_next_correct", False) if self.settings_manager else False
+        if module_mode == 'auto':
+            # 维持现有的按答对/答错自动跳转逻辑
+            if is_correct:
+                auto_next = self.settings_manager.get_setting("auto_next_correct", False) if self.settings_manager else False
+            else:
+                auto_next = self.settings_manager.get_setting("auto_next_wrong", False) if self.settings_manager else False
         else:
-            auto_next = self.settings_manager.get_setting("auto_next_wrong", False) if self.settings_manager else False
-        
+            # 模块设为手动时，禁止自动跳转
+            auto_next = False
+
         if auto_next:
             # 延迟一小段时间再自动下一个单词，让用户有时间看到反馈
             self.after(1000, self._next_translation)
+            # 隐藏手动下一个按钮（如果存在）
+            try:
+                self.next_button.pack_forget()
+            except Exception:
+                pass
         else:
-            # 延长显示时间，让用户有更充分的时间查看结果和AI建议
-            self.main_frame.after(4000, self._next_translation)
+            # 手动模式或不自动时，显示下一个按钮供用户手动继续
+            try:
+                self.next_button.pack(side=tk.LEFT, padx=10)
+            except Exception:
+                pass
     
+    def _on_auto_mode_translation_practice_change(self, key, value):
+        """设置变更回调：自动/手动切换变动时更新 UI 行为"""
+        try:
+            if value == 'auto':
+                # 自动模式下，仅当答对/答错设置为自动时才隐藏下一个按钮
+                if self.settings_manager:
+                    if self.result_var.get().startswith("✓"):
+                        auto_next = self.settings_manager.get_setting("auto_next_correct", False)
+                    elif self.result_var.get().startswith("✗"):
+                        auto_next = self.settings_manager.get_setting("auto_next_wrong", False)
+                    else:
+                        auto_next = False
+                    
+                    if auto_next:
+                        try:
+                            self.next_button.pack_forget()
+                        except Exception:
+                            pass
+            else:
+                # 手动模式时，始终显示下一个按钮（如果有结果）
+                if self.result_var.get().strip() and not self.result_var.get() == "请输入翻译":
+                    try:
+                        self.next_button.pack(side=tk.LEFT, padx=10)
+                    except Exception:
+                        pass
+        except Exception as e:
+            pass
+            
     def _skip_translation(self):
         """跳过当前翻译"""
         # 标记为错误
@@ -488,6 +598,24 @@ class TranslationPage(tk.Frame):
             self.example_label.config(text="")
             self.is_example_visible = False
             self.example_button.config(text="📝 显示例句")
+
+    def _on_auto_mode_translation_change(self, key, value):
+        """设置变更回调：当翻译练习模块的自动/手动模式变更时，更新UI按钮可见性"""
+        try:
+            if value == 'auto':
+                # 自动模式时隐藏手动下一个按钮
+                try:
+                    self.next_button.pack_forget()
+                except Exception:
+                    pass
+            else:
+                # 手动模式时显示下一个按钮
+                try:
+                    self.next_button.pack(side=tk.LEFT, padx=10)
+                except Exception:
+                    pass
+        except Exception:
+            pass
     
     def _show_add_word_dialog(self):
         """显示添加单词对话框"""
