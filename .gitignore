@@ -29,6 +29,7 @@ ehthumbs.db
 *.jsonl
 *.log
 logs/
+data/
 data/*.json
 *.db          # SQLite数据库文件
 *.db-journal  # SQLite事务日志
