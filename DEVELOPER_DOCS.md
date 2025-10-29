@@ -1,6 +1,6 @@
 # 开发者文档
 
-本文档记录了LexiNote应用的核心逻辑变更和开发信息。
+本文档记录了 LexiNote 应用的核心逻辑变更和开发信息。
 
 ## 版本历史
 
@@ -157,30 +157,25 @@
 
 - **新功能：完形填空模块**
   - 创建了`modules/cloze_test.py`作为完形填空的核心控制器
-  - 实现了在线（AI生成）和离线（数据库加载）两种模式
+  - 实现了在线（AI 生成）和离线（数据库加载）两种模式
   - 添加了题目生成、答题和评估功能
   - 创建了`ui/cloze_test_page.py`作为用户界面
-  
 - **新功能：阅读理解模块**
   - 创建了`modules/reading_comprehension.py`作为阅读理解的核心控制器
   - 支持多选题和主观题的生成和评估
   - 实现了在线和离线模式
   - 创建了`ui/reading_comprehension_page.py`作为用户界面
-  
 - **数据库扩展**
   - 创建了`modules/database.py`管理新功能的数据存储
   - 在现有`lexinote.db`中添加了`cloze_tests`和`reading_comprehensions`表
-  - 实现了完整的CRUD操作
-  
-- **AI服务扩展**
-  - 创建了`modules/ai_service.py`处理新功能的AI交互
+  - 实现了完整的 CRUD 操作
+- **AI 服务扩展**
+  - 创建了`modules/ai_service.py`处理新功能的 AI 交互
   - 实现了专门的提示词模板用于生成测试题目和评估答案
-  
 - **题库门户管理**
   - 创建了`modules/portal_manager.py`用于管理离线题库
   - 支持题目列表查看、删除、导出等功能
-  
-- **UI集成**
+- **UI 集成**
   - 在主窗口添加了完形填空和阅读理解的导航按钮
   - 实现了统一的页面切换和状态管理机制
 
@@ -383,6 +378,64 @@
    - 清晰标识 AI 功能的可用性状态，方便调试
    - 记录所有 AI 相关错误，包括模块导入失败、服务连接失败等
 
+### 新增理解类练习模块说明 (Cloze / Reading)
+
+从 v1.1.0 开始引入两个理解类练习模块：完形填空（ClozeTestModule）和阅读理解（ReadingComprehensionModule），位于 `modules/` 目录下。以下为开发者应知的实现细节与注意点：
+
+- 目录与文件：
+  - `modules/cloze_test.py`：完形填空控制器，负责加载题目、准备显示格式、提交答案并调用 AIService 评估。
+  - `modules/reading_comprehension.py`：阅读理解控制器，支持选择题与主观题的逐题或一次性提交评估。
+  - `modules/ai_service.py`：与 AIManager（core/ai_interface.py）配合，负责生成题目和对主观题进行 AI 评估。
+  - `modules/database.py`：管理题库的 SQLite 存取（表 `cloze_tests`、`reading_comprehensions`）。
+
+注意事项与约定：
+
+1. AI 输出契约与解析
+
+- 在向 AI 请求生成题目或评估主观题时，必须在 prompt 中明确要求“只返回 JSON 对象”，并提供 JSON schema。
+- 实际中 AI 可能返回带注释或多余文本。为了提高健壮性，项目中新增 `modules/utils.py::extract_json_from_text(text)`，用于：
+  - 直接尝试 json.loads(text)
+  - 若失败，使用正则提取文本中的第一对花括号内容并解析
+- 在 `AIService.evaluate_reading_answer` 中，如果首次解析失败，系统会自动重试一次并提示 AI “仅返回 JSON”，如仍失败会记录原始响应到日志并返回评估失败提示。
+
+2. 字段兼容性
+
+- 由于不同 prompt/模型返回的字段名可能不同（例如完形填空 AI 端可能用 `answers` 或 `answer`），`ClozeTestModule` 已实现字段兼容层：
+  - 若返回含 `answers` 而无 `answer`，模块会复制 `answers` 到 `answer` 字段。
+  - 选项可接受 AI 返回的 `text`（分号分隔）或 `options` 列表两种格式，模块会标准化为 `{'blank': int, 'options': [str,...]}`。
+
+3. 数据库与保存
+
+- `modules/database.py` 提供 CRUD 方法，请务必使用该接口保存/读取题目，避免直接操作底层 SQLite 文件。
+
+4. 调试建议
+
+- 若 AI 返回解析失败，可在日志中查找 `解析AI评估结果失败，原始返回` 条目；也可以直接在 `cache/ai_text/` 中保存原始响应以便后续分析（可按需实现）。
+
+5. 示例用法（同步）
+
+```python
+from modules.ai_service import AIService
+from modules.cloze_test import ClozeTestModule
+
+ai = AIService()
+cloze = ClozeTestModule()
+
+# 在线生成并保存题目
+test = ai.generate_cloze_test(level='中级', topic='环境')
+if test:
+   display = cloze.get_test_by_id(test['id'])
+   print(display['content'])
+
+# 本地评估
+is_correct, eval_text, explanation = cloze.submit_answer('apple,run,...')
+print(is_correct, eval_text)
+```
+
+6. 单元测试
+
+- 推荐为生成与解析逻辑添加单元测试，尤其是 AI 返回非标准格式时的解析/重试逻辑。
+
 ### 开发环境设置
 
 #### 必要依赖
@@ -492,3 +545,109 @@ self.settings_manager.unregister_listener('auto_mode_review', self._on_auto_mode
 - 使用 git 进行版本控制
 - 每次重大修改更新版本号：v1.0.0 → v1.1.0
 - 所有核心逻辑变更记录在 DEVELOPER_DOCS.md
+# AI 杈撳嚭濂戠害銆丣SON 瑙ｆ瀽涓庨噸璇曪紙琛ュ厖璇存槑锛?
+
+涓轰簡璁?AI 璋冪敤鍦ㄧ湡瀹炶繍琛屼腑鏇寸ǔ瀹氥€佸彲璋冭瘯锛岄」鐩伒寰互涓嬬害瀹氬苟鎻愪緵浜嗚緟鍔╁伐鍏凤細
+
+1. 杈撳嚭濂戠害锛堟帹鑽愶級
+
+- 瀹屽舰濉┖锛堢敓鎴愶級绀轰緥濂戠害锛?
+
+```json
+{
+  "id": "string",
+  "content": "甯﹀崰浣嶇鐨勯鐩枃鏈紝浣跨敤 [[_]] 鎴栫被浼兼爣璁拌〃绀虹┖",
+  "blanks": [
+    { "blank": 1, "options": ["閫夐」A", "閫夐」B", "閫夐」C"], "answer": "閫夐」A" },
+    { "blank": 2, "options": ["閫夐」X", "閫夐」Y"], "answer": "閫夐」Y" }
+  ],
+  "explanation": "(鍙€? 瑙ｆ瀽鎴栫ず渚嬬瓟妗?
+}
+```
+
+- 闃呰鐞嗚В锛堜富瑙傞 AI 璇勪及锛夌ず渚嬪绾︼細
+
+```json
+{
+  "score": 0, // 鏁存暟 0-100
+  "feedback": "绠€鐭弽棣堬紙閫傚悎 UI 鏄剧ず锛?,
+  "reason": "璇︾粏瑙ｉ噴锛堝彲閫夛級"
+}
+```
+
+瀵归€夋嫨棰樼被鐨勮瘎浼帮紝涔熷厑璁镐娇鐢ㄧ畝鍗曠殑 `{ "correct": true, "feedback": "..." }` 褰㈡€併€?
+
+2. 瑙ｆ瀽宸ュ叿
+
+- 椤圭洰鍦?`modules/utils.py` 涓彁渚?`extract_json_from_text(text)`锛?
+
+  - 浼樺厛灏濊瘯鐩存帴 `json.loads`銆?
+  - 鑻ュけ璐ワ紝浼氬皾璇曚粠鏂囨湰涓娊鍙栭涓?JSON 瀵硅薄锛堝厛闈炶椽濠紝鍐嶈椽濠尮閰嶏級銆?
+  - 杩斿洖瑙ｆ瀽鍚庣殑 Python 瀵硅薄鎴?`None`銆?
+
+- 鍦?`modules/ai_service.py` 涓涓昏棰樿瘎浼拌皟鐢ㄥ仛浜嗕袱杞瓥鐣ワ細
+  1. 棣栨鐢ㄥ父瑙?prompt 璇锋眰 AI 缁欏嚭 JSON銆傝嫢 `extract_json_from_text` 鎴愬姛鍒欑户缁€?
+  2. 鑻ヨВ鏋愬け璐ワ紝鍚?AI 鍙戦€佷竴娆″甫鏈夆€滃彧杩斿洖 JSON锛屼笉瑕佷换浣曡В閲婃垨澶氫綑鏂囧瓧鈥濈殑琛ュ厖鎻愮ず骞堕噸璇曚竴娆°€?
+  3. 鑻ヤ粛澶辫触锛岃褰曞師濮?AI 杩斿洖鍒版棩蹇?缂撳瓨锛屽苟杩斿洖瑙ｆ瀽澶辫触鐨勫閿欑粨鏋滐紙閬垮厤闃诲鐢ㄦ埛娴佺▼锛夈€?
+
+3. 鏃ュ織涓庡璁?
+
+- 褰撹В鏋愬け璐ユ椂锛屼唬鐮佷細鍦ㄦ棩蹇椾腑鍐欏叆甯︽爣绛剧殑鍘熷 AI 鏂囨湰锛堝 `瑙ｆ瀽AI璇勪及缁撴灉澶辫触锛屽師濮嬭繑鍥?`锛夛紝渚夸簬绂荤嚎鍒嗘瀽銆?
+- 寤鸿鍚敤骞朵繚鐣?`cache/ai_text/` 鐩綍锛堝凡鍦ㄩ」鐩腑棰勭暀锛夛紝鎶婂け璐ユ垨閲嶈鐨?AI 鍘熸枃淇濆瓨涓?JSON 鏂囦欢渚涗簨鍚庡垎鏋愩€?
+
+4. 寮€鍙戣€呬娇鐢ㄧず渚嬶紙鍚屾/蹇€熼獙璇侊級
+
+```python
+from modules.utils import extract_json_from_text
+from modules.ai_service import AIService
+
+ai = AIService()
+
+# 鍋囧畾 ai.call_some_api 杩斿洖鍘熷瀛楃涓?
+raw = ai._call_ollama_sync('...')
+obj = extract_json_from_text(raw)
+if obj is None:
+    # 璁板綍骞?鎴栬Е鍙戦噸璇曢€昏緫
+    ai.logger.warn('鏃犳硶瑙ｆ瀽 AI 杩斿洖锛屽凡璁板綍鍘熸枃')
+else:
+    # 澶勭悊 obj
+    pass
+```
+
+5. 鍗曞厓娴嬭瘯寤鸿锛堝繀鍋氶」锛?
+
+- 涓?`extract_json_from_text` 缂栧啓娴嬭瘯鐢ㄤ緥锛?
+
+  - 涓ユ牸 JSON
+  - JSON 鍓嶅悗鍖呭惈璇存槑鏂囧瓧锛坋.g. "Answer:\n{...}"锛?
+  - JSON 琚澶栫殑瑙ｉ噴鍖呭洿锛堟ā鍨嬪父瑙佽涓猴級
+  - 瀹屽叏鏃犳晥鏂囨湰锛堝簲杩斿洖 None锛?
+
+- 瀵?`AIService.evaluate_reading_answer` 鍐欓泦鎴愭祴璇曪細
+  - 妯℃嫙妯″瀷杩斿洖涓ユ牸 JSON锛堟鏌ュ垎鏁?鍙嶉瑙ｆ瀽姝ｇ‘锛?
+  - 妯℃嫙杩斿洖甯﹁В閲婄殑 JSON锛坋xtract_json 鑳芥娊鍙栵級
+  - 妯℃嫙杩斿洖鏃犳硶瑙ｆ瀽鐨勬枃鏈紙妫€鏌ヤ唬鐮佽蛋鍒伴噸璇曚笌闄嶇骇鍒嗘敮骞惰褰曟棩蹇楋級
+
+6. 鍦?UI 涓帴鍏ユ祦寮忚緭鍑猴紙灏忔彁绀猴級
+
+- `core/ai_interface.py` 宸叉敮鎸佹祦寮忓洖璋冿細鍚屾/寮傛鐨?public 鏂规硶閮芥帴鍙楀彲閫?`callback(chunk: str, done: bool)` 鍙傛暟銆?
+- 鍦?UI锛堝 `ui/translation_page.py` / 绀轰緥锛変腑锛屼紶鍏ヤ竴涓皢鎺ユ敹鍒嗗潡骞剁敤 `widget.after(0, update_ui)` 瀹夊叏璋冨害鍒颁富绾跨▼鐨勫洖璋冿紝鍗冲彲瀹炵幇瀹炴椂鏂囧瓧娴佸睍绀恒€?
+
+绀轰緥锛?
+
+```python
+def on_chunk(chunk, done):
+    # 鍦ㄤ富绾跨▼鏇存柊 UI锛堝鏋滃湪鍏朵粬绾跨▼锛岄渶瑕佷娇鐢?widget.after)
+    text_widget.insert('end', chunk)
+    if done:
+        text_widget.insert('end', '\n--- 瀹屾垚 ---\n')
+
+ai_manager.translate('璇风炕璇?..', callback=on_chunk)
+```
+
+---
+
+璇峰闃呰琛ュ厖鍐呭銆傛垜鍙互锛?
+
+- 鐩存帴鎶婅繖閮ㄥ垎鍚堝苟鍒?`DEVELOPER_DOCS.md`锛堟垜浼氬皾璇曚竴娆″悎骞跺苟鍛婄煡缁撴灉锛夛紱鎴?
+- 濡傛灉浣犳効鎰忓厛瀹￠槄锛忎慨鏀癸紝鍐嶈鎴戝悎骞讹紝鎴戜細鏍规嵁浣犵殑鍙嶉杩涜鏇存柊銆?

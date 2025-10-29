@@ -6,6 +6,7 @@ import threading
 from logger import log_info, log_error, log_warning
 from core.ai_interface import AIManager
 from .database import ComprehensionDatabase
+from .utils import extract_json_from_text
 
 
 class AIService:
@@ -117,6 +118,8 @@ class AIService:
                 
                 if test_id > 0:
                     result['id'] = test_id
+                    # 兼容字段：数据库中使用 answer 字段，AI 返回可能使用 answers
+                    result['answer'] = result.get('answers', result.get('answer'))
                     result['options'] = processed_options
                     log_info(f"成功生成并保存完形填空题目，ID: {test_id}")
                     return result
@@ -301,18 +304,31 @@ class AIService:
                 """
                 
                 response = self.ai_manager._ask_sync(prompt)
-                
+
+                # 尝试解析AI返回的JSON，若失败则尝试提取JSON或重试一次要求AI仅返回JSON
+                # 使用公共工具解析 AI 返回的 JSON（支持提取文本中的 JSON 对象）
+                eval_result = extract_json_from_text(response)
+                if eval_result is None:
+                    # 记录原始响应以便排查
+                    log_error(f"解析AI评估结果失败，原始返回：{response}")
+                    # 重试：请求AI仅返回JSON格式
+                    retry_prompt = prompt + "\n\n请仅返回符合上面JSON格式的JSON对象，不要包含任何解释或额外文本。"
+                    retry_response = self.ai_manager._ask_sync(retry_prompt)
+                    eval_result = extract_json_from_text(retry_response)
+
+                    if eval_result is None:
+                        log_error("二次解析仍失败，返回评估失败")
+                        return False, "评估失败"
+
                 try:
-                    eval_result = json.loads(response)
                     is_correct = eval_result.get('is_acceptable', False)
                     score = eval_result.get('score', 0)
                     feedback = eval_result.get('feedback', '')
-                    
+
                     result = f"得分: {score}/100\n反馈: {feedback}"
                     return is_correct, result
-                    
                 except Exception as e:
-                    log_error(f"解析AI评估结果失败: {str(e)}")
+                    log_error(f"处理AI评估结果字段失败: {str(e)}")
                     return False, "评估失败"
                     
         except Exception as e:

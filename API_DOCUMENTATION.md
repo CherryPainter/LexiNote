@@ -244,7 +244,7 @@ def generate_example(self, word):
 
 #### evaluate_spelling
 
-```python
+````python
 def evaluate_spelling(self, word, user_input):
     """评估拼写准确性
 
@@ -255,7 +255,98 @@ def evaluate_spelling(self, word, user_input):
     Returns:
         dict: {"correct": bool, "similarity": float, "feedback": str}
     """
+
+## Modules API (新模块)
+
+### ClozeTestModule (modules/cloze_test.py)
+
+```python
+class ClozeTestModule:
+    def __init__(self):
+        """初始化完形填空模块"""
+
+    def start_new_test(self, mode: str = None, level: str = "中级", topic: str = "通用") -> Optional[Dict]:
+        """开始新的完形填空练习，返回题目数据或 None
+
+        返回的题目字典示例：
+        {
+          'id': int,
+          'title': str,
+          'content': str,  # 含 [BLANK_1] 等占位
+          'options': [ {'blank': 1, 'options': ['opt1','opt2','opt3','opt4']}, ... ]
+        }
+        """
+
+    def submit_answer(self, user_answer: str) -> Tuple[bool, str, str]:
+        """提交答案（逗号分隔），返回 (is_correct, evaluation_text, explanation)"""
+
+    def get_test_by_id(self, test_id: int) -> Optional[Dict]:
+        """按 ID 获取题目并返回同 start_new_test 的显示格式"""
+
+    def get_all_tests(self) -> List[Dict]:
+        """返回题库列表（id/title/source/date_created）"""
+
+
+### ReadingComprehensionModule (modules/reading_comprehension.py)
+
+```python
+class ReadingComprehensionModule:
+    def __init__(self):
+        pass
+
+    def start_new_test(self, mode: str = None, level: str = "中级", length: str = "短篇", question_count: int = 5) -> Optional[Dict]:
+        """开始新的阅读理解题目，返回：
+        {
+          'id': int,
+          'article': str,
+          'questions': [str,...],
+          'total_questions': int
+        }
+        """
+
+    def submit_question_answer(self, question_index: int, user_answer: str) -> Tuple[bool, str, str]:
+        """提交单题答案，返回 (is_correct, evaluation, explanation)。
+        - 选择题使用简单字符串对比（A/B/C/D）
+        - 主观题使用 AI 评估（返回 JSON 包含 is_acceptable/score/feedback）
+        """
+
+    def submit_all_answers(self, user_answers: List[str]) -> Tuple[float, List[Dict]]:
+        """提交全部答案并返回总分与各题结果"""
+
+
+### AIService (modules/ai_service.py)
+
+```python
+class AIService:
+    def __init__(self):
+        """封装对 AI 的高级调用（生成题目与评估）"""
+
+    def generate_cloze_test(self, level: str = "中级", topic: str = "通用") -> Optional[Dict]:
+        """请求 AI 生成完形填空并保存到数据库，返回题目字典（含 id）或 None"""
+
+    def generate_reading_comprehension(self, level: str = "中级", length: str = "短篇", question_count: int = 5) -> Optional[Dict]:
+        """请求 AI 生成阅读理解题目并保存到数据库，返回题目字典（含 id）或 None"""
+
+    def evaluate_cloze_answer(self, user_answer: str, correct_answer: str) -> Tuple[bool, str]:
+        """对完形填空答案做简单对比返回 (is_correct, evaluation_text)"""
+
+    def evaluate_reading_answer(self, user_answer: str, correct_answer: str, question_type: str = "选择题") -> Tuple[bool, str]:
+        """主观题会调用 AI 评估，返回 (bool, human-readable evaluation)。
+
+        注意：AI 可能返回带说明的文本，模块内部会尝试提取 JSON（is_acceptable/score/feedback），
+        若首次解析失败会自动重试一次并要求 AI 仅返回 JSON，若仍失败将返回评估失败并记录原始响应。
+        """
+
+````
+
+### utils.extract_json_from_text
+
+```python
+def extract_json_from_text(text: str) -> Optional[Any]:
+    """尝试从自由文本中提取 JSON 对象并解析，若无法解析返回 None。"""
 ```
+
+````
 
 ### 状态检查方法
 
@@ -268,7 +359,7 @@ def is_available(self):
     Returns:
         bool: 可用返回True，不可用返回False
     """
-```
+````
 
 ## LearningManager API
 

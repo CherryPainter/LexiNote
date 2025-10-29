@@ -68,6 +68,32 @@ class ClozeTestModule:
                     self.current_test = self.db_manager.get_cloze_test()
                 
                 if self.current_test:
+                    # 兼容AI/DB返回的字段名：有些返回使用 'answers'，数据库使用 'answer'
+                    if 'answer' not in self.current_test and 'answers' in self.current_test:
+                        self.current_test['answer'] = self.current_test.get('answers')
+
+                    # 兼容选项格式：将可能的 'text' 字段解析为 'options' 列表
+                    if self.current_test.get('options') and len(self.current_test.get('options'))>0:
+                        normalized = []
+                        for opt in self.current_test.get('options'):
+                            if isinstance(opt, dict):
+                                # 如果AI 返回的选项使用 'text' 字段存储分号分隔的选项
+                                if 'options' not in opt and 'text' in opt:
+                                    try:
+                                        opts = opt.get('text', '').split(';')
+                                    except Exception:
+                                        opts = []
+                                    normalized.append({
+                                        'blank': opt.get('blank'),
+                                        'options': [o.strip() for o in opts if o.strip()]
+                                    })
+                                else:
+                                    normalized.append(opt)
+                            else:
+                                # 非 dict 的项，直接跳过或尝试解析
+                                continue
+                        self.current_test['options'] = normalized
+
                     log_info(f"成功获取完形填空题目，ID: {self.current_test.get('id')}")
                     return self._prepare_test_for_display()
                 else:
