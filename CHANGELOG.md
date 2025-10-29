@@ -7,6 +7,7 @@
 - 修复scrollable_frame.py中Canvas.create_window方法的参数错误
 - 修复cloze_test_page.py中缺少ttk导入的问题
 - 修复main_window.py中ttk导入顺序问题
+- 修复cloze_test_page.py中调用不存在的_on_options_configure方法的错误
 
 ## [v1.6.0] - 2025-10-31
 ### Fixed

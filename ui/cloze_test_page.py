@@ -1,4 +1,5 @@
 import tkinter as tk
+from tkinter import ttk
 from tkinter import messagebox, scrolledtext
 import os
 import sys
@@ -263,8 +264,7 @@ class ClozeTestPage(tk.Frame):
                 tk.Label(options_frame, text=option_text, font=self.font_config['normal'], 
                         justify=tk.LEFT).pack(anchor=tk.W, pady=2, fill=tk.X)
         
-        # 强制更新Canvas的滚动区域
-        self._on_options_configure(None)
+        # 滚动区域会自动更新，无需手动调用
     
     def _submit_answer(self):
         """提交答案"""
