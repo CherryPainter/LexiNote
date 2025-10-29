@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import messagebox, ttk, simpledialog
 import sys
 import os
 
@@ -37,6 +37,9 @@ class MainWindow:
         self.word_manager = WordManager()
         self.settings_manager = SettingsManager()
         self.audio_player = AudioPlayer()
+        
+        # 页面实例缓存，使用懒加载模式
+        self._pages = {}
         
         # 创建UI
         self._create_ui()
@@ -120,15 +123,19 @@ class MainWindow:
     
     def _show_settings_page(self):
         """显示设置页面"""
-        self._clear_content_area()
+        page_key = "settings"
         
-        # 创建设置页面
-        self.current_page = SettingsPage(
-            self.content_area,
-            settings_manager=self.settings_manager,
-            word_manager=self.word_manager,
-            font_config=self.font_config
-        )
+        # 懒加载页面
+        if page_key not in self._pages:
+            self._pages[page_key] = SettingsPage(
+                self.content_area,
+                settings_manager=self.settings_manager,
+                word_manager=self.word_manager,
+                font_config=self.font_config
+            )
+        
+        self._clear_content_area()
+        self.current_page = self._pages[page_key]
         self.current_page.pack(fill=tk.BOTH, expand=True)
         
         log_info("切换到设置页面")
@@ -187,80 +194,104 @@ class MainWindow:
     
     def _show_dictation_page(self):
         """显示听写练习页面"""
-        # 允许用户进入听写页面，即使今日没有学习单词
-        # 具体的功能访问限制将在dictation_page中处理
+        page_key = "dictation"
         today_words = self.word_manager.get_today_learned_words()
+        
+        # 懒加载页面
+        if page_key not in self._pages:
+            self._pages[page_key] = DictationPage(
+                self.content_area,
+                word_manager=self.word_manager,
+                settings_manager=self.settings_manager,
+                font_config=self.font_config
+            )
+        
         self._clear_content_area()
-        self.current_page = DictationPage(
-            self.content_area,
-            word_manager=self.word_manager,
-            settings_manager=self.settings_manager,
-            font_config=self.font_config
-        )
+        self.current_page = self._pages[page_key]
         self.current_page.pack(fill=tk.BOTH, expand=True)
         
         log_info(f"切换到听写练习页面，今日已学习 {len(today_words)} 个单词")
     
     def _show_translation_page(self):
         """显示翻译练习页面"""
+        page_key = "translation"
+        
+        # 懒加载页面
+        if page_key not in self._pages:
+            self._pages[page_key] = TranslationPage(
+                self.content_area,
+                word_manager=self.word_manager,
+                settings_manager=self.settings_manager,
+                font_config=self.font_config
+            )
+        
         self._clear_content_area()
-        # 确保传递settings_manager到翻译页面
-        self.current_page = TranslationPage(
-            self.content_area,
-            word_manager=self.word_manager,
-            settings_manager=self.settings_manager,
-            font_config=self.font_config
-        )
+        self.current_page = self._pages[page_key]
         self.current_page.pack(fill=tk.BOTH, expand=True)
         
         log_info("切换到翻译练习页面")
     
     def _show_review_page(self):
         """显示单词复习页面"""
+        page_key = "review"
+        
+        # 懒加载页面
+        if page_key not in self._pages:
+            self._pages[page_key] = ReviewPage(
+                self.content_area,
+                word_manager=self.word_manager,
+                settings_manager=self.settings_manager,
+                font_config=self.font_config
+            )
+        
         self._clear_content_area()
-        # 确保传递settings_manager到复习页面
-        self.current_page = ReviewPage(
-            self.content_area,
-            word_manager=self.word_manager,
-            settings_manager=self.settings_manager,
-            font_config=self.font_config
-        )
+        self.current_page = self._pages[page_key]
         self.current_page.pack(fill=tk.BOTH, expand=True)
         
         log_info("切换到单词复习页面")
     
     def _show_learning_page(self):
         """显示学习模式页面"""
+        page_key = "learning"
+        
+        # 懒加载页面
+        if page_key not in self._pages:
+            # 创建学习管理器
+            learning_manager = LearningManager(
+                data_manager=self.word_manager,
+                scheduler=self.word_manager,
+                audio_player=self.audio_player,
+                logger=self.word_manager
+            )
+            
+            self._pages[page_key] = LearningPage(
+                self.content_area,
+                learning_manager=learning_manager,
+                word_manager=self.word_manager,
+                settings_manager=self.settings_manager,
+                font_config=self.font_config,
+                bg='white'
+            )
+        
         self._clear_content_area()
-        
-        # 创建学习管理器
-        learning_manager = LearningManager(
-            data_manager=self.word_manager,
-            scheduler=self.word_manager,
-            audio_player=self.audio_player,
-            logger=self.word_manager
-        )
-        
-        # 创建学习页面并确保传递settings_manager
-        self.current_page = LearningPage(
-            self.content_area,
-            learning_manager=learning_manager,
-            word_manager=self.word_manager,
-            settings_manager=self.settings_manager,
-            font_config=self.font_config,
-            bg='white'
-        )
+        self.current_page = self._pages[page_key]
         self.current_page.pack(fill=tk.BOTH, expand=True)
         
         log_info("切换到学习模式页面")
     
     def _show_cloze_test_page(self):
         """显示完形填空页面"""
+        page_key = "cloze_test"
+        
+        # 懒加载页面，避免在初始化时连接AI
+        if page_key not in self._pages:
+            self._pages[page_key] = ClozeTestPage(
+                self.content_area,
+                self
+            )
+        
         self._clear_content_area()
-        self.current_page = ClozeTestPage(
-            self.content_area,
-            self
-        )
+        self.current_page = self._pages[page_key]
         self.current_page.pack(fill=tk.BOTH, expand=True)
         
         # 调用页面的on_show方法
@@ -271,11 +302,17 @@ class MainWindow:
     
     def _show_reading_comprehension_page(self):
         """显示阅读理解页面"""
+        page_key = "reading_comprehension"
+        
+        # 懒加载页面，避免在初始化时连接AI
+        if page_key not in self._pages:
+            self._pages[page_key] = ReadingComprehensionPage(
+                self.content_area,
+                self
+            )
+        
         self._clear_content_area()
-        self.current_page = ReadingComprehensionPage(
-            self.content_area,
-            self
-        )
+        self.current_page = self._pages[page_key]
         self.current_page.pack(fill=tk.BOTH, expand=True)
         
         # 调用页面的on_show方法

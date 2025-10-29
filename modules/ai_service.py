@@ -1,5 +1,8 @@
 import json
 import re
+import time
+import os
+import requests
 from typing import Dict, List, Optional, Tuple
 import threading
 
@@ -20,6 +23,34 @@ class AIService:
         
         # 测试AI连接状态
         self.ai_available = self._test_ai_connection()
+        
+    def _get_available_models(self) -> list:
+        """获取可用的Ollama模型列表
+        
+        Returns:
+            可用模型名称列表
+        """
+        try:
+            response = requests.get("http://localhost:11434/api/tags", timeout=5)
+            if response.status_code == 200:
+                data = response.json()
+                return [model["name"] for model in data.get("models", [])]
+        except Exception as e:
+            log_warning(f"获取可用模型列表失败: {str(e)}")
+        return []
+
+    def _save_raw_response(self, tag: str, content: str):
+        """将原始 AI 返回保存到 cache 目录，便于排查"""
+        try:
+            cache_dir = getattr(self.ai_manager, 'cache_dir', None) or os.path.join('cache', 'ai_text')
+            os.makedirs(cache_dir, exist_ok=True)
+            filename = f"{tag}_{int(time.time())}.txt"
+            path = os.path.join(cache_dir, filename)
+            with open(path, 'w', encoding='utf-8') as f:
+                f.write(content if content is not None else '')
+            log_info(f"已保存原始AI响应到: {path}")
+        except Exception as e:
+            log_warning(f"保存原始AI响应失败: {str(e)}")
     
     def _test_ai_connection(self) -> bool:
         """测试AI连接是否可用
@@ -28,19 +59,34 @@ class AIService:
             bool: AI连接是否可用
         """
         try:
+            # 首先检查服务是否运行
+            try:
+                # 使用 /api/tags 作为健康检查端点
+                health_response = requests.get("http://localhost:11434/api/tags", timeout=5)
+                if health_response.status_code != 200:
+                    log_warning(f"Ollama服务运行异常，状态码: {health_response.status_code}")
+                    return False
+            except requests.RequestException as e:
+                log_warning(f"Ollama服务连接失败: {str(e)}")
+                return False
+            
+            # 然后测试模型响应
             test_prompt = "请回复'OK'"
             response = self.ai_manager._ask_sync(test_prompt)
+            log_info(f"AI连接测试响应: {response[:50]}...")
             return "OK" in response
         except Exception as e:
             log_warning(f"AI连接测试失败: {str(e)}")
             return False
     
     def is_ai_available(self) -> bool:
-        """检查AI服务是否可用
+        """检查AI服务是否可用，每次调用都重新测试连接状态
         
         Returns:
             bool: AI服务是否可用
         """
+        # 每次调用都重新测试，以便检测连接恢复
+        self.ai_available = self._test_ai_connection()
         return self.ai_available
     
     def generate_cloze_test(self, level: str = "中级", topic: str = "通用") -> Optional[Dict]:
@@ -54,7 +100,7 @@ class AIService:
             Dict: 包含题目信息的字典
         """
         try:
-            if not self.ai_available:
+            if not self.is_ai_available():
                 log_error("AI服务不可用，无法生成完形填空题目")
                 return None
             
@@ -85,7 +131,24 @@ class AIService:
             
             # 解析AI返回的JSON
             try:
-                result = json.loads(response)
+                # 去除可能的代码块标记
+                clean_response = response.strip()
+                if clean_response.startswith('```json'):
+                    clean_response = clean_response[7:]
+                if clean_response.endswith('```'):
+                    clean_response = clean_response[:-3]
+                clean_response = clean_response.strip()
+                
+                # 使用工具函数提取JSON
+                result = extract_json_from_text(clean_response)
+                if result is None:
+                    log_error("无法从AI返回中提取有效的JSON")
+                    return None
+                
+                # 处理可能的字段名拼写错误
+                if 'answeers' in result:
+                    result['answers'] = result.pop('answeers')
+                    log_info("已修复字段名拼写错误: answeers -> answers")
                 
                 # 验证必要字段
                 required_fields = ['title', 'content', 'options', 'answers', 'explanation']
@@ -129,6 +192,11 @@ class AIService:
             except json.JSONDecodeError as e:
                 log_error(f"解析AI返回的JSON失败: {str(e)}")
                 log_error(f"AI返回内容: {response}")
+                # 保存原始响应便于排查
+                try:
+                    self._save_raw_response('cloze_parse_fail', response)
+                except Exception:
+                    pass
                 return None
                 
         except Exception as e:
@@ -189,7 +257,28 @@ class AIService:
             
             # 解析AI返回的JSON
             try:
-                result = json.loads(response)
+                # 去除可能的代码块标记
+                clean_response = response.strip()
+                if clean_response.startswith('```json'):
+                    clean_response = clean_response[7:]
+                if clean_response.endswith('```'):
+                    clean_response = clean_response[:-3]
+                clean_response = clean_response.strip()
+                
+                # 使用工具函数提取JSON
+                result = extract_json_from_text(clean_response)
+                if result is None:
+                    log_error("无法从AI返回中提取有效的JSON")
+                    return None
+                
+                # 处理可能的字段名拼写错误
+                if 'answeers' in result:
+                    result['answers'] = result.pop('answeers')
+                    log_info("已修复字段名拼写错误: answeers -> answers")
+                
+                if 'explanaations' in result:
+                    result['explanations'] = result.pop('explanaations')
+                    log_info("已修复字段名拼写错误: explanaations -> explanations")
                 
                 # 验证必要字段
                 required_fields = ['article', 'questions', 'answers', 'explanations']
@@ -222,6 +311,10 @@ class AIService:
             except json.JSONDecodeError as e:
                 log_error(f"解析AI返回的JSON失败: {str(e)}")
                 log_error(f"AI返回内容: {response}")
+                try:
+                    self._save_raw_response('reading_parse_fail', response)
+                except Exception:
+                    pass
                 return None
                 
         except Exception as e:
@@ -311,6 +404,10 @@ class AIService:
                 if eval_result is None:
                     # 记录原始响应以便排查
                     log_error(f"解析AI评估结果失败，原始返回：{response}")
+                    try:
+                        self._save_raw_response('eval_first_fail', response)
+                    except Exception:
+                        pass
                     # 重试：请求AI仅返回JSON格式
                     retry_prompt = prompt + "\n\n请仅返回符合上面JSON格式的JSON对象，不要包含任何解释或额外文本。"
                     retry_response = self.ai_manager._ask_sync(retry_prompt)
@@ -318,6 +415,10 @@ class AIService:
 
                     if eval_result is None:
                         log_error("二次解析仍失败，返回评估失败")
+                        try:
+                            self._save_raw_response('eval_second_fail', retry_response)
+                        except Exception:
+                            pass
                         return False, "评估失败"
 
                 try:

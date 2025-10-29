@@ -17,7 +17,7 @@ from .database_manager import DatabaseManager
 class AIManager:
     """优化版AI管理器，加入缓存、异步和请求合并功能"""
     
-    def __init__(self, model="gemma:7b"):
+    def __init__(self, model="gemma3n:latest"):
         """初始化AI管理器
         
         Args:
@@ -35,6 +35,26 @@ class AIManager:
         os.makedirs(self.cache_dir, exist_ok=True)
         
         log_info(f"初始化AIManager，使用模型: {model}")
+        
+        # 验证模型是否可用
+        self.available_models = self._get_available_models()
+        if self.model not in self.available_models:
+            log_warning(f"指定的模型 {model} 可能不可用，可用模型: {', '.join(self.available_models) if self.available_models else '无'}")
+    
+    def _get_available_models(self) -> list:
+        """获取可用的Ollama模型列表
+        
+        Returns:
+            可用模型名称列表
+        """
+        try:
+            response = requests.get("http://localhost:11434/api/tags", timeout=5)
+            if response.status_code == 200:
+                data = response.json()
+                return [model["name"] for model in data.get("models", [])]
+        except Exception as e:
+            log_warning(f"获取可用模型列表失败: {str(e)}")
+        return []
     
     def _ask_sync(self, prompt: str, callback=None) -> str:
         """同步向AI模型发送请求
@@ -47,6 +67,17 @@ class AIManager:
             AI模型的完整响应
         """
         try:
+            # 检查服务状态
+            try:
+                # 使用 /api/tags 作为健康检查端点
+                health_response = requests.get("http://localhost:11434/api/tags", timeout=5)
+                if health_response.status_code != 200:
+                    log_error(f"Ollama服务响应异常: {health_response.status_code}")
+                    return "AI功能暂不可用: Ollama服务运行异常，请稍后再试"
+            except requests.RequestException as e:
+                log_error(f"Ollama服务连接失败: {str(e)}")
+                return "AI功能暂不可用: Ollama服务未启动或不可访问，请确认服务已运行"
+            
             # 构建API请求数据
             data = {
                 "model": self.model,
@@ -54,11 +85,11 @@ class AIManager:
                 "stream": True if callback else False
             }
             
-            # 发送请求到Ollama API
+            # 发送请求到Ollama API，增加超时时间
             response = requests.post(
                 "http://localhost:11434/api/generate",
                 json=data,
-                timeout=30,
+                timeout=60,  # 增加超时时间到60秒
                 stream=True if callback else False
             )
             

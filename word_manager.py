@@ -699,6 +699,74 @@ class WordManager:
                 log_error(f"获取单词熟悉度映射失败: {str(e)}")
                 return {}
 
+    def _get_default_example(self, word: str) -> str:
+        """获取单词的默认例句（用于AI调用失败时的备用）
+
+        Args:
+            word: 要获取例句的单词
+
+        Returns:
+            str: 包含例句和翻译的文本
+        """
+        # 硬编码的基本例句
+        basic_examples = {
+            "apple": (
+                "I eat an apple every day. "
+                "(我每天吃一个苹果。)"
+            ),
+            "book": (
+                "This is a good book. "
+                "(这是一本好书。)"
+            ),
+            "run": (
+                "I like to run in the morning. "
+                "(我喜欢在早上跑步。)"
+            ),
+            "beautiful": (
+                "She is very beautiful. "
+                "(她非常美丽。)"
+            ),
+            "computer": (
+                "I use the computer to work. "
+                "(我用电脑工作。)"
+            ),
+            "learn": (
+                "We need to learn English every day. "
+                "(我们需要每天学习英语。)"
+            ),
+            "friend": (
+                "He is my best friend. "
+                "(我最好的朋友。)"
+            ),
+            "happy": (
+                "I feel very happy today. "
+                "(我今天感到很开心。)"
+            ),
+            "work": (
+                "I go to work at 9 o'clock. "
+                "(我9点钟去上班。)"
+            ),
+            "time": (
+                "Time flies. "
+                "(时光飞逝。)"
+            )
+        }
+
+        # 如果有基本例句，返回它
+        if word.lower() in basic_examples:
+            return basic_examples[word.lower()]
+
+        # 获取单词翻译
+        translation = self.get_word_translation(word)
+        if translation:
+            # 返回带翻译的默认例句
+            return f"This is an example sentence with the word '{word}'. " \
+                   f"(这是一个包含 '{word}' 的例句，意思是：{translation}。)"
+        else:
+            # 返回带占位翻译的默认例句
+            return f"This is an example sentence with the word '{word}'. " \
+                   f"(这是一个包含 '{word}' 的例句，暂无翻译。)"
+
     def get_unfamiliar_words(self, threshold: float = 0.3) -> List[str]:
         """获取不熟悉的单词
 
@@ -713,92 +781,70 @@ class WordManager:
             if familiarity < threshold
         ]
 
-    def get_word_example(self, word: str) -> str:
+    def get_word_example(self, word: str, async_mode=False, callback=None) -> str:
         """获取单词的例句
 
         Args:
             word: 要获取例句的单词
+            async_mode: 是否以异步方式获取（不阻塞UI线程）
+            callback: 异步模式下的回调函数，接收参数：(example: str)
 
         Returns:
-            str: 包含例句和翻译的文本，如果获取失败返回默认例句
+            str: 同步模式下返回包含例句和翻译的文本，如果获取失败返回默认例句
+                 异步模式下返回None，结果通过callback返回
         """
         try:
             # 首先检查AI功能是否可用
             if self.ai_available and self.ai_manager:
-                # 调用AI接口获取例句
-                example = self.ai_manager.example_sync(word)
-                if (example and "AI功能暂不可用" not in example and
-                        "生成例句失败" not in example):
-                    # 检查返回的例句是否包含翻译
-                    if "(" not in example and ")" not in example:
-                        # 如果没有翻译，添加一个基本翻译格式
-                        translation = self.get_word_translation(word) or "(未知翻译)"
-                        example = f"{example} (这是一个包含 '{word}' 的例句，意思是：{translation})"
-                    log_info(f"获取例句成功: {word}")
-                    return example
+                if async_mode:
+                    # 异步模式 - 在新线程中执行
+                    def fetch_example():
+                        try:
+                            example = self.ai_manager.example_sync(word)
+                            if (example and "AI功能暂不可用" not in example and
+                                    "生成例句失败" not in example):
+                                # 检查返回的例句是否包含翻译
+                                if "(" not in example and ")" not in example:
+                                    # 如果没有翻译，添加一个基本翻译格式
+                                    translation = self.get_word_translation(word) or "(未知翻译)"
+                                    example = f"{example} (这是一个包含 '{word}' 的例句，意思是：{translation})"
+                                log_info(f"获取例句成功: {word}")
+                                if callback:
+                                    callback(example)
+                        except Exception as e:
+                            log_error(f"异步获取例句失败: {str(e)}")
+                            if callback:
+                                callback(self._get_default_example(word))
+                    
+                    # 创建并启动线程
+                    thread = threading.Thread(target=fetch_example, daemon=True)
+                    thread.start()
+                    return None
                 else:
-                    log_warning(f"获取例句失败: {word}, AI返回: {example}")
+                    # 同步模式 - 直接调用
+                    example = self.ai_manager.example_sync(word)
+                    if (example and "AI功能暂不可用" not in example and
+                            "生成例句失败" not in example):
+                        # 检查返回的例句是否包含翻译
+                        if "(" not in example and ")" not in example:
+                            # 如果没有翻译，添加一个基本翻译格式
+                            translation = self.get_word_translation(word) or "(未知翻译)"
+                            example = f"{example} (这是一个包含 '{word}' 的例句，意思是：{translation})"
+                        log_info(f"获取例句成功: {word}")
+                        return example
+                    else:
+                        log_warning(f"获取例句失败: {word}, AI返回: {example}")
             else:
                 log_warning("获取例句失败: AI功能不可用")
+                
+        except Exception as e:
+            log_error(f"获取例句时发生异常: {str(e)}")
+            if async_mode and callback:
+                callback(self._get_default_example(word))
+                return None
 
-            # 提供一些简单的硬编码例句作为备用
-            basic_examples = {
-                "apple": (
-                    "I eat an apple every day. "
-                    "(我每天吃一个苹果。)"
-                ),
-                "book": (
-                    "This is a good book. "
-                    "(这是一本好书。)"
-                ),
-                "run": (
-                    "I like to run in the morning. "
-                    "(我喜欢在早上跑步。)"
-                ),
-                "beautiful": (
-                    "She is very beautiful. "
-                    "(她非常美丽。)"
-                ),
-                "computer": (
-                    "I use the computer to work. "
-                    "(我用电脑工作。)"
-                ),
-                "learn": (
-                    "We need to learn English every day. "
-                    "(我们需要每天学习英语。)"
-                ),
-                "friend": (
-                    "He is my best friend. "
-                    "(我最好的朋友。)"
-                ),
-                "happy": (
-                    "I feel very happy today. "
-                    "(我今天感到很开心。)"
-                ),
-                "work": (
-                    "I go to work at 9 o'clock. "
-                    "(我9点钟去上班。)"
-                ),
-                "time": (
-                    "Time flies. "
-                    "(时光飞逝。)"
-                )
-            }
-
-            # 如果有基本例句，返回它
-            if word.lower() in basic_examples:
-                return basic_examples[word.lower()]
-
-            # 获取单词翻译
-            translation = self.get_word_translation(word)
-            if translation:
-                # 返回带翻译的默认例句
-                return f"This is an example sentence with the word '{word}'. " \
-                       f"(这是一个包含 '{word}' 的例句，意思是：{translation}。)"
-            else:
-                # 返回带占位翻译的默认例句
-                return f"This is an example sentence with the word '{word}'. " \
-                       f"(这是一个包含 '{word}' 的例句，暂无翻译。)"
+            # 获取默认例句
+            return self._get_default_example(word)
         except Exception as e:
             log_error(f"获取例句异常: {str(e)}")
             # 返回带占位翻译的默认例句

@@ -30,7 +30,8 @@ class ClozeTestPage(tk.Frame):
         """
         super().__init__(parent)
         self.controller = controller
-        self.cloze_module = ClozeTestModule()
+        # 延迟初始化ClozeTestModule，避免在页面加载时立即连接AI
+        self.cloze_module = None
         
         # 设置中文字体
         self.font_config = {
@@ -42,6 +43,17 @@ class ClozeTestPage(tk.Frame):
         # 创建UI
         self._create_ui()
         
+        # 页面显示时才刷新状态信息
+        # 注册显示回调
+        self.on_show = self._on_show_page
+    
+    def _on_show_page(self):
+        """页面显示时执行的操作，延迟初始化模块"""
+        # 延迟初始化模块
+        if self.cloze_module is None:
+            from modules.cloze_test import ClozeTestModule
+            self.cloze_module = ClozeTestModule()
+            
         # 刷新状态信息
         self._update_status()
     

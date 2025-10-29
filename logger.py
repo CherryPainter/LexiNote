@@ -26,9 +26,10 @@ formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(messag
 file_handler.setFormatter(formatter)
 console_handler.setFormatter(formatter)
 
-# 添加处理器到日志记录器
-logger.addHandler(file_handler)
-logger.addHandler(console_handler)
+# 添加处理器到日志记录器（避免重复添加）
+if not logger.handlers:
+    logger.addHandler(file_handler)
+    logger.addHandler(console_handler)
 
 
 def log_info(message):
