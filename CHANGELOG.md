@@ -1,6 +1,11 @@
 # LexiNote 更新日志
 
 ## Unreleased
+### Added
+- 新增单词批量导入功能，支持从JSON文件批量导入单词到数据库
+- 添加`modules/word_importer.py`模块，提供独立的单词导入功能
+- 在`WordManager`类中添加`batch_import_words`方法，提供统一的批量导入接口
+- 更新API文档，添加批量导入功能的详细说明
 
 ## [v1.6.1] - 2025-10-31
 ### Added

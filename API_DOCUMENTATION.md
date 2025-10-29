@@ -2,6 +2,12 @@
 
 本文档详细描述了 LexiNote 项目中各个核心模块的 API 接口、参数说明和返回值类型。
 
+## 模块功能概述
+
+### 单词批量导入模块
+
+新增的`word_importer.py`模块提供了从JSON文件批量导入单词到数据库的功能。该模块既可以作为独立脚本运行，也可以通过`WordManager`接口调用。
+
 ## 目录
 
 - [WordManager API](#wordmanager-api)
@@ -14,6 +20,26 @@
 ## WordManager API
 
 WordManager 是项目的核心类，负责单词管理和练习功能。
+
+### 批量导入单词
+
+```python
+def batch_import_words(self, json_file_path: str) -> Dict:
+    """
+    从JSON文件批量导入单词到数据库
+    
+    参数:
+        json_file_path: JSON文件路径，文件格式应为 {"word1": "translation1", "word2": "translation2", ...}
+    
+    返回:
+        Dict: 导入结果统计信息，包含以下字段：
+            - success: 布尔值，表示导入是否成功
+            - total: 整数，文件中总单词数量
+            - imported: 整数，成功导入的单词数量
+            - skipped: 整数，跳过的单词数量（包括重复和无效单词）
+            - errors: 列表，包含错误信息（如果有）
+    """
+```
 
 ### 初始化
 

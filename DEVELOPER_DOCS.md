@@ -2,6 +2,28 @@
 
 本文档记录了 LexiNote 应用的核心逻辑变更和开发信息。
 
+## 核心逻辑变更记录
+
+### 单词批量导入功能
+
+**功能概述**：实现从JSON文件批量导入单词到数据库的功能，支持格式与data/word_dict.json一致。
+
+**实现细节**：
+1. 创建独立的`modules/word_importer.py`模块，提供核心导入逻辑
+2. 支持批量插入操作，提高导入效率
+3. 自动处理重复单词，避免数据冲突
+4. 在`WordManager`中添加`batch_import_words`方法，保持接口一致性
+5. 包含完整的错误处理和日志记录
+
+**使用方式**：
+- 通过WordManager接口：`word_manager.batch_import_words('path/to/words.json')`
+- 直接运行模块：`python -m modules.word_importer path/to/words.json`
+
+**注意事项**：
+- JSON文件格式必须与data/word_dict.json一致：`{"word1": "translation1", "word2": "translation2", ...}`
+- 导入时会跳过无效单词和重复单词
+- 导入成功后会自动更新内存缓存
+
 ## 版本历史
 
 ### v1.5.1 (2025-10-29)

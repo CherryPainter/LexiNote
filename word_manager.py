@@ -393,6 +393,47 @@ class WordManager:
         except Exception as e:
             log_error(f"更新单词失败: {str(e)}")
             return False
+    
+    def batch_import_words(self, json_file_path: str) -> Dict:
+        """批量导入单词
+        
+        Args:
+            json_file_path: JSON文件路径，文件格式应为 {"word1": "translation1", "word2": "translation2", ...}
+            
+        Returns:
+            Dict: 导入结果统计信息，包含success, total, imported, skipped, errors等字段
+        """
+        try:
+            # 动态导入单词导入器以避免循环依赖
+            from modules.word_importer import import_words_from_json
+            
+            # 调用导入功能
+            result = import_words_from_json(json_file_path)
+            
+            # 如果导入成功，更新缓存
+            if result.get("success", False) and result.get("imported", 0) > 0:
+                # 重新预热缓存以包含新导入的单词
+                self._warmup_cache()
+            
+            return result
+        except ImportError:
+            log_error("无法导入单词导入模块")
+            return {
+                "success": False,
+                "total": 0,
+                "imported": 0,
+                "skipped": 0,
+                "errors": ["单词导入模块未找到"]
+            }
+        except Exception as e:
+            log_error(f"批量导入单词时发生错误: {str(e)}")
+            return {
+                "success": False,
+                "total": 0,
+                "imported": 0,
+                "skipped": 0,
+                "errors": [str(e)]
+            }
 
     def get_word_translation(self, word: str) -> Optional[str]:
         """获取单词翻译
