@@ -126,9 +126,19 @@ class ReadingComprehensionPage(tk.Frame):
         content_scroll_frame, content_frame, _, _ = create_scrollable_frame(main_frame)
         content_scroll_frame.pack(fill=tk.BOTH, expand=True)
         
-        # 文章标题
-        self.article_title = tk.Label(content_frame, text="阅读文章", font=self.font_config['header'], anchor=tk.W)
-        self.article_title.pack(fill=tk.X, pady=(0, 10))
+        # 文章标题框架
+        title_frame = tk.Frame(content_frame)
+        title_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        # 标题左侧显示题目名称
+        self.article_title = tk.Label(title_frame, text="阅读文章", font=self.font_config['header'], anchor=tk.W)
+        self.article_title.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        
+        # 标题右侧添加删除按钮
+        self.delete_button = tk.Button(title_frame, text="🗑️ 删除", command=self._on_delete_question,
+                                     font=self.font_config['button'], fg="#f44336", relief=tk.FLAT,
+                                     state=tk.DISABLED)
+        self.delete_button.pack(side=tk.RIGHT, padx=10)
         
         # 文章内容
         self.article_text = scrolledtext.ScrolledText(content_frame, wrap=tk.WORD, font=self.font_config['normal'],
@@ -214,6 +224,37 @@ class ReadingComprehensionPage(tk.Frame):
         except Exception as e:
             log_error(f"更新状态失败: {str(e)}")
     
+    def _on_delete_question(self):
+        """处理删除题目的逻辑"""
+        if not hasattr(self, 'current_test_id') or self.current_test_id is None:
+            messagebox.showwarning("提示", "没有可删除的题目")
+            return
+        
+        # 弹出确认对话框
+        confirm = messagebox.askyesno(
+            "确认删除", 
+            "确定要删除这个阅读理解题目吗？此操作不可撤销，但数据会被记录以便恢复。"
+        )
+        
+        if confirm:
+            try:
+                # 执行删除
+                from modules.database import ComprehensionDatabase
+                db = ComprehensionDatabase()
+                success = db.delete_reading_comprehension(self.current_test_id)
+                
+                if success:
+                    log_info(f"用户删除了阅读理解题目，ID: {self.current_test_id}")
+                    messagebox.showinfo("成功", "题目已成功删除")
+                    # 清空界面
+                    self._clear_ui()
+                else:
+                    messagebox.showerror("错误", "删除题目失败，请重试")
+                    log_error(f"删除阅读理解题目失败，ID: {self.current_test_id}")
+            except Exception as e:
+                messagebox.showerror("错误", f"删除题目时出错: {str(e)}")
+                log_error(f"删除阅读理解题目时发生异常: {str(e)}")
+    
     def _start_new_test(self):
         """开始新的测试"""
         try:
@@ -251,8 +292,15 @@ class ReadingComprehensionPage(tk.Frame):
                 if test_data:
                     self.test_data = test_data
                     
-                    # 更新标题
+                    # 更新标题和保存当前题目ID
                     self.article_title.config(text="阅读文章")
+                    self.current_test_id = test_data.get('id')
+                    
+                    # 启用删除按钮（只有离线模式下的题目可以删除）
+                    if self.reading_module.get_mode() == 'offline':
+                        self.delete_button.config(state=tk.NORMAL)
+                    else:
+                        self.delete_button.config(state=tk.DISABLED)
                     
                     # 显示文章内容
                     article = test_data.get('article', '')
@@ -441,8 +489,12 @@ class ReadingComprehensionPage(tk.Frame):
     
     def _clear_ui(self):
         """清空界面"""
-        # 清空文章标题和内容
+        # 清空标题和题目ID
         self.article_title.config(text="阅读文章")
+        self.current_test_id = None
+        
+        # 禁用删除按钮
+        self.delete_button.config(state=tk.DISABLED)
         
         self.article_text.config(state=tk.NORMAL)
         self.article_text.delete(1.0, tk.END)
