@@ -255,14 +255,14 @@ class ClozeTestPage(tk.Frame):
                                        font=self.font_config['normal'])
             blank_frame.pack(fill=tk.X, pady=5)
             
-            # 显示选项 - 每个选项单独一行，更容易阅读
+            # 显示选项 - 水平排列，每个选项之间有间距
             options_frame = tk.Frame(blank_frame)
             options_frame.pack(anchor=tk.W, padx=10, pady=5, fill=tk.X)
             
             for i, opt in enumerate(opts, 1):
                 option_text = f"{chr(64+i)}. {opt}"
                 tk.Label(options_frame, text=option_text, font=self.font_config['normal'], 
-                        justify=tk.LEFT).pack(anchor=tk.W, pady=2, fill=tk.X)
+                        justify=tk.LEFT).pack(side=tk.LEFT, padx=15)
         
         # 滚动区域会自动更新，无需手动调用
     
