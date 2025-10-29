@@ -23,6 +23,8 @@ class ReviewPage(tk.Frame):
         self.word_manager = word_manager
         self.font_config = font_config or {'title': ('Arial', 24), 'normal': ('Arial', 16), 'small': ('Arial', 12)}
         self.audio_player = audio_player
+        # 添加音频可用性标志
+        self.audio_available = self.audio_player is not None
         
         # 注册设置监听器
         if self.settings_manager:
