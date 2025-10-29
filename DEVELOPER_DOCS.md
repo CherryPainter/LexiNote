@@ -2,16 +2,27 @@
 
 ## 版本历史
 
+### v1.5.0 (2025-11-01)
+
+- 移除了听写练习页面导航限制，允许用户即使今日没有学习单词也能进入页面使用其他功能（熟词、随机词库、难词等）
+- 队列听写中添加了来源单词检查，当所选来源没有单词时显示弹窗提示用户选择其他来源，不自动继续
+- 修复了 dictation.py 中 build_queue 方法的 UnboundLocalError 错误
+- 修复了 WordManager 类缺少 wrong_words 属性的问题
+- 修复了 AIManager 中 advise 方法异步调用未等待的 RuntimeWarning 警告
+- 修复了数据库查询中错误引用 progress 表 proficiency 列的问题（proficiency 列实际在 words 表中）
+- 更新了版本日期格式
+
 ### v1.4.5 (2025-10-31)
+
 - 修复听写队列长度控制问题，确保严格按照设置数量显示单词
-- 改进has_next_in_queue方法，增加空队列检查以避免索引错误
-- 修改next_in_queue方法，在返回单词前先检查队列是否存在和索引有效性
-- 在_next_word_in_queue方法中添加队列结束预检查，避免尝试获取第11个单词
-- 更新_check_answer方法中的队列结束判断逻辑，使用精确的索引比较
-- 修改_skip_word方法，增加队列结束检查以避免跳过后显示额外单词
-- 移除了build_queue方法中的limit-1补丁，改回直接使用limit保证用户期望的单词数量
-- 优化今日统计信息收集逻辑，使用set避免重复计数，确保accuracy计算准确
-- 改进current_queue_index的计算方式，使用min/max保证数值在合理范围内
+- 改进 has_next_in_queue 方法，增加空队列检查以避免索引错误
+- 修改 next_in_queue 方法，在返回单词前先检查队列是否存在和索引有效性
+- 在\_next_word_in_queue 方法中添加队列结束预检查，避免尝试获取第 11 个单词
+- 更新\_check_answer 方法中的队列结束判断逻辑，使用精确的索引比较
+- 修改\_skip_word 方法，增加队列结束检查以避免跳过后显示额外单词
+- 移除了 build_queue 方法中的 limit-1 补丁，改回直接使用 limit 保证用户期望的单词数量
+- 优化今日统计信息收集逻辑，使用 set 避免重复计数，确保 accuracy 计算准确
+- 改进 current_queue_index 的计算方式，使用 min/max 保证数值在合理范围内
 
 ### v1.4.3 (2025-10-30)
 
@@ -139,6 +150,17 @@
 - 实现基于掌握度的权重调整算法
 - 更新主界面导航菜单，优化用户体验
 - 创建 test_ai_fallback.py 测试脚本验证降级机制
+
+### v1.1.0 - 系统性能优化
+
+- 实现了基于 SQLite 的数据库存储系统，替代原有的 JSON 文件存储
+- 添加了 DatabaseManager 类，提供高效的数据库操作接口
+- 优化了 DictationManager，支持数据库和文件存储的双模式切换
+- 实现了 get_word_progress 方法，用于获取单词学习进度统计
+- 设计了 dictation_history 和 progress 表结构，支持高效查询和更新
+- 添加了内存缓存机制，减少数据库访问频率
+- 实现了数据迁移功能，确保旧数据平滑过渡到新存储模式
+- 优化了错误处理和日志记录，提高系统稳定性
 
 ### v1.0.0 (2025-10-25)
 
@@ -342,6 +364,34 @@
 2. 安装依赖：`pip install -r requirements.txt`
 3. 确保 Ollama 服务正在运行（默认端口 11434）
 4. 运行程序：`python main.py`
+
+## 设置监听器与运行时生效（开发者指南）
+
+为支持用户在运行时修改设置并立即生效，项目引入了 SettingsManager 的监听器机制（`register_listener` / `unregister_listener`）。开发者在实现或修改 UI 页面时请注意以下约定：
+
+- 在页面/组件初始化时注册必要的监听器，示例：
+
+```python
+# 在页面 __init__ 中
+self.settings_manager.register_listener('auto_mode_review', self._on_auto_mode_review_change)
+```
+
+- 在页面销毁或切换时注销监听器，避免内存泄漏或对已经销毁组件的回调。
+
+```python
+# 页面关闭或切换前
+self.settings_manager.unregister_listener('auto_mode_review', self._on_auto_mode_review_change)
+```
+
+- 监听器回调应尽量轻量：只执行 UI 更新（显示/隐藏按钮、启停计时器、设置变量等）。若需执行耗时任务，请在回调内启动后台线程。
+
+- 如果回调需要修改 tkinter 组件，使用 `widget.after(0, func)` 将操作调度到主线程，以避免线程安全问题。
+
+- 常见情形：
+  - 切换到自动模式：隐藏手动“下一步”按钮，并在合适条件（答对/答错/例句显示）触发延迟自动跳转。
+  - 切换到手动模式：立即显示“下一步”按钮，取消任何自动跳转（或让下一次自动跳转失效）。
+
+通过上述约定，设置变更能在正在进行的练习中即时生效，不需要重启应用。请在修改 UI 行为时同时更新 `API_DOCUMENTATION.md` 中的示例，以便其他开发者参考。
 
 ## AI 翻译判断说明
 
