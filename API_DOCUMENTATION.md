@@ -8,6 +8,7 @@
 - [AIManager API](#aimanager-api)
 - [LearningManager API](#learningmanager-api)
 - [AudioPlayer API](#audioplayer-api)
+- [AI助手模块](#ai助手模块)
 - [UI 模块接口](#ui模块接口)
 
 ## WordManager API
@@ -874,6 +875,54 @@ def _on_auto_mode_translation_practice_change(self, key, value):
     else:
         # 手动模式：显示 next_button
         ...
+以上设计保证用户在设置变更后，无需重启应用即可立即看到生效效果。
+
+## AI助手模块
+
+AI助手模块提供智能英语学习辅助功能，支持多种学习任务类型。
+
+### AIAssistantPage 类
+
+`AIAssistantPage` 是AI助手的UI实现类，负责提供用户界面和交互。
+
+#### 初始化
+
+```python
+def __init__(self, parent, main_window):
+    """初始化AI助手页面
+    
+    Args:
+        parent: 父窗口组件
+        main_window: 主窗口实例
+    """
 ```
 
-以上设计保证用户在设置变更后，无需重启应用即可立即看到生效效果。
+#### on_show 方法
+
+```python
+def on_show(self):
+    """当页面显示时调用，重新检查AI连接状态"""
+```
+
+### AI服务接口
+
+AI助手模块使用现有的 `AIService` 类进行AI交互，主要通过 `ai_manager._ask_sync` 方法获取AI响应。
+
+#### 任务类型支持
+
+AI助手支持以下8种学习任务类型：
+
+1. **单词解释与例句**：提供单词的中文解释、实用例句和使用场景
+2. **语法讲解**：解释语法规则、提供例句和常见错误说明
+3. **写作批改**：批改英语作文、指出错误并提供改进建议
+4. **口语练习指导**：提供对话示例和语音语调建议
+5. **阅读理解辅导**：帮助理解英语文章、解释难点
+6. **听力练习建议**：推荐听力材料和练习方法
+7. **词汇量测试**：设计词汇测试题和记忆技巧
+8. **英语知识点总结**：系统整理英语知识点
+
+#### 难度级别
+
+- 初级：适合英语初学者
+- 中级：适合有一定基础的学习者
+- 高级：适合英语水平较高的学习者
