@@ -201,6 +201,9 @@ class DatabaseManager:
             if not self._write_queue:
                 return
             
+            # 在处理队列前记录队列长度
+            queue_length = len(self._write_queue)
+            
             conn = sqlite3.connect(self.db_path, timeout=10)
             cursor = conn.cursor()
             
@@ -211,7 +214,7 @@ class DatabaseManager:
             conn.commit()
             conn.close()
             self._last_write_time = datetime.now()
-            log_info(f"批量写入完成，共{len(self._write_queue)}条记录")
+            log_info(f"批量写入完成，共{queue_length}条记录")
             
         except Exception as e:
             log_error(f"处理写入队列失败: {str(e)}")
