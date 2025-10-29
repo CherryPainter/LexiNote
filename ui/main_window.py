@@ -11,6 +11,8 @@ from ui.translation_page import TranslationPage
 from ui.review_page import ReviewPage
 from ui.learning_page import LearningPage
 from ui.settings_page import SettingsPage
+from ui.cloze_test_page import ClozeTestPage
+from ui.reading_comprehension_page import ReadingComprehensionPage
 from word_manager import WordManager
 from core.learning import LearningManager
 from core.settings_manager import SettingsManager
@@ -82,6 +84,8 @@ class MainWindow:
             ("📝 听写练习", self._show_dictation_page),
             ("🌐 翻译练习", self._show_translation_page),
             ("📊 单词复习", self._show_review_page),
+            ("🔤 完形填空", self._show_cloze_test_page),
+            ("📖 阅读理解", self._show_reading_comprehension_page),
             ("📈 学习统计", self._show_statistics),
             ("⚙️ 设置", self._show_settings_page)
         ]
@@ -250,6 +254,36 @@ class MainWindow:
         
         log_info("切换到学习模式页面")
     
+    def _show_cloze_test_page(self):
+        """显示完形填空页面"""
+        self._clear_content_area()
+        self.current_page = ClozeTestPage(
+            self.content_area,
+            self
+        )
+        self.current_page.pack(fill=tk.BOTH, expand=True)
+        
+        # 调用页面的on_show方法
+        if hasattr(self.current_page, 'on_show'):
+            self.current_page.on_show()
+            
+        log_info("切换到完形填空页面")
+    
+    def _show_reading_comprehension_page(self):
+        """显示阅读理解页面"""
+        self._clear_content_area()
+        self.current_page = ReadingComprehensionPage(
+            self.content_area,
+            self
+        )
+        self.current_page.pack(fill=tk.BOTH, expand=True)
+        
+        # 调用页面的on_show方法
+        if hasattr(self.current_page, 'on_show'):
+            self.current_page.on_show()
+            
+        log_info("切换到阅读理解页面")
+        
     def _show_statistics(self):
         """显示学习统计页面"""
         self._clear_content_area()

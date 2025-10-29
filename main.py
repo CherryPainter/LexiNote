@@ -6,12 +6,15 @@ from tkinter import messagebox
 # 添加当前目录到Python路径
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
+# 版本信息
+VERSION = "v1.6.0"
+
 from logger import log_info, log_error
 
 def main():
     """主程序入口"""
     try:
-        log_info("程序启动")
+        log_info(f"程序启动 - LexiNote {VERSION}")
         
         # 导入主窗口类
         from ui.main_window import MainWindow

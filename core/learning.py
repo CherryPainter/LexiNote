@@ -252,22 +252,26 @@ class LearningManager:
             self.logger.log_error(f"播放单词发音异常: {word}, 错误: {str(e)}")
             return False
     
-    def save_progress(self) -> bool:
+    def save_progress(self, finished=False) -> bool:
         """
         保存学习进度
         
+        Args:
+            finished: 是否完成本批次学习
+            
         Returns:
             bool: 是否保存成功
         """
         try:
             # 执行日衰减
-            self._apply_daily_decay()
+            if finished:
+                self._apply_daily_decay()
             
             # 使用word_manager的_save_data方法，指定完整路径
             self.data_manager._save_data('data/word_progress.json', self.word_progress)
             
             # 更新每日学习记录
-            self._update_daily_learning()
+            self._update_daily_learning(finished)
             
             # 记录学习统计
             self.logger.log_info(
@@ -281,9 +285,12 @@ class LearningManager:
             self.logger.log_error(f"保存学习进度失败: {str(e)}")
             return False
     
-    def _update_daily_learning(self):
+    def _update_daily_learning(self, finished=False):
         """
-        更新每日学习记录，标记今日学习为已完成
+        更新每日学习记录
+        
+        Args:
+            finished: 是否完成本批次学习
         """
         try:
             from datetime import datetime
@@ -294,13 +301,38 @@ class LearningManager:
             
             # 更新今日记录
             if today not in daily_learning:
-                daily_learning[today] = {}
+                daily_learning[today] = {
+                    'current_batch': [],
+                    'current_index': 0,
+                    'batch_size': 0,
+                    'mastered_words': [],
+                    'review_words': [],
+                    'progress': {
+                        'total': 0,
+                        'mastered': 0,
+                        'review': 0
+                    },
+                    'last_updated': datetime.now().isoformat()
+                }
             
-            # 标记为已完成
-            daily_learning[today]['completed'] = True
-            daily_learning[today]['completed_at'] = datetime.now().isoformat()
-            daily_learning[today]['words_learned'] = self.mastered_count
-            daily_learning[today]['words_to_review'] = self.review_count
+            # 更新学习状态
+            daily_learning[today].update({
+                'current_batch': self.current_batch,
+                'current_index': self.current_index,
+                'batch_size': len(self.current_batch),
+                'progress': {
+                    'total': len(self.current_batch),
+                    'mastered': self.mastered_count,
+                    'review': self.review_count
+                },
+                'last_updated': datetime.now().isoformat()
+            })
+            
+            if finished:
+                daily_learning[today].update({
+                    'completed': True,
+                    'completed_at': datetime.now().isoformat()
+                })
             
             # 保存更新后的记录
             self.data_manager._save_data('data/daily_learning.json', daily_learning)
@@ -327,6 +359,35 @@ class LearningManager:
         except Exception as e:
             # 使用word_manager作为logger记录错误
             self.logger.log_error(f"执行每日衰减失败: {str(e)}")
+    
+    def load_daily_progress(self) -> bool:
+        """
+        加载今日的学习进度，如果有的话
+        
+        Returns:
+            bool: 是否成功加载了进度
+        """
+        try:
+            today = datetime.now().strftime('%Y-%m-%d')
+            daily_learning = self.data_manager._load_data('data/daily_learning.json')
+            
+            if today in daily_learning and not daily_learning[today].get('completed', False):
+                today_data = daily_learning[today]
+                
+                # 恢复批次和进度
+                self.current_batch = today_data['current_batch']
+                self.current_index = today_data['current_index']
+                self.mastered_count = today_data['progress']['mastered']
+                self.review_count = today_data['progress']['review']
+                
+                self.logger.log_info(f"已恢复今日学习进度: {self.current_index + 1}/{len(self.current_batch)}")
+                return True
+                
+            return False
+            
+        except Exception as e:
+            self.logger.log_error(f"加载今日进度失败: {str(e)}")
+            return False
     
     def get_current_stats(self) -> Dict[str, int]:
         """

@@ -36,39 +36,57 @@ class AIManager:
         
         log_info(f"初始化AIManager，使用模型: {model}")
     
-    def _ask_sync(self, prompt: str) -> str:
+    def _ask_sync(self, prompt: str, callback=None) -> str:
         """同步向AI模型发送请求
         
         Args:
             prompt: 提示词
+            callback: 用于处理流式输出的回调函数，接收参数：(chunk: str, done: bool)
             
         Returns:
-            AI模型的响应
+            AI模型的完整响应
         """
         try:
             # 构建API请求数据
             data = {
                 "model": self.model,
                 "prompt": prompt,
-                "stream": False
+                "stream": True if callback else False
             }
             
             # 发送请求到Ollama API
             response = requests.post(
                 "http://localhost:11434/api/generate",
                 json=data,
-                timeout=30
+                timeout=30,
+                stream=True if callback else False
             )
             
             # 检查响应状态
             if response.status_code == 200:
-                result = response.json().get("response", "")
+                complete_response = ""
+                
+                if callback:
+                    # 流式处理响应
+                    for line in response.iter_lines():
+                        if line:
+                            chunk_data = json.loads(line)
+                            chunk = chunk_data.get("response", "")
+                            done = chunk_data.get("done", False)
+                            complete_response += chunk
+                            if callback:
+                                callback(chunk, done)
+                else:
+                    # 非流式处理
+                    result = response.json().get("response", "")
+                    complete_response = result
+                
                 log_info(f"AI调用成功: {prompt[:50]}...")
                 
-                # 缓存响应
-                self.db_manager.cache_ai_response(prompt, result)
+                # 缓存完整响应
+                self.db_manager.cache_ai_response(prompt, complete_response)
                 
-                return result
+                return complete_response
             else:
                 error_msg = f"API调用失败，状态码: {response.status_code}"
                 log_error(error_msg)
@@ -84,16 +102,25 @@ class AIManager:
             log_error(f"AI调用失败: {str(e)}")
             return f"AI功能暂不可用: {str(e)}"
     
-    async def _ask(self, prompt: str) -> str:
-        """异步向AI模型发送请求，支持请求合并
+    async def _ask(self, prompt: str, callback=None) -> str:
+        """异步向AI模型发送请求，支持请求合并和流式输出
         
         Args:
             prompt: 提示词
+            callback: 用于处理流式输出的回调函数，接收参数：(chunk: str, done: bool)
             
         Returns:
             AI模型的响应
         """
-        # 先检查缓存
+        # 如果启用流式输出，跳过缓存和请求合并
+        if callback:
+            async with self._semaphore:
+                return await asyncio.get_event_loop().run_in_executor(
+                    self._executor,
+                    functools.partial(self._ask_sync, prompt, callback)
+                )
+        
+        # 非流式输出模式下的处理
         cached_response = self.db_manager.get_cached_ai_response(prompt)
         if cached_response:
             log_info(f"AI缓存命中: {prompt[:30]}...")
@@ -141,74 +168,79 @@ class AIManager:
                 if prompt_hash in self._active_requests:
                     del self._active_requests[prompt_hash]
     
-    async def translate(self, text: str, mode: str = "en2zh") -> str:
+    async def translate(self, text: str, mode: str = "en2zh", callback=None) -> str:
         """异步翻译文本
         
         Args:
             text: 要翻译的文本
             mode: 翻译模式，"en2zh"(英→中)或"zh2en"(中→英)
+            callback: 用于处理流式输出的回调函数，接收参数：(chunk: str, done: bool)
             
         Returns:
             翻译后的文本
         """
         lang = "中文" if mode == "en2zh" else "英文"
         prompt = f"你是一名精准翻译助手，请将以下内容翻译成{lang}，不要添加额外解释：{text}"
-        return await self._ask(prompt)
+        return await self._ask(prompt, callback)
     
-    def translate_sync(self, text: str, mode: str = "en2zh") -> str:
+    def translate_sync(self, text: str, mode: str = "en2zh", callback=None) -> str:
         """同步翻译文本（兼容旧接口）
         
         Args:
             text: 要翻译的文本
             mode: 翻译模式
+            callback: 用于处理流式输出的回调函数，接收参数：(chunk: str, done: bool)
             
         Returns:
             翻译后的文本
         """
         try:
             loop = asyncio.get_event_loop()
-            return loop.run_until_complete(self.translate(text, mode))
+            return loop.run_until_complete(self.translate(text, mode, callback))
         except RuntimeError:
             # 如果没有事件循环，创建一个新的
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-            return loop.run_until_complete(self.translate(text, mode))
+            return loop.run_until_complete(self.translate(text, mode, callback))
     
-    async def example(self, word: str) -> str:
+    async def example(self, word: str, callback=None) -> str:
         """异步为单词生成例句
         
         Args:
             word: 要生成例句的单词
+            callback: 用于处理流式输出的回调函数，接收参数：(chunk: str, done: bool)
             
         Returns:
             包含例句和翻译的文本
         """
         prompt = f"请为单词 {word} 生成一个简单的英文例句，并附上中文翻译。"
-        return await self._ask(prompt)
+        return await self._ask(prompt, callback)
     
-    def example_sync(self, word: str) -> str:
+    def example_sync(self, word: str, callback=None) -> str:
         """同步生成例句（兼容旧接口）
         
         Args:
             word: 要生成例句的单词
+            callback: 用于处理流式输出的回调函数，接收参数：(chunk: str, done: bool)
             
         Returns:
             包含例句和翻译的文本
         """
         try:
             loop = asyncio.get_event_loop()
-            return loop.run_until_complete(self.example(word))
+            return loop.run_until_complete(self.example(word, callback))
         except RuntimeError:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-            return loop.run_until_complete(self.example(word))
+            return loop.run_until_complete(self.example(word, callback))
     
-    async def evaluate(self, expected: str, user_input: str) -> dict:
+    async def evaluate(self, expected: str, user_input: str, callback=None) -> dict:
         """异步评估听写结果
         
         Args:
             expected: 期望的正确单词
             user_input: 用户输入的单词
+            callback: 用于处理流式输出的回调函数，接收参数：(chunk: str, done: bool)
             
         Returns:
             评估结果字典，包含是否正确、错误原因等信息
@@ -224,7 +256,7 @@ class AIManager:
         - feedback: 字符串，简短的反馈建议
         """
         
-        response = await self._ask(prompt)
+        response = await self._ask(prompt, callback)
         
         # 尝试解析JSON响应
         try:
@@ -251,23 +283,24 @@ class AIManager:
                 "feedback": "评估解析失败"
             }
     
-    def evaluate_sync(self, expected: str, user_input: str) -> dict:
+    def evaluate_sync(self, expected: str, user_input: str, callback=None) -> dict:
         """同步评估听写结果（兼容旧接口）
         
         Args:
             expected: 期望的正确单词
             user_input: 用户输入的单词
+            callback: 用于处理流式输出的回调函数，接收参数：(chunk: str, done: bool)
             
         Returns:
             评估结果字典
         """
         try:
             loop = asyncio.get_event_loop()
-            return loop.run_until_complete(self.evaluate(expected, user_input))
+            return loop.run_until_complete(self.evaluate(expected, user_input, callback))
         except RuntimeError:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-            return loop.run_until_complete(self.evaluate(expected, user_input))
+            return loop.run_until_complete(self.evaluate(expected, user_input, callback))
     
     def get_usage_stats(self) -> dict:
         """获取AI使用统计信息

@@ -224,10 +224,17 @@ class LearningPage(tk.Frame):
         开始学习批次
         """
         try:
-            # 获取批次大小
+            # 尝试恢复今日进度
+            if self.learning_manager.load_daily_progress():
+                self.current_batch = self.learning_manager.current_batch
+                self.current_index = self.learning_manager.current_index
+                self._show_current_word()
+                self._update_progress()
+                self._enable_buttons()
+                return
+                
+            # 如果没有进度可恢复，开始新的学习批次
             batch_size = int(self.batch_size_var.get())
-            
-            # 从学习管理器获取单词批次
             self.current_batch = self.learning_manager.get_batch(batch_size)
             
             if not self.current_batch:
@@ -237,11 +244,7 @@ class LearningPage(tk.Frame):
             # 开始学习第一个单词
             self.current_index = 0
             self._show_current_word()
-            
-            # 更新进度
             self._update_progress()
-            
-            # 启用按钮
             self._enable_buttons()
             
         except Exception as e:
@@ -381,6 +384,9 @@ class LearningPage(tk.Frame):
         """
         self.current_index += 1
         
+        # 保存当前进度
+        self.learning_manager.save_progress(finished=False)
+        
         # 检查是否完成批次
         if self.current_index >= len(self.current_batch):
             self._finish_batch()
@@ -392,8 +398,8 @@ class LearningPage(tk.Frame):
         """
         完成当前学习批次
         """
-        # 保存进度
-        if self.learning_manager.save_progress():
+        # 保存进度并标记为完成
+        if self.learning_manager.save_progress(finished=True):
             # 获取统计信息
             stats = self.learning_manager.get_current_stats()
             
