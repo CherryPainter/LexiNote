@@ -398,7 +398,6 @@
    - 听写功能前置检查：main_window.py 调用 WordManager.get_today_learned_words()验证用户学习状态
 
 2. **逻辑层到数据层**：
-
    - WordManager 读写单词库和学习进度
    - LearningManager 读写用户学习记录
    - 所有数据操作遵循先读再写的原则，避免覆盖数据
@@ -467,11 +466,11 @@
 
 1. AI 输出契约与解析
 
-- 在向 AI 请求生成题目或评估主观题时，必须在 prompt 中明确要求“只返回 JSON 对象”，并提供 JSON schema。
+- 在向 AI 请求生成题目或评估主观题时，必须在 prompt 中明确要求"只返回 JSON 对象"，并提供 JSON schema。
 - 实际中 AI 可能返回带注释或多余文本。为了提高健壮性，项目中新增 `modules/utils.py::extract_json_from_text(text)`，用于：
   - 直接尝试 json.loads(text)
   - 若失败，使用正则提取文本中的第一对花括号内容并解析
-- 在 `AIService.evaluate_reading_answer` 中，如果首次解析失败，系统会自动重试一次并提示 AI “仅返回 JSON”，如仍失败会记录原始响应到日志并返回评估失败提示。
+- 在 `AIService.evaluate_reading_answer` 中，如果首次解析失败，系统会自动重试一次并提示 AI "仅返回 JSON"，如仍失败会记录原始响应到日志并返回评估失败提示。
 
 2. 字段兼容性
 
@@ -549,8 +548,8 @@ self.settings_manager.unregister_listener('auto_mode_review', self._on_auto_mode
 - 如果回调需要修改 tkinter 组件，使用 `widget.after(0, func)` 将操作调度到主线程，以避免线程安全问题。
 
 - 常见情形：
-  - 切换到自动模式：隐藏手动“下一步”按钮，并在合适条件（答对/答错/例句显示）触发延迟自动跳转。
-  - 切换到手动模式：立即显示“下一步”按钮，取消任何自动跳转（或让下一次自动跳转失效）。
+  - 切换到自动模式：隐藏手动"下一步"按钮，并在合适条件（答对/答错/例句显示）触发延迟自动跳转。
+  - 切换到手动模式：立即显示"下一步"按钮，取消任何自动跳转（或让下一次自动跳转失效）。
 
 通过上述约定，设置变更能在正在进行的练习中即时生效，不需要重启应用。请在修改 UI 行为时同时更新 `API_DOCUMENTATION.md` 中的示例，以便其他开发者参考。
 
@@ -620,57 +619,58 @@ self.settings_manager.unregister_listener('auto_mode_review', self._on_auto_mode
 - 使用 git 进行版本控制
 - 每次重大修改更新版本号：v1.0.0 → v1.1.0
 - 所有核心逻辑变更记录在 DEVELOPER_DOCS.md
-# AI 杈撳嚭濂戠害銆丣SON 瑙ｆ瀽涓庨噸璇曪紙琛ュ厖璇存槑锛?
 
-涓轰簡璁?AI 璋冪敤鍦ㄧ湡瀹炶繍琛屼腑鏇寸ǔ瀹氥€佸彲璋冭瘯锛岄」鐩伒寰互涓嬬害瀹氬苟鎻愪緵浜嗚緟鍔╁伐鍏凤細
+# AI 输出质量、JSON 解析与重试（补充说明）
 
-1. 杈撳嚭濂戠害锛堟帹鑽愶級
+为了确保 AI 调用在实际运行中更稳定、可调试，项目遵循以下规范并提供了辅助工具：
 
-- 瀹屽舰濉┖锛堢敓鎴愶級绀轰緥濂戠害锛?
+1. 输出质量（推荐）
+
+- 完形填空（生成）示例质量：
 
 ```json
 {
   "id": "string",
-  "content": "甯﹀崰浣嶇鐨勯鐩枃鏈紝浣跨敤 [[_]] 鎴栫被浼兼爣璁拌〃绀虹┖",
+  "content": "含占位符的题目文本，使用 [[_]] 或类似标记表示空",
   "blanks": [
-    { "blank": 1, "options": ["閫夐」A", "閫夐」B", "閫夐」C"], "answer": "閫夐」A" },
-    { "blank": 2, "options": ["閫夐」X", "閫夐」Y"], "answer": "閫夐」Y" }
+    { "blank": 1, "options": ["选项A", "选项B", "选项C"], "answer": "选项A" },
+    { "blank": 2, "options": ["选项X", "选项Y"], "answer": "选项Y" }
   ],
-  "explanation": "(鍙€? 瑙ｆ瀽鎴栫ず渚嬬瓟妗?
+  "explanation": "(可选) 解释或示例答案"
 }
 ```
 
-- 闃呰鐞嗚В锛堜富瑙傞 AI 璇勪及锛夌ず渚嬪绾︼細
+- 阅读理解（主观题 AI 评估）示例格式：
 
 ```json
 {
-  "score": 0, // 鏁存暟 0-100
-  "feedback": "绠€鐭弽棣堬紙閫傚悎 UI 鏄剧ず锛?,
-  "reason": "璇︾粏瑙ｉ噴锛堝彲閫夛級"
+  "score": 0, // 数字 0-100
+  "feedback": "简短反馈(适合 UI 显示)",
+  "reason": "详细说明(可选)"
 }
 ```
 
-瀵归€夋嫨棰樼被鐨勮瘎浼帮紝涔熷厑璁镐娇鐢ㄧ畝鍗曠殑 `{ "correct": true, "feedback": "..." }` 褰㈡€併€?
+对于选择题类的评估，也可强制使用简单的 `{ "correct": true, "feedback": "..." }` 格式。
 
-2. 瑙ｆ瀽宸ュ叿
+2. 解析工具
 
-- 椤圭洰鍦?`modules/utils.py` 涓彁渚?`extract_json_from_text(text)`锛?
+- 项目在 `modules/utils.py` 中提供 `extract_json_from_text(text)`，它：
 
-  - 浼樺厛灏濊瘯鐩存帴 `json.loads`銆?
-  - 鑻ュけ璐ワ紝浼氬皾璇曚粠鏂囨湰涓娊鍙栭涓?JSON 瀵硅薄锛堝厛闈炶椽濠紝鍐嶈椽濠尮閰嶏級銆?
-  - 杩斿洖瑙ｆ瀽鍚庣殑 Python 瀵硅薄鎴?`None`銆?
+  - 优先尝试直接 `json.loads`。
+  - 若失败，会尝试从文本中提取首个 JSON 对象（先非花括号，再花括号匹配）。
+  - 返回解析后的 Python 对象或 `None`。
 
-- 鍦?`modules/ai_service.py` 涓涓昏棰樿瘎浼拌皟鐢ㄥ仛浜嗕袱杞瓥鐣ワ細
-  1. 棣栨鐢ㄥ父瑙?prompt 璇锋眰 AI 缁欏嚭 JSON銆傝嫢 `extract_json_from_text` 鎴愬姛鍒欑户缁€?
-  2. 鑻ヨВ鏋愬け璐ワ紝鍚?AI 鍙戦€佷竴娆″甫鏈夆€滃彧杩斿洖 JSON锛屼笉瑕佷换浣曡В閲婃垨澶氫綑鏂囧瓧鈥濈殑琛ュ厖鎻愮ず骞堕噸璇曚竴娆°€?
-  3. 鑻ヤ粛澶辫触锛岃褰曞師濮?AI 杩斿洖鍒版棩蹇?缂撳瓨锛屽苟杩斿洖瑙ｆ瀽澶辫触鐨勫閿欑粨鏋滐紙閬垮厤闃诲鐢ㄦ埛娴佺▼锛夈€?
+- 在 `modules/ai_service.py` 中对主观题评估调用做了两层策略：
+  1. 首次用常规 prompt 请求 AI 给出 JSON。若 `extract_json_from_text` 成功则继续。
+  2. 若解析失败，向 AI 发送一次带有"仅返回 JSON，不要任何解释或多余文字"的补充提示并重试一次。
+  3. 若仍失败，记录原始 AI 返回到日志文件，并返回解析失败的容错结果（避免阻断用户流程）。
 
-3. 鏃ュ織涓庡璁?
+3. 日志与记录
 
-- 褰撹В鏋愬け璐ユ椂锛屼唬鐮佷細鍦ㄦ棩蹇椾腑鍐欏叆甯︽爣绛剧殑鍘熷 AI 鏂囨湰锛堝 `瑙ｆ瀽AI璇勪及缁撴灉澶辫触锛屽師濮嬭繑鍥?`锛夛紝渚夸簬绂荤嚎鍒嗘瀽銆?
-- 寤鸿鍚敤骞朵繚鐣?`cache/ai_text/` 鐩綍锛堝凡鍦ㄩ」鐩腑棰勭暀锛夛紝鎶婂け璐ユ垨閲嶈鐨?AI 鍘熸枃淇濆瓨涓?JSON 鏂囦欢渚涗簨鍚庡垎鏋愩€?
+- 当解析失败时，代码会在日志中写入高亮的原始 AI 文本（如 `解析AI评估结果失败，原始返回`），便于离线分析。
+- 建议启用并保留 `cache/ai_text/` 目录（已在项目中预置），将失败或重要的 AI 原文保存为 JSON 文件供日后分析。
 
-4. 寮€鍙戣€呬娇鐢ㄧず渚嬶紙鍚屾/蹇€熼獙璇侊級
+4. 开发者使用示例（同步/异步验证）
 
 ```python
 from modules.utils import extract_json_from_text
@@ -678,51 +678,50 @@ from modules.ai_service import AIService
 
 ai = AIService()
 
-# 鍋囧畾 ai.call_some_api 杩斿洖鍘熷瀛楃涓?
+# 假设 ai.call_some_api 返回原始字符串
 raw = ai._call_ollama_sync('...')
 obj = extract_json_from_text(raw)
 if obj is None:
-    # 璁板綍骞?鎴栬Е鍙戦噸璇曢€昏緫
-    ai.logger.warn('鏃犳硶瑙ｆ瀽 AI 杩斿洖锛屽凡璁板綍鍘熸枃')
+    # 记录并/或触发重试逻辑
+    ai.logger.warn('无法解析 AI 返回，已记录原文')
 else:
-    # 澶勭悊 obj
+    # 处理 obj
     pass
 ```
 
-5. 鍗曞厓娴嬭瘯寤鸿锛堝繀鍋氶」锛?
+5. 单元测试建议（必做项）
 
-- 涓?`extract_json_from_text` 缂栧啓娴嬭瘯鐢ㄤ緥锛?
+- 为 `extract_json_from_text` 编写测试用例，包括：
 
-  - 涓ユ牸 JSON
-  - JSON 鍓嶅悗鍖呭惈璇存槑鏂囧瓧锛坋.g. "Answer:\n{...}"锛?
-  - JSON 琚澶栫殑瑙ｉ噴鍖呭洿锛堟ā鍨嬪父瑙佽涓猴級
-  - 瀹屽叏鏃犳晥鏂囨湰锛堝簲杩斿洖 None锛?
+  - 标准 JSON
+  - JSON 前后包含说明文字（e.g. "Answer:\n{...}"）
+  - JSON 被额外的解释包围（类型常见行为）
+  - 完全无效文本（应返回 None）
 
-- 瀵?`AIService.evaluate_reading_answer` 鍐欓泦鎴愭祴璇曪細
-  - 妯℃嫙妯″瀷杩斿洖涓ユ牸 JSON锛堟鏌ュ垎鏁?鍙嶉瑙ｆ瀽姝ｇ‘锛?
-  - 妯℃嫙杩斿洖甯﹁В閲婄殑 JSON锛坋xtract_json 鑳芥娊鍙栵級
-  - 妯℃嫙杩斿洖鏃犳硶瑙ｆ瀽鐨勬枃鏈紙妫€鏌ヤ唬鐮佽蛋鍒伴噸璇曚笌闄嶇骇鍒嗘敮骞惰褰曟棩蹇楋級
+- 对 `AIService.evaluate_reading_answer` 写集成测试：
+  - 模拟模型返回标准 JSON（检查分析和反馈解析正确）
+  - 模拟返回难解析的 JSON（extract_json 能提取）
+  - 模拟返回无法解析的文本（检查代码走到重试与降级分支并记录日志）
 
-6. 鍦?UI 涓帴鍏ユ祦寮忚緭鍑猴紙灏忔彁绀猴級
+6. 在 UI 中接入流式输出（小提示）
 
-- `core/ai_interface.py` 宸叉敮鎸佹祦寮忓洖璋冿細鍚屾/寮傛鐨?public 鏂规硶閮芥帴鍙楀彲閫?`callback(chunk: str, done: bool)` 鍙傛暟銆?
-- 鍦?UI锛堝 `ui/translation_page.py` / 绀轰緥锛変腑锛屼紶鍏ヤ竴涓皢鎺ユ敹鍒嗗潡骞剁敤 `widget.after(0, update_ui)` 瀹夊叏璋冨害鍒颁富绾跨▼鐨勫洖璋冿紝鍗冲彲瀹炵幇瀹炴椂鏂囧瓧娴佸睍绀恒€?
+- `core/ai_interface.py` 已支持流式返回：同步/异步的 public 方法都接受可选 `callback(chunk: str, done: bool)` 参数。
+- 在 UI（如 `ui/translation_page.py` / 示例）中，传入一个将接收片段并用 `widget.after(0, update_ui)` 安全调度到主线程的回调，即可实现实时文字流显示。
 
-绀轰緥锛?
+示例：
 
 ```python
 def on_chunk(chunk, done):
-    # 鍦ㄤ富绾跨▼鏇存柊 UI锛堝鏋滃湪鍏朵粬绾跨▼锛岄渶瑕佷娇鐢?widget.after)
+    # 在主线程更新 UI（如果在其他线程，需要使用 widget.after）
     text_widget.insert('end', chunk)
     if done:
-        text_widget.insert('end', '\n--- 瀹屾垚 ---\n')
+        text_widget.insert('end', '\n--- 完成 ---\n')
 
-ai_manager.translate('璇风炕璇?..', callback=on_chunk)
+ai_manager.translate('要翻译的文本...', callback=on_chunk)
 ```
 
 ---
 
-璇峰闃呰琛ュ厖鍐呭銆傛垜鍙互锛?
-
-- 鐩存帴鎶婅繖閮ㄥ垎鍚堝苟鍒?`DEVELOPER_DOCS.md`锛堟垜浼氬皾璇曚竴娆″悎骞跺苟鍛婄煡缁撴灉锛夛紱鎴?
-- 濡傛灉浣犳効鎰忓厛瀹￠槄锛忎慨鏀癸紝鍐嶈鎴戝悎骞讹紝鎴戜細鏍规嵁浣犵殑鍙嶉杩涜鏇存柊銆?
+记录本次修复（v1.6.3）：
+- 修复了数据库批量写入日志显示问题：现在正确记录实际写入的记录数量
+- 修复了DEVELOPER_DOCS.md文件中的编码乱码问题，确保文档可读性
