@@ -1,13 +1,20 @@
 import tkinter as tk
-from tkinter import ttk, messagebox, scrolledtext
+from tkinter import messagebox, scrolledtext
 import os
 import sys
 
 # 添加项目根目录到Python路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from ui.components.scrollable_frame import create_scrollable_frame
+import threading
+
+# 添加项目根目录到Python路径
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from logger import log_info, log_error
 from modules.cloze_test import ClozeTestModule
+from ui.components.loading_dialog import LoadingDialog
 
 
 class ClozeTestPage(tk.Frame):
@@ -108,11 +115,9 @@ class ClozeTestPage(tk.Frame):
                                                      height=15, bg="#f5f5f5", state=tk.DISABLED)
         self.article_text.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
         
-        # 选项区域
-        options_frame = tk.Frame(content_frame)
-        options_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
-        
-        self.options_frame = options_frame
+        # 选项区域 - 使用通用滚动框架
+        options_scroll_frame, self.options_frame, _, _ = create_scrollable_frame(content_frame)
+        options_scroll_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
         
         # 答案输入和提交
         answer_frame = tk.Frame(content_frame)
@@ -165,37 +170,57 @@ class ClozeTestPage(tk.Frame):
             # 清空界面
             self._clear_ui()
             
-            # 显示加载中
-            self.article_text.config(state=tk.NORMAL)
-            self.article_text.delete(1.0, tk.END)
-            self.article_text.insert(tk.END, "正在生成题目，请稍候...")
-            self.article_text.config(state=tk.DISABLED)
-            self.update()
+            # 定义生成测试题目的任务函数
+            def generate_test_task():
+                # 在单独线程中调用AI功能
+                return self.cloze_module.start_new_test(mode=mode, level=level, topic=topic)
             
-            # 开始新测试
-            test_data = self.cloze_module.start_new_test(mode=mode, level=level, topic=topic)
+            # 创建加载对话框
+            loading_dialog = LoadingDialog(
+                self.controller.root, 
+                title="正在生成题目", 
+                message="AI正在创建适合您的完形填空题目，请稍候..."
+            )
             
-            if test_data:
-                # 更新标题
-                self.title_label.config(text=test_data.get('title', '完形填空'))
+            # 运行异步任务
+            try:
+                test_data = loading_dialog.run_task(generate_test_task)
                 
-                # 显示文章内容
-                content = test_data.get('content', '')
+                if test_data:
+                    # 更新标题
+                    self.title_label.config(text=test_data.get('title', '完形填空'))
+                    
+                    # 显示文章内容
+                    content = test_data.get('content', '')
+                    self.article_text.config(state=tk.NORMAL)
+                    self.article_text.delete(1.0, tk.END)
+                    self.article_text.insert(tk.END, content)
+                    self.article_text.config(state=tk.DISABLED)
+                    
+                    # 显示选项
+                    self._display_options(test_data.get('options', []))
+                    
+                    # 启用提交按钮
+                    self.submit_button.config(state=tk.NORMAL)
+                    
+                    log_info(f"成功开始新的完形填空练习，ID: {test_data.get('id')}")
+                    messagebox.showinfo("提示", "题目已准备好，请开始答题！")
+                else:
+                    log_error("未能获取测试数据")
+                    messagebox.showerror("错误", "无法生成题目，请检查AI服务是否可用或尝试使用离线模式")
+                    # 显示默认提示
+                    self.article_text.config(state=tk.NORMAL)
+                    self.article_text.delete(1.0, tk.END)
+                    self.article_text.insert(tk.END, "请点击'开始新练习'按钮生成题目")
+                    self.article_text.config(state=tk.DISABLED)
+            except Exception as e:
+                log_error(f"生成题目时出错: {str(e)}")
+                messagebox.showerror("错误", f"生成题目失败: {str(e)}")
+                # 显示默认提示
                 self.article_text.config(state=tk.NORMAL)
                 self.article_text.delete(1.0, tk.END)
-                self.article_text.insert(tk.END, content)
+                self.article_text.insert(tk.END, "请点击'开始新练习'按钮生成题目")
                 self.article_text.config(state=tk.DISABLED)
-                
-                # 显示选项
-                self._display_options(test_data.get('options', []))
-                
-                # 启用提交按钮
-                self.submit_button.config(state=tk.NORMAL)
-                
-                log_info(f"成功开始新的完形填空练习，ID: {test_data.get('id')}")
-                messagebox.showinfo("提示", "题目已准备好，请开始答题！")
-                
-            else:
                 # 检查是否是离线模式且没有题目
                 if mode == "offline" or (mode is None and not self.cloze_module.ai_service.is_ai_available()):
                     messagebox.showerror("错误", "离线模式下数据库中没有题目，请先联网生成内容！")
@@ -229,9 +254,17 @@ class ClozeTestPage(tk.Frame):
                                        font=self.font_config['normal'])
             blank_frame.pack(fill=tk.X, pady=5)
             
-            # 显示选项
-            options_text = " ".join([f"{chr(64+i)}. {opt}" for i, opt in enumerate(opts, 1)])
-            tk.Label(blank_frame, text=options_text, font=self.font_config['normal'], justify=tk.LEFT).pack(anchor=tk.W, padx=10, pady=5)
+            # 显示选项 - 每个选项单独一行，更容易阅读
+            options_frame = tk.Frame(blank_frame)
+            options_frame.pack(anchor=tk.W, padx=10, pady=5, fill=tk.X)
+            
+            for i, opt in enumerate(opts, 1):
+                option_text = f"{chr(64+i)}. {opt}"
+                tk.Label(options_frame, text=option_text, font=self.font_config['normal'], 
+                        justify=tk.LEFT).pack(anchor=tk.W, pady=2, fill=tk.X)
+        
+        # 强制更新Canvas的滚动区域
+        self._on_options_configure(None)
     
     def _submit_answer(self):
         """提交答案"""
@@ -296,6 +329,8 @@ class ClozeTestPage(tk.Frame):
         
         # 禁用提交按钮
         self.submit_button.config(state=tk.DISABLED)
+    
+    # 滚动相关方法已通过create_scrollable_frame实现
     
     def on_show(self):
         """页面显示时的回调"""

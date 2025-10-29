@@ -2,12 +2,15 @@ import tkinter as tk
 from tkinter import ttk, messagebox, scrolledtext
 import os
 import sys
+import threading
 
 # 添加项目根目录到Python路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from logger import log_info, log_error
 from modules.reading_comprehension import ReadingComprehensionModule
+from ui.components.loading_dialog import LoadingDialog
+from ui.components.scrollable_frame import create_scrollable_frame
 
 
 class ReadingComprehensionPage(tk.Frame):
@@ -107,9 +110,9 @@ class ReadingComprehensionPage(tk.Frame):
         status_label = tk.Label(control_frame, textvariable=self.status_var, font=self.font_config['normal'])
         status_label.pack(side=tk.RIGHT, padx=10)
         
-        # 内容区域
-        content_frame = tk.Frame(main_frame)
-        content_frame.pack(fill=tk.BOTH, expand=True)
+        # 内容区域 - 使用通用滚动框架
+        content_scroll_frame, content_frame, _, _ = create_scrollable_frame(main_frame)
+        content_scroll_frame.pack(fill=tk.BOTH, expand=True)
         
         # 文章标题
         self.article_title = tk.Label(content_frame, text="阅读文章", font=self.font_config['header'], anchor=tk.W)
@@ -184,6 +187,8 @@ class ReadingComprehensionPage(tk.Frame):
         self.question_results = []
         self.test_data = None
     
+    # 滚动相关方法已通过create_scrollable_frame实现
+    
     def _update_status(self):
         """更新状态信息"""
         try:
@@ -213,65 +218,74 @@ class ReadingComprehensionPage(tk.Frame):
             # 清空界面
             self._clear_ui()
             
-            # 显示加载中
-            self.article_text.config(state=tk.NORMAL)
-            self.article_text.delete(1.0, tk.END)
-            self.article_text.insert(tk.END, "正在生成题目，请稍候...")
-            self.article_text.config(state=tk.DISABLED)
-            self.update()
+            # 定义生成测试题目的任务函数
+            def generate_test_task():
+                # 在单独线程中调用AI功能
+                return self.reading_module.start_new_test(
+                    mode=mode, level=level, length=length, question_count=question_count
+                )
             
-            # 开始新测试
-            test_data = self.reading_module.start_new_test(
-                mode=mode, level=level, length=length, question_count=question_count
+            # 创建加载对话框
+            loading_dialog = LoadingDialog(
+                self.controller.root, 
+                title="正在生成题目", 
+                message="AI正在创建适合您的阅读理解题目，请稍候..."
             )
             
-            if test_data:
-                self.test_data = test_data
+            # 运行异步任务
+            try:
+                test_data = loading_dialog.run_task(generate_test_task)
                 
-                # 更新标题
-                self.article_title.config(text="阅读文章")
-                
-                # 显示文章内容
-                article = test_data.get('article', '')
-                self.article_text.config(state=tk.NORMAL)
-                self.article_text.delete(1.0, tk.END)
-                self.article_text.insert(tk.END, article)
-                self.article_text.config(state=tk.DISABLED)
-                
-                # 显示题目
-                questions = test_data.get('questions', [])
-                self.questions_text.config(state=tk.NORMAL)
-                self.questions_text.delete(1.0, tk.END)
-                
-                for i, question in enumerate(questions, 1):
-                    self.questions_text.insert(tk.END, f"第{i}题: {question}\n\n")
-                
-                self.questions_text.config(state=tk.DISABLED)
-                
-                # 初始化
-                self.current_question_index = 0
-                self.user_answers = ["" for _ in questions]
-                self.question_results = [None for _ in questions]
-                
-                # 显示第一个问题
-                self._show_current_question()
-                
-                # 启用按钮
-                self._update_buttons_state()
-                
-                log_info(f"成功开始新的阅读理解练习，ID: {test_data.get('id')}")
-                messagebox.showinfo("提示", "题目已准备好，请开始答题！")
-                
-            else:
-                # 检查是否是离线模式且没有题目
-                if mode == "offline" or (mode is None and not self.reading_module.ai_service.is_ai_available()):
-                    messagebox.showerror("错误", "离线模式下数据库中没有题目，请先联网生成内容！")
+                if test_data:
+                    self.test_data = test_data
+                    
+                    # 更新标题
+                    self.article_title.config(text="阅读文章")
+                    
+                    # 显示文章内容
+                    article = test_data.get('article', '')
+                    self.article_text.config(state=tk.NORMAL)
+                    self.article_text.delete(1.0, tk.END)
+                    self.article_text.insert(tk.END, article)
+                    self.article_text.config(state=tk.DISABLED)
+                    
+                    # 显示题目
+                    questions = test_data.get('questions', [])
+                    self.questions_text.config(state=tk.NORMAL)
+                    self.questions_text.delete(1.0, tk.END)
+                    
+                    for i, question in enumerate(questions, 1):
+                        self.questions_text.insert(tk.END, f"第{i}题: {question}\n\n")
+                    
+                    self.questions_text.config(state=tk.DISABLED)
+                    
+                    # 初始化
+                    self.current_question_index = 0
+                    self.user_answers = ["" for _ in questions]
+                    self.question_results = [None for _ in questions]
+                    
+                    # 显示第一个问题
+                    self._show_current_question()
+                    
+                    # 启用按钮
+                    self._update_buttons_state()
+                    
+                    log_info(f"成功开始新的阅读理解练习，ID: {test_data.get('id')}")
+                    messagebox.showinfo("提示", "题目已准备好，请开始答题！")
                 else:
-                    messagebox.showerror("错误", "生成题目失败，请稍后重试！")
-                
+                    # 检查是否是离线模式且没有题目
+                    if mode == "offline" or (mode is None and not self.reading_module.ai_service.is_ai_available()):
+                        messagebox.showerror("错误", "离线模式下数据库中没有题目，请先联网生成内容！")
+                    else:
+                        messagebox.showerror("错误", "生成题目失败，请稍后重试！")
+                    
+                    # 重置界面
+                    self._clear_ui()
+            except Exception as e:
+                log_error(f"生成题目时出错: {str(e)}")
+                messagebox.showerror("错误", f"生成题目失败: {str(e)}")
                 # 重置界面
                 self._clear_ui()
-                
         except Exception as e:
             log_error(f"开始新测试失败: {str(e)}")
             messagebox.showerror("错误", f"开始新测试失败: {str(e)}")

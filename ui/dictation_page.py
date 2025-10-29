@@ -10,6 +10,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from audio_player import AudioPlayer
 from logger import log_info, log_wrong_word, log_error
 from core.dictation import DictationManager
+from ui.components.scrollable_frame import create_scrollable_frame
 
 
 class DictationPage(tk.Frame):
@@ -66,9 +67,9 @@ class DictationPage(tk.Frame):
 
     def _create_ui(self):
         """创建用户界面，支持模式选择和练习界面"""
-        # 主框架
-        self.main_frame = tk.Frame(self, bg='white')
-        self.main_frame.pack(expand=True, fill=tk.BOTH, padx=50, pady=30)
+        # 主框架 - 使用通用滚动框架
+        content_scroll_frame, self.main_frame, _, _ = create_scrollable_frame(self, padx=50, pady=30)
+        content_scroll_frame.pack(expand=True, fill=tk.BOTH)
 
         # 显示模式选择界面
         self._show_mode_selection()

@@ -7,6 +7,15 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from typing import List, Callable, Optional
 import threading
+import sys
+import os
+
+# 添加项目根目录到Python路径
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from logger import log_info, log_wrong_word
+from audio_player import AudioPlayer
+from ui.components.scrollable_frame import create_scrollable_frame
 
 
 class LearningPage(tk.Frame):
@@ -101,20 +110,17 @@ class LearningPage(tk.Frame):
         )
         self.start_button.pack(side=tk.LEFT, padx=10)
         
-        # 创建单词卡片框架
-        card_frame = tk.Frame(
-            self, 
-            bg="white", 
-            relief=tk.RAISED, 
+        # 创建单词卡片框架 - 使用通用滚动框架
+        content_scroll_frame, card_frame, _, _ = create_scrollable_frame(self, padx=40, pady=20)
+        content_scroll_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # 设置内部框架样式
+        card_frame.configure(
+            bg="white",
+            relief=tk.RAISED,
             bd=2,
             padx=40,
             pady=60
-        )
-        card_frame.pack(
-            fill=tk.BOTH,
-            expand=True,
-            padx=40,
-            pady=20
         )
         
         # 单词展示标签
@@ -462,8 +468,27 @@ class LearningPage(tk.Frame):
         异步获取单词例句
         """
         if self.current_word and self.word_manager:
-            example = self.word_manager.get_word_example(self.current_word)
+            # 使用WordManager的异步API获取例句
+            self.word_manager.get_word_example(
+                self.current_word, 
+                async_mode=True, 
+                callback=self._on_example_fetched
+            )
+            
+    def _on_example_fetched(self, example):
+        """
+        例句获取完成后的回调处理
+        
+        Args:
+            example: 获取到的例句文本
+        """
+        try:
             self.current_example = example
+            # 如果用户已经点击显示例句，自动更新UI
+            if self.is_example_visible:
+                self.master.after(0, lambda: self.example_label.config(text=example))
+        except Exception as e:
+            pass  # 忽略UI更新错误
     
     def toggle_example(self):
         """
@@ -479,13 +504,28 @@ class LearningPage(tk.Frame):
                 self.is_example_visible = True
                 self.example_button.config(text="📝 隐藏例句")
             elif self.word_manager and self.settings_manager and self.settings_manager.get_setting("example_enabled", True):
-                # 如果还没有例句，尝试同步获取
+                # 如果还没有例句，异步获取
                 self.example_label.config(text="正在获取例句...")
-                example = self.word_manager.get_word_example(self.current_word)
-                self.current_example = example
-                self.example_label.config(text=example if example else "无法获取例句")
                 self.is_example_visible = True
-                self.example_button.config(text="📝 隐藏例句")
+                
+                # 使用异步方式获取例句
+                def on_example_ready(example):
+                    try:
+                        self.current_example = example
+                        self.master.after(0, lambda: self.example_label.config(
+                            text=example if example else "无法获取例句"
+                        ))
+                        self.master.after(0, lambda: self.example_button.config(
+                            text="📝 隐藏例句"
+                        ))
+                    except Exception as e:
+                        pass  # 忽略UI更新错误
+                
+                self.word_manager.get_word_example(
+                    self.current_word, 
+                    async_mode=True, 
+                    callback=on_example_ready
+                )
         else:
             # 隐藏例句
             self.example_label.config(text="")

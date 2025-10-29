@@ -9,6 +9,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from logger import log_info, log_wrong_word
 from audio_player import AudioPlayer
+from ui.components.scrollable_frame import create_scrollable_frame
 
 
 class TranslationPage(tk.Frame):
@@ -51,9 +52,9 @@ class TranslationPage(tk.Frame):
     
     def _create_ui(self):
         """创建用户界面"""
-        # 主框架
-        self.main_frame = tk.Frame(self.parent, bg='white')
-        self.main_frame.pack(expand=True, fill=tk.BOTH, padx=50, pady=30)
+        # 主框架 - 使用通用滚动框架
+        content_scroll_frame, self.main_frame, _, _ = create_scrollable_frame(self, padx=50, pady=30)
+        content_scroll_frame.pack(expand=True, fill=tk.BOTH)
         
         # 标题
         title_label = tk.Label(
@@ -571,8 +572,27 @@ class TranslationPage(tk.Frame):
     def _fetch_example_async(self):
         """异步获取单词例句"""
         if self.current_word and hasattr(self.word_manager, 'get_word_example'):
-            example = self.word_manager.get_word_example(self.current_word)
+            # 使用WordManager的异步API获取例句
+            self.word_manager.get_word_example(
+                self.current_word, 
+                async_mode=True, 
+                callback=self._on_example_fetched
+            )
+            
+    def _on_example_fetched(self, example):
+        """
+        例句获取完成后的回调处理
+        
+        Args:
+            example: 获取到的例句文本
+        """
+        try:
             self.current_example = example
+            # 如果用户已经点击显示例句，自动更新UI
+            if self.is_example_visible:
+                self.master.after(0, lambda: self.example_label.config(text=example))
+        except Exception as e:
+            pass  # 忽略UI更新错误
     
     def _toggle_example(self):
         """切换例句显示状态"""
@@ -586,13 +606,28 @@ class TranslationPage(tk.Frame):
                 self.is_example_visible = True
                 self.example_button.config(text="📝 隐藏例句")
             elif self.settings_manager and self.settings_manager.get_setting("example_enabled", True) and hasattr(self.word_manager, 'get_word_example'):
-                # 如果还没有例句，尝试同步获取
+                # 如果还没有例句，异步获取
                 self.example_label.config(text="正在获取例句...")
-                example = self.word_manager.get_word_example(self.current_word)
-                self.current_example = example
-                self.example_label.config(text=example if example else "无法获取例句")
                 self.is_example_visible = True
-                self.example_button.config(text="📝 隐藏例句")
+                
+                # 使用异步方式获取例句
+                def on_example_ready(example):
+                    try:
+                        self.current_example = example
+                        self.master.after(0, lambda: self.example_label.config(
+                            text=example if example else "无法获取例句"
+                        ))
+                        self.master.after(0, lambda: self.example_button.config(
+                            text="📝 隐藏例句"
+                        ))
+                    except Exception as e:
+                        pass  # 忽略UI更新错误
+                
+                self.word_manager.get_word_example(
+                    self.current_word, 
+                    async_mode=True, 
+                    callback=on_example_ready
+                )
         else:
             # 隐藏例句
             self.example_label.config(text="")
@@ -685,3 +720,15 @@ class TranslationPage(tk.Frame):
             bg='#f44336',
             fg='white'
         ).pack(side=tk.LEFT, padx=10)
+    
+    def on_show(self):
+        """页面显示时的回调"""
+        # 刷新设置
+        self._update_hint_text()
+        self._update_auto_mode_setting()
+        
+        # 重新开始练习
+        self.word_manager.start_exercise("翻译")
+        self.next_word()
+    
+    # 滚动相关方法已通过create_scrollable_frame实现
