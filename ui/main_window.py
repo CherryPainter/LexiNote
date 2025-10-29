@@ -117,9 +117,18 @@ class MainWindow:
         self.content_area.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
     
     def _clear_content_area(self):
-        """清空内容区域"""
+        """清空内容区域，使用forget而不是destroy以保留页面实例"""
         for widget in self.content_area.winfo_children():
-            widget.destroy()
+            # 使用pack_forget()而不是destroy()，保留组件以便复用
+            try:
+                widget.pack_forget()
+            except:
+                # 如果组件不是使用pack()布局的，尝试使用place_forget
+                try:
+                    widget.place_forget()
+                except:
+                    # 如果都不行，则销毁组件
+                    widget.destroy()
     
     def _show_settings_page(self):
         """显示设置页面"""
@@ -127,6 +136,7 @@ class MainWindow:
         
         # 懒加载页面
         if page_key not in self._pages:
+            # 先创建页面但不pack
             self._pages[page_key] = SettingsPage(
                 self.content_area,
                 settings_manager=self.settings_manager,
@@ -134,8 +144,14 @@ class MainWindow:
                 font_config=self.font_config
             )
         
+        # 先获取页面实例
+        page = self._pages[page_key]
+        
+        # 清空内容区域
         self._clear_content_area()
-        self.current_page = self._pages[page_key]
+        
+        # 再设置当前页面并pack
+        self.current_page = page
         self.current_page.pack(fill=tk.BOTH, expand=True)
         
         log_info("切换到设置页面")
@@ -199,6 +215,7 @@ class MainWindow:
         
         # 懒加载页面
         if page_key not in self._pages:
+            # 先创建页面但不pack
             self._pages[page_key] = DictationPage(
                 self.content_area,
                 word_manager=self.word_manager,
@@ -206,8 +223,14 @@ class MainWindow:
                 font_config=self.font_config
             )
         
+        # 先获取页面实例
+        page = self._pages[page_key]
+        
+        # 清空内容区域
         self._clear_content_area()
-        self.current_page = self._pages[page_key]
+        
+        # 再设置当前页面并pack
+        self.current_page = page
         self.current_page.pack(fill=tk.BOTH, expand=True)
         
         log_info(f"切换到听写练习页面，今日已学习 {len(today_words)} 个单词")
@@ -218,6 +241,7 @@ class MainWindow:
         
         # 懒加载页面
         if page_key not in self._pages:
+            # 先创建页面但不pack
             self._pages[page_key] = TranslationPage(
                 self.content_area,
                 word_manager=self.word_manager,
@@ -225,8 +249,14 @@ class MainWindow:
                 font_config=self.font_config
             )
         
+        # 先获取页面实例
+        page = self._pages[page_key]
+        
+        # 清空内容区域
         self._clear_content_area()
-        self.current_page = self._pages[page_key]
+        
+        # 再设置当前页面并pack
+        self.current_page = page
         self.current_page.pack(fill=tk.BOTH, expand=True)
         
         log_info("切换到翻译练习页面")
@@ -237,6 +267,7 @@ class MainWindow:
         
         # 懒加载页面
         if page_key not in self._pages:
+            # 先创建页面但不pack
             self._pages[page_key] = ReviewPage(
                 self.content_area,
                 word_manager=self.word_manager,
@@ -244,8 +275,14 @@ class MainWindow:
                 font_config=self.font_config
             )
         
+        # 先获取页面实例
+        page = self._pages[page_key]
+        
+        # 清空内容区域
         self._clear_content_area()
-        self.current_page = self._pages[page_key]
+        
+        # 再设置当前页面并pack
+        self.current_page = page
         self.current_page.pack(fill=tk.BOTH, expand=True)
         
         log_info("切换到单词复习页面")
@@ -264,6 +301,7 @@ class MainWindow:
                 logger=self.word_manager
             )
             
+            # 先创建页面但不pack
             self._pages[page_key] = LearningPage(
                 self.content_area,
                 learning_manager=learning_manager,
@@ -273,8 +311,14 @@ class MainWindow:
                 bg='white'
             )
         
+        # 先获取页面实例
+        page = self._pages[page_key]
+        
+        # 清空内容区域
         self._clear_content_area()
-        self.current_page = self._pages[page_key]
+        
+        # 再设置当前页面并pack
+        self.current_page = page
         self.current_page.pack(fill=tk.BOTH, expand=True)
         
         log_info("切换到学习模式页面")
@@ -285,13 +329,20 @@ class MainWindow:
         
         # 懒加载页面，避免在初始化时连接AI
         if page_key not in self._pages:
+            # 先创建页面但不pack
             self._pages[page_key] = ClozeTestPage(
                 self.content_area,
                 self
             )
         
+        # 先获取页面实例
+        page = self._pages[page_key]
+        
+        # 清空内容区域
         self._clear_content_area()
-        self.current_page = self._pages[page_key]
+        
+        # 再设置当前页面并pack
+        self.current_page = page
         self.current_page.pack(fill=tk.BOTH, expand=True)
         
         # 调用页面的on_show方法
@@ -306,13 +357,20 @@ class MainWindow:
         
         # 懒加载页面，避免在初始化时连接AI
         if page_key not in self._pages:
+            # 先创建页面但不pack
             self._pages[page_key] = ReadingComprehensionPage(
                 self.content_area,
                 self
             )
         
+        # 先获取页面实例
+        page = self._pages[page_key]
+        
+        # 清空内容区域
         self._clear_content_area()
-        self.current_page = self._pages[page_key]
+        
+        # 再设置当前页面并pack
+        self.current_page = page
         self.current_page.pack(fill=tk.BOTH, expand=True)
         
         # 调用页面的on_show方法
