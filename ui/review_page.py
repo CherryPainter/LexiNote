@@ -473,7 +473,11 @@ class ReviewPage(tk.Frame):
         # 在后台线程播放，避免阻塞UI
         def _play():
             try:
-                result = self.audio_player.play_pronunciation(word)
+                if self.audio_player is not None:
+                    result = self.audio_player.play_pronunciation(word)
+                else:
+                    result = False
+                    log_error("audio_player为None，无法播放发音")
             except Exception as e:
                 log_error(f"播放线程异常: {str(e)}")
                 result = False
