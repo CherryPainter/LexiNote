@@ -35,8 +35,8 @@ def create_scrollable_frame(parent, *args, **kwargs):
     # 创建内部框架
     inner_frame = tk.Frame(canvas, *args, **kwargs)
     
-    # 创建窗口项目
-    canvas_window = canvas.create_window((0, 0), window=inner_frame, anchor="nw", fill=tk.X)
+    # 创建内部框架窗口
+    canvas_window = canvas.create_window((0, 0), window=inner_frame, anchor="nw")
     
     # 定义配置回调函数
     def on_inner_configure(event):
