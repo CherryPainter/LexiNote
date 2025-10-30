@@ -6,6 +6,7 @@ import threading
 from logger import log_info, log_error
 from .database import ComprehensionDatabase
 from .ai_service import AIService
+from word_manager import WordManager
 
 
 class ClozeTestModule:
@@ -14,6 +15,9 @@ class ClozeTestModule:
     def __init__(self):
         """初始化完形填空模块"""
         self.db_manager = ComprehensionDatabase()
+        # 使用WordManager来管理AI连接检测
+        self.word_manager = WordManager()
+        # 保留AI服务，但不再使用它进行连接检测
         self.ai_service = AIService()
         self._lock = threading.RLock()
         
@@ -31,8 +35,8 @@ class ClozeTestModule:
         # 如果有明确设置的模式，则返回该模式
         if self._current_mode is not None:
             return self._current_mode
-        # 否则根据AI是否可用判断
-        return "online" if self.ai_service.is_ai_available() else "offline"
+        # 否则根据WordManager中的AI可用性判断
+        return "online" if self.word_manager.ai_available else "offline"
     
     def start_new_test(self, mode: str = None, level: str = "中级", 
                       topic: str = "通用") -> Optional[Dict]:
@@ -54,12 +58,12 @@ class ClozeTestModule:
                 
                 # 如果未指定模式，自动检测
                 if mode is None:
-                    mode = "online" if self.ai_service.is_ai_available() else "offline"
+                    mode = "online" if self.word_manager.ai_available else "offline"
                 
                 # 保存当前实际使用的模式
                 self._current_mode = mode
                 
-                if mode == "online" and self.ai_service.is_ai_available():
+                if mode == "online" and self.word_manager.ai_available:
                     # 在线模式：AI生成题目
                     log_info(f"在线模式生成完形填空题目，难度: {level}，主题: {topic}")
                     self.current_test = self.ai_service.generate_cloze_test(level, topic)
@@ -180,7 +184,7 @@ class ClozeTestModule:
         try:
             stats = {
                 'total_tests': self.db_manager.count_cloze_tests(),
-                'ai_available': self.ai_service.is_ai_available(),
+                'ai_available': self.word_manager.ai_available,
                 'current_mode': self.get_mode()
             }
             return stats
