@@ -596,29 +596,38 @@ class DatabaseManager:
             if not word:
                 return False, "单词不存在"
             
-            # 构建更新字段
+            # 获取数据库中实际存在的列
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            cursor.execute("PRAGMA table_info(words)")
+            existing_columns = [col[1] for col in cursor.fetchall()]
+            
+            # 构建更新字段，只使用实际存在的列
             fields = []
             values = []
             valid_fields = ['word', 'translation', 'phonetic', 'example', 'meaning_en', 'tag', 'familiarity', 'proficiency']
             
             for key, value in kwargs.items():
-                if key in valid_fields:
+                if key in valid_fields and key in existing_columns:
                     fields.append(f"{key} = ?")
                     values.append(value)
+                elif key in valid_fields:
+                    # 列不存在时记录日志但不抛出错误
+                    log_info(f"跳过更新字段 {key}，该列在数据库中不存在")
             
             if fields:
                 values.append(word_id)
                 sql = f"UPDATE words SET {', '.join(fields)} WHERE id = ?"
                 
-                conn = sqlite3.connect(self.db_path)
-                cursor = conn.cursor()
                 cursor.execute(sql, values)
                 conn.commit()
                 conn.close()
                 
                 log_info(f"更新单词成功: {word_id}")
                 return True, "更新成功"
-            return True, "无更新内容"
+            else:
+                conn.close()
+                return True, "无更新内容或所有字段在数据库中不存在"
         except Exception as e:
             log_error(f"更新单词失败: {str(e)}")
             return False, str(e)
@@ -981,7 +990,7 @@ class DatabaseManager:
             log_error(f"删除单词失败: {str(e)}")
             return False
     
-    def update_word(self, word: str, translation: str) -> bool:
+    def update_word_translation(self, word: str, translation: str) -> bool:
         """更新单词的翻译
         
         Args:
