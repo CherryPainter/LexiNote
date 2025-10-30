@@ -231,7 +231,7 @@ class AIService:
 1. 文章内容连贯，主题明确，适合{level}英语水平的学习者
 2. 问题类型混合使用选择题和主观题
 3. 选择题请提供4个选项，其中只有一个正确答案
-4. 请按照以下JSON格式输出，不要包含其他任何无关内容：
+4. 请严格按照以下JSON格式输出，不要包含任何额外的内容、解释或说明：
 
 {{
   "article": "完整的阅读文章内容",
@@ -269,6 +269,12 @@ class AIService:
                 result = extract_json_from_text(clean_response)
                 if result is None:
                     log_error("无法从AI返回中提取有效的JSON")
+                    # 保存原始响应以便排查
+                    log_error(f"AI返回原始内容: {response}")
+                    try:
+                          self._save_raw_response('reading_parse_fail', response)
+                      except Exception:
+                        pass
                     return None
                 
                 # 处理可能的字段名拼写错误
@@ -308,15 +314,14 @@ class AIService:
                 else:
                     return None
                     
-            except json.JSONDecodeError as e:
-                log_error(f"解析AI返回的JSON失败: {str(e)}")
+            except Exception as e:
+                log_error(f"处理AI返回的阅读理解数据失败: {str(e)}")
                 log_error(f"AI返回内容: {response}")
                 try:
                     self._save_raw_response('reading_parse_fail', response)
                 except Exception:
                     pass
                 return None
-                
         except Exception as e:
             log_error(f"生成阅读理解题目失败: {str(e)}")
             return None

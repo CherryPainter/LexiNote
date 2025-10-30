@@ -29,7 +29,7 @@ class MainWindow:
         """初始化主窗口"""
         self.root = root
         self.root.title("LexiNote - 个人英语学习工具")
-        self.root.geometry("800x600")
+        self.root.geometry("1650x980")
         self.root.minsize(600, 400)
         
         # 设置中文字体
