@@ -411,7 +411,14 @@ class DictationPage(tk.Frame):
                     f"系统未找到来自 '{source_name}' 的单词记录。\n\n是否现在去学习以生成今日学习单词？"
                 )
                 if resp:
-                    self.parent.show_page("learning")
+                    # 获取MainWindow实例并调用正确的页面显示方法
+                    # 假设parent的master是MainWindow实例
+                    if hasattr(self.parent.master, '_show_learning_page'):
+                        self.parent.master._show_learning_page()
+                    elif hasattr(self.parent, '_show_learning_page'):
+                        self.parent._show_learning_page()
+                    else:
+                        log_error("无法找到页面切换方法")
                 return False
 
             # 其他来源直接提示用户选择其他来源
