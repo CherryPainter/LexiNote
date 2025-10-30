@@ -106,8 +106,11 @@ class WordManager:
                         log_info(f"AI功能测试失败: {test_response}")
                         return False
                 except Exception as e:
-                    log_info(f"AI连接测试异常: {str(e)}")
+                    log_warning(f"测试AI连接失败: {str(e)}")
                     return False
+        except Exception as e:
+            log_warning(f"检查AI可用性时发生错误: {str(e)}")
+            return False
         return False
     
     def _check_throttle_limit(self) -> bool:
@@ -148,13 +151,6 @@ class WordManager:
             self._min_interval_ms = max(100, min_interval_ms)  # 最小100毫秒
             self._max_calls_per_minute = max(1, max_calls_per_minute)  # 至少1次/分钟
             log_info(f"已设置AI节流参数: 最小间隔{self._min_interval_ms}ms, 最大频率{self._max_calls_per_minute}次/分钟")
-            
-                log_warning(f"测试AI连接失败: {str(e)}")
-                return False
-        return False
-        except Exception as e:
-            log_warning(f"检查AI可用性时发生错误: {str(e)}")
-            return False
     
     def _load_data(self, file_path: str) -> dict:
         """加载数据文件
