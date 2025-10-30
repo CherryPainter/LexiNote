@@ -23,6 +23,7 @@
 - **更新：** 单词例句获取机制优化，实现按需存储
 - **新增：** 改进了错误处理和日志记录
 - **修复：** 修复了代码结构和语法错误，提高了系统稳定性
+- **更新：** 将`update_word(word, translation)`重命名为`update_word_translation(word, translation)`以避免方法名冲突
 
 ## 功能概述
 

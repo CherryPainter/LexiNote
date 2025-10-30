@@ -661,8 +661,8 @@ class WordManager:
             log_error(f"删除单词失败: {str(e)}")
             return False
 
-    def update_word(self, word: str, translation: str) -> bool:
-        """更新单词
+    def update_word_translation(self, word: str, translation: str) -> bool:
+        """更新单词翻译
 
         Args:
             word: 单词
