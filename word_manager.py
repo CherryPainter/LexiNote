@@ -1220,101 +1220,104 @@ class WordManager:
                     callback(db_attributes)
                 return db_attributes
             
-            # 如果有缺失的属性，从AI获取（仅异步模式）
+            # 如果有缺失的属性，从AI获取
+            # 无论是同步还是异步模式，都从AI获取缺失的属性
+            def fetch_missing_attributes():
+                try:
+                    # 检查AI功能是否可用（每次都重新验证）
+                    if not self.is_ai_available() or not self.ai_manager:
+                        log_warning("AI功能不可用，无法获取缺失的属性")
+                        if callback:
+                            callback(db_attributes)
+                        return db_attributes
+
+                    # 检查节流限制
+                    if not self._check_throttle_limit():
+                        log_info(f"AI调用受节流限制，稍后重试: {word}")
+                        if callback:
+                            callback(db_attributes)
+                        return db_attributes
+
+                    # 请求AI获取缺失的属性
+                    # 构建提示词请求所有缺失的属性
+                    prompt = f"请为单词 '{word}' 提供以下信息：{', '.join(missing_attributes)}"
+                    if 'example' in missing_attributes:
+                        prompt += "，例句需要包含英文句子和中文翻译"
+
+                    response = self.ai_manager._ask_sync(prompt)
+
+                    # 解析AI返回的数据
+                    # 这里简化处理，实际项目中可能需要更复杂的解析逻辑
+                    # 根据不同属性使用不同的AI方法或更精确的解析
+                    ai_attributes = {}
+
+                    if 'phonetic' in missing_attributes:
+                        # 获取音标
+                        # 这里可以使用更精确的方法或正则表达式解析
+                        ai_attributes['phonetic'] = self.ai_manager._ask_sync(f"请提供单词 '{word}' 的标准音标，仅返回音标部分")
+
+                    if 'example' in missing_attributes:
+                        # 获取例句
+                        example = self.ai_manager.example_sync(word)
+                        if example and "AI功能暂不可用" not in example and "生成例句失败" not in example:
+                            # 检查例句是否包含翻译
+                            if "(" not in example and ")" not in example:
+                                translation = self.get_word_translation(word) or "(未知翻译)"
+                                example = f"{example} (这是一个包含 '{word}' 的例句，意思是：{translation})"
+                            ai_attributes['example'] = example
+
+                    if 'meaning_en' in missing_attributes:
+                        # 获取英文释义
+                        ai_attributes['meaning_en'] = self.ai_manager._ask_sync(f"请提供单词 '{word}' 的英文释义，仅返回英文")
+
+                    if 'tag' in missing_attributes:
+                        # 获取标签
+                        ai_attributes['tag'] = self.ai_manager._ask_sync(f"请为单词 '{word}' 提供合适的标签，用逗号分隔，如：名词,动词")
+
+                    # 合并数据库已有属性和AI获取的属性
+                    result_attributes = {**db_attributes, **ai_attributes}
+
+                    # 先返回数据给用户展示
+                    if callback:
+                        callback(result_attributes)
+
+                    # 然后在后台异步保存到数据库
+                    def save_attributes_to_database():
+                        try:
+                            update_data = {}
+                            for attr, value in ai_attributes.items():
+                                if value and "AI功能暂不可用" not in value:
+                                    update_data[attr] = value
+
+                            if update_data:
+                                success, msg = self.update_word(word_obj['id'], **update_data)
+                                if success:
+                                    log_info(f"已保存单词属性到数据库: {word}, 属性: {', '.join(update_data.keys())}")
+                                else:
+                                    log_error(f"保存单词属性失败: {msg}")
+                        except Exception as e:
+                            log_error(f"异步保存单词属性时发生异常: {str(e)}")
+
+                    # 启动保存数据的后台线程
+                    save_thread = threading.Thread(target=save_attributes_to_database, daemon=True)
+                    save_thread.start()
+                    
+                    return result_attributes
+
+                except Exception as e:
+                    log_error(f"获取缺失属性时发生异常: {str(e)}")
+                    if callback:
+                        callback(db_attributes)  # 返回已有数据
+                    return db_attributes
+
+            # 异步模式：在单独的线程中执行
             if async_mode:
-                def fetch_missing_attributes():
-                    try:
-                        # 检查AI功能是否可用（每次都重新验证）
-                        if not self.is_ai_available() or not self.ai_manager:
-                            log_warning("AI功能不可用，无法获取缺失的属性")
-                            if callback:
-                                callback(db_attributes)
-                            return
-                        
-                        # 检查节流限制
-                        if not self._check_throttle_limit():
-                            log_info(f"AI调用受节流限制，稍后重试: {word}")
-                            if callback:
-                                callback(db_attributes)
-                            return
-                        
-                        # 请求AI获取缺失的属性
-                        # 构建提示词请求所有缺失的属性
-                        prompt = f"请为单词 '{word}' 提供以下信息：{', '.join(missing_attributes)}"
-                        if 'example' in missing_attributes:
-                            prompt += "，例句需要包含英文句子和中文翻译"
-                        
-                        response = self.ai_manager._ask_sync(prompt)
-                        
-                        # 解析AI返回的数据
-                        # 这里简化处理，实际项目中可能需要更复杂的解析逻辑
-                        # 根据不同属性使用不同的AI方法或更精确的解析
-                        ai_attributes = {}
-                        
-                        if 'phonetic' in missing_attributes:
-                            # 获取音标
-                            # 这里可以使用更精确的方法或正则表达式解析
-                            ai_attributes['phonetic'] = self.ai_manager._ask_sync(f"请提供单词 '{word}' 的标准音标，仅返回音标部分")
-                        
-                        if 'example' in missing_attributes:
-                            # 获取例句
-                            example = self.ai_manager.example_sync(word)
-                            if example and "AI功能暂不可用" not in example and "生成例句失败" not in example:
-                                # 检查例句是否包含翻译
-                                if "(" not in example and ")" not in example:
-                                    translation = self.get_word_translation(word) or "(未知翻译)"
-                                    example = f"{example} (这是一个包含 '{word}' 的例句，意思是：{translation})"
-                                ai_attributes['example'] = example
-                        
-                        if 'meaning_en' in missing_attributes:
-                            # 获取英文释义
-                            ai_attributes['meaning_en'] = self.ai_manager._ask_sync(f"请提供单词 '{word}' 的英文释义，仅返回英文")
-                        
-                        if 'tag' in missing_attributes:
-                            # 获取标签
-                            ai_attributes['tag'] = self.ai_manager._ask_sync(f"请为单词 '{word}' 提供合适的标签，用逗号分隔，如：名词,动词")
-                        
-                        # 合并数据库已有属性和AI获取的属性
-                        result_attributes = {**db_attributes, **ai_attributes}
-                        
-                        # 先返回数据给用户展示
-                        if callback:
-                            callback(result_attributes)
-                        
-                        # 然后在后台异步保存到数据库
-                        def save_attributes_to_database():
-                            try:
-                                update_data = {}
-                                for attr, value in ai_attributes.items():
-                                    if value and "AI功能暂不可用" not in value:
-                                        update_data[attr] = value
-                                
-                                if update_data:
-                                    success, msg = self.update_word(word_obj['id'], **update_data)
-                                    if success:
-                                        log_info(f"已保存单词属性到数据库: {word}, 属性: {', '.join(update_data.keys())}")
-                                    else:
-                                        log_error(f"保存单词属性失败: {msg}")
-                            except Exception as e:
-                                log_error(f"异步保存单词属性时发生异常: {str(e)}")
-                        
-                        # 启动保存数据的后台线程
-                        save_thread = threading.Thread(target=save_attributes_to_database, daemon=True)
-                        save_thread.start()
-                            
-                    except Exception as e:
-                        log_error(f"获取缺失属性时发生异常: {str(e)}")
-                        if callback:
-                            callback(db_attributes)  # 返回已有数据
-                
-                # 启动异步线程
                 thread = threading.Thread(target=fetch_missing_attributes, daemon=True)
                 thread.start()
                 return None
             else:
-                # 同步模式 - 返回已有属性
-                log_info(f"同步模式下仅返回数据库中已有的属性")
-                return db_attributes
+                # 同步模式：直接执行并返回结果
+                return fetch_missing_attributes()
                 
         except Exception as e:
             log_error(f"处理单词属性时发生异常: {str(e)}")

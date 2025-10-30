@@ -163,6 +163,7 @@
   - 修复 LearningManager 类中缺少 current_index 属性的问题，解决 'LearningManager' object has no attribute 'current_index' 错误
   - 在 LearningManager 初始化时添加了 current_index 属性，初始值设为 -1
   - 优化了 AI 可用性检查逻辑，每次调用都重新验证 Ollama 服务状态
+  - 修复了例句获取功能，现在在同步模式下也能从AI获取数据
 
 ## v1.1.1 - 修复 LearningManager 初始化依赖问题
 - 修复 LearningManager 初始化依赖问题，解决 'WordManager' object has no attribute 'scheduler' 错误
