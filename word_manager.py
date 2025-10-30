@@ -455,6 +455,118 @@ class WordManager:
             单词列表
         """
         return self.db_manager.get_all_words()
+        
+    def get_words_for_review(self, filter_type='all', limit=100) -> List[Dict]:
+        """获取用于复习的单词列表
+        
+        Args:
+            filter_type: 过滤类型，可选值: 'all'全部单词, 'familiar'熟词, 'difficult'难词
+            limit: 返回的最大单词数
+            
+        Returns:
+            单词字典列表，包含word、translation、proficiency等信息
+        """
+        try:
+            if not self.active_word_set_id:
+                self._set_default_word_set()
+                
+            # 根据过滤类型构建查询
+            if filter_type == 'familiar':
+                # 熟词：熟练度高于0.8的单词
+                query = """
+                    SELECT * FROM words 
+                    WHERE set_id = ? AND proficiency > 0.8 
+                    ORDER BY last_review DESC NULLS LAST, RANDOM() 
+                    LIMIT ?
+                """
+            elif filter_type == 'difficult':
+                # 难词：熟练度低于0.5的单词
+                query = """
+                    SELECT * FROM words 
+                    WHERE set_id = ? AND proficiency < 0.5 
+                    ORDER BY last_review ASC NULLS FIRST, proficiency ASC 
+                    LIMIT ?
+                """
+            else:
+                # 所有单词：优先选择最近复习过的和熟练度中等的单词
+                query = """
+                    SELECT * FROM words 
+                    WHERE set_id = ? 
+                    ORDER BY 
+                        CASE 
+                            WHEN last_review IS NULL THEN 0 
+                            ELSE 1 
+                        END, 
+                        last_review ASC, 
+                        ABS(proficiency - 0.5) DESC, 
+                        RANDOM() 
+                    LIMIT ?
+                """
+                
+            results = self.db_manager.execute_read(
+                query, 
+                (self.active_word_set_id, limit)
+            )
+            
+            return results
+            
+        except Exception as e:
+            log_error(f"获取复习单词列表失败: {str(e)}")
+            # 失败时返回空列表
+            return []
+            
+    def update_word_familiarity(self, word: str, familiarity: float):
+        """更新单词熟悉度（兼容旧接口，实际使用proficiency字段）
+        
+        Args:
+            word: 单词
+            familiarity: 熟悉度值（0.0-1.0）
+        """
+        try:
+            # 查找单词ID
+            result = self.db_manager.execute_read(
+                "SELECT id FROM words WHERE word = ? AND set_id = ?",
+                (word, self.active_word_set_id)
+            )
+            
+            if result:
+                word_id = result[0]['id']
+                # 更新熟悉度（使用proficiency字段）
+                update_result = self.db_manager.update_word(
+                    word_id, 
+                    proficiency=float(familiarity),
+                    last_review=datetime.now().isoformat()
+                )
+                
+                # 更新内存缓存
+                with self._cache_lock:
+                    if word in self.word_familiarity:
+                        self.word_familiarity[word] = float(familiarity)
+                
+                if update_result[0]:
+                    log_info(f"更新单词熟悉度成功: {word} -> {familiarity}")
+                else:
+                    log_error(f"更新单词熟悉度失败: {update_result[1]}")
+            else:
+                log_warning(f"单词不存在于当前词库: {word}")
+                
+        except Exception as e:
+            log_error(f"更新单词熟悉度异常: {str(e)}")
+            
+    def get_word_familiarity(self) -> Dict[str, float]:
+        """获取单词熟悉度字典（兼容旧接口，实际返回proficiency值）
+        
+        Returns:
+            单词熟悉度字典
+        """
+        try:
+            # 如果缓存为空，从数据库重新加载
+            if not self.word_familiarity:
+                self._load_word_familiarity()
+            return self.word_familiarity
+        except Exception as e:
+            log_error(f"获取单词熟悉度失败: {str(e)}")
+            return {}
     
     # get_word_by_weight 已在文件后部提供更完整实现，早期占位实现已移除
     
@@ -673,7 +785,7 @@ class WordManager:
         """
         try:
             # 更新数据库
-            result = self.db_manager.update_word(word, translation)
+            result = self.db_manager.update_word_translation(word, translation)
             
             # 更新缓存
             if result:
@@ -1253,26 +1365,42 @@ class WordManager:
 
                     if 'phonetic' in missing_attributes:
                         # 获取音标
-                        # 这里可以使用更精确的方法或正则表达式解析
-                        ai_attributes['phonetic'] = self.ai_manager._ask_sync(f"请提供单词 '{word}' 的标准音标，仅返回音标部分")
+                        try:
+                            phonetic_response = self.ai_manager._ask_sync(f"请提供单词 '{word}' 的标准音标，仅返回音标部分")
+                            if phonetic_response and "AI功能暂不可用" not in phonetic_response:
+                                ai_attributes['phonetic'] = phonetic_response
+                        except Exception as e:
+                            log_error(f"获取音标时发生异常: {str(e)}")
 
                     if 'example' in missing_attributes:
                         # 获取例句
-                        example = self.ai_manager.example_sync(word)
-                        if example and "AI功能暂不可用" not in example and "生成例句失败" not in example:
-                            # 检查例句是否包含翻译
-                            if "(" not in example and ")" not in example:
-                                translation = self.get_word_translation(word) or "(未知翻译)"
-                                example = f"{example} (这是一个包含 '{word}' 的例句，意思是：{translation})"
-                            ai_attributes['example'] = example
+                        try:
+                            example = self.ai_manager.example_sync(word)
+                            # 注意：example_sync返回的不是JSON格式，而是"英文例句|中文翻译"格式
+                            if example and "AI功能暂不可用" not in example and "生成例句失败" not in example:
+                                ai_attributes['example'] = example
+                            else:
+                                log_warning(f"获取例句失败或AI不可用: {example}")
+                        except Exception as e:
+                            log_error(f"获取例句时发生异常: {str(e)}")
 
                     if 'meaning_en' in missing_attributes:
                         # 获取英文释义
-                        ai_attributes['meaning_en'] = self.ai_manager._ask_sync(f"请提供单词 '{word}' 的英文释义，仅返回英文")
+                        try:
+                            meaning_en_response = self.ai_manager._ask_sync(f"请提供单词 '{word}' 的英文释义，仅返回英文")
+                            if meaning_en_response and "AI功能暂不可用" not in meaning_en_response:
+                                ai_attributes['meaning_en'] = meaning_en_response
+                        except Exception as e:
+                            log_error(f"获取英文释义时发生异常: {str(e)}")
 
                     if 'tag' in missing_attributes:
                         # 获取标签
-                        ai_attributes['tag'] = self.ai_manager._ask_sync(f"请为单词 '{word}' 提供合适的标签，用逗号分隔，如：名词,动词")
+                        try:
+                            tag_response = self.ai_manager._ask_sync(f"请为单词 '{word}' 提供合适的标签，用逗号分隔，如：名词,动词")
+                            if tag_response and "AI功能暂不可用" not in tag_response:
+                                ai_attributes['tag'] = tag_response
+                        except Exception as e:
+                            log_error(f"获取标签时发生异常: {str(e)}")
 
                     # 合并数据库已有属性和AI获取的属性
                     result_attributes = {**db_attributes, **ai_attributes}
@@ -1415,29 +1543,37 @@ class WordManager:
         Returns:
             bool: AI功能是否可用
         """
+        # 初始化AI管理器（如果尚未初始化）
         if not self.ai_manager:
             self._init_ai_manager()
 
-        if not self.ai_available:
-            return False
-
+        # 每次都重新检查连接状态
         try:
             import requests
 
             # 尝试连接Ollama API进行可用性检查
             try:
-                requests.get("http://localhost:11434", timeout=2)
-                return True
-            except requests.exceptions.RequestException:
-                # 如果连接失败，可能是Ollama未启动
-                log_warning("无法连接到Ollama服务，AI功能不可用")
+                response = requests.get("http://localhost:11434", timeout=2)
+                if response.status_code == 200:
+                    # 更新AI可用状态
+                    self.ai_available = True
+                    return True
+                else:
+                    log_warning(f"Ollama服务返回非200状态码: {response.status_code}")
+                    self.ai_available = False
+                    return False
+            except (requests.exceptions.ConnectionError, requests.exceptions.Timeout, requests.exceptions.RequestException) as conn_err:
+                # 连接失败，可能是Ollama未启动或不可用
+                log_warning(f"无法连接到Ollama服务，AI功能不可用: {str(conn_err)}")
+                self.ai_available = False
                 return False
         except ImportError:
-            # 如果requests模块未安装，也认为AI功能不可用
             log_warning("requests模块未安装，AI功能不可用")
+            self.ai_available = False
             return False
         except Exception as e:
-            log_error(f"检查AI可用性时出错: {str(e)}")
+            log_error(f"检查AI可用性时发生异常: {str(e)}")
+            self.ai_available = False
             return False
 
     def get_words_by_criteria(self, criteria: Dict) -> List[str]:

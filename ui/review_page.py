@@ -269,44 +269,28 @@ class ReviewPage(tk.Frame):
         self.progress_label.pack(pady=10)
     
     def _load_words(self):
-        """加载单词列表"""
+        """加载单词列表（重构版本，使用数据库结构）"""
         filter_type = self.filter_var.get()
-        # 获取单词列表和翻译信息
-        word_list = self.word_manager.get_all_words()
-        # 为每个单词获取对应的翻译
-        all_words_dict = {word: self.word_manager.get_word_translation(word) or "" for word in word_list}
-        wrong_words = self.word_manager.get_wrong_words()
-        weights = getattr(self.word_manager, 'word_weights', {})
         
-        if filter_type == "all":
-            # 所有单词，格式为(单词, 翻译)的列表
-            self.review_words = list(all_words_dict.items())
-        elif filter_type == "familiar":
-            # 熟词：熟悉度高于阈值的单词
-            self.review_words = [(word, all_words_dict.get(word, "")) 
-                                for word in word_list 
-                                if word in self.word_familiarity and self.word_familiarity[word] >= self.familiar_threshold]
-            # 如果没有熟词数据，使用权重较低的单词作为备选
-            if not self.review_words:
-                self.review_words = [(word, all_words_dict.get(word, "")) 
-                                    for word in word_list 
-                                    if word in weights and weights[word] < 1.5]
-        elif filter_type == "difficult":
-            # 难词：熟悉度低于阈值或者权重高的单词
-            # 先收集熟悉度低的单词
-            familiarity_difficult = [(word, all_words_dict.get(word, "")) 
-                                   for word in word_list 
-                                   if word in self.word_familiarity and self.word_familiarity[word] < self.familiar_threshold]
-            # 再收集高权重单词
-            weight_difficult = [(word, all_words_dict.get(word, "")) 
-                               for word in word_list 
-                               if word in weights and weights[word] > 1.5]
-            # 合并并去重
-            difficult_words = dict(familiarity_difficult + weight_difficult)
-            self.review_words = list(difficult_words.items())
-            # 如果还没有难词，就使用错误单词列表
-            if not self.review_words:
-                self.review_words = [(word, all_words_dict.get(word, "")) for word in wrong_words.keys()]
+        try:
+            # 使用新的方法获取复习单词，直接从数据库获取完整信息
+            words_data = self.word_manager.get_words_for_review(filter_type=filter_type)
+            
+            # 转换为复习页面需要的格式，保留完整数据以便后续使用
+            self.review_words = []
+            for word_data in words_data:
+                # 确保必要字段存在
+                word = word_data.get('word', '')
+                translation = word_data.get('translation', '')
+                # 保存完整的单词数据，而不仅仅是单词和翻译
+                self.review_words.append((word, translation, word_data))
+            
+            log_info(f"加载复习单词完成: 类型={filter_type}, 数量={len(self.review_words)}")
+            
+        except Exception as e:
+            log_error(f"加载复习单词失败: {str(e)}")
+            # 发生错误时使用空列表
+            self.review_words = []
         
         # 重置索引和状态
         self.current_index = 0
@@ -322,7 +306,7 @@ class ReviewPage(tk.Frame):
         self.summary_button.config(state=tk.NORMAL if self.review_words else tk.DISABLED)
     
     def _update_word_display(self):
-        """更新单词显示"""
+        """更新单词显示（重构版本，使用完整单词数据）"""
         if not self.review_words:
             self.word_var.set("没有找到单词")
             self.translation_var.set("")
@@ -342,19 +326,30 @@ class ReviewPage(tk.Frame):
             self.mark_button.config(state=tk.NORMAL)
         self.example_button.config(state=tk.NORMAL)
         
-        # 显示当前单词
-        word, translation = self.review_words[self.current_index]
+        # 显示当前单词和数据
+        word, translation, word_data = self.review_words[self.current_index]
         self.word_var.set(word)
         
-        # 获取例句
-        # 使用word_manager的get_word_example方法获取例句
-        self.current_example = getattr(self.word_manager, "get_word_example", lambda x: "")(word)
+        # 直接从word_data获取例句，优先使用数据库中的example字段
+        self.current_example = word_data.get('example', '')
         
         # 根据模式显示翻译和例句
         if self.show_translation:
             display_text = f"翻译: {translation}"
+            # 如果有音标，也显示出来
+            if 'phonetic' in word_data and word_data['phonetic']:
+                display_text += f"\n音标: {word_data['phonetic']}"
+            # 如果有英文解释，也显示出来
+            if 'meaning_en' in word_data and word_data['meaning_en']:
+                display_text += f"\n英文解释: {word_data['meaning_en']}"
+            # 显示例句
             if self.is_example_visible and self.current_example:
                 display_text += f"\n\n📝 例句: {self.current_example}"
+            # 显示熟练度
+            if 'proficiency' in word_data:
+                proficiency = word_data['proficiency'] or 0.0
+                display_text += f"\n\n📊 当前熟练度: {proficiency:.2f}"
+            
             self.translation_var.set(display_text)
             self.show_button.config(text="🙈 隐藏翻译")
         else:
@@ -387,7 +382,7 @@ class ReviewPage(tk.Frame):
         self._update_word_display()
     
     def _prev_word(self):
-        """显示上一个单词"""
+        """显示上一个单词（重构版本）"""
         if self.current_index > 0:
             self.current_index -= 1
             self.show_translation = False
@@ -427,7 +422,7 @@ class ReviewPage(tk.Frame):
             pass
 
     def _next_word(self):
-        """显示下一个单词"""
+        """显示下一个单词（重构版本）"""
         if self.current_index < len(self.review_words) - 1:
             self.current_index += 1
             self.show_translation = False
@@ -552,52 +547,81 @@ class ReviewPage(tk.Frame):
             self.word_familiarity = {}
     
     def _mark_as_familiar(self):
-        """将当前单词标记为熟悉"""
+        """将当前单词标记为熟悉（重构版本，使用数据库中的proficiency字段）"""
         if not self.review_words:
             return
         
-        word, _ = self.review_words[self.current_index]
+        word, _, word_data = self.review_words[self.current_index]
         
-        # 更新熟悉度数据
-        self.word_familiarity[word] = min(self.word_familiarity.get(word, 0) + 0.2, 1.0)
+        # 获取当前熟练度
+        current_proficiency = word_data.get('proficiency', 0.0)
+        # 增加熟练度（最大到1.0）
+        new_proficiency = min(current_proficiency + 0.2, 1.0)
+        
+        # 更新本地熟悉度数据
+        self.word_familiarity[word] = new_proficiency
         self.session_stats["familiar"] += 1
         
-        # 调用word_manager更新熟悉度
-        if hasattr(self.word_manager, 'update_word_familiarity'):
-            try:
-                self.word_manager.update_word_familiarity(word, self.word_familiarity[word])
-            except Exception as e:
-                log_error(f"更新单词熟悉度失败: {str(e)}")
+        # 更新word_data中的值
+        word_data['proficiency'] = new_proficiency
         
-        # 显示提示并自动下一个单词
-        self.translation_var.set(f"✓ 已将 '{word}' 标记为熟悉")
-        log_info(f"标记熟悉单词: {word}, 熟悉度: {self.word_familiarity[word]:.2f}")
+        # 调用word_manager更新数据库中的熟悉度
+        try:
+            self.word_manager.update_word_familiarity(word, new_proficiency)
+            log_info(f"标记熟悉单词: {word}, 熟练度从 {current_proficiency:.2f} 提升到 {new_proficiency:.2f}")
+            
+            # 显示提示
+            self.translation_var.set(f"✓ 已将 '{word}' 标记为熟悉\n\n📊 熟练度提升至: {new_proficiency:.2f}")
+        except Exception as e:
+            log_error(f"更新单词熟悉度失败: {str(e)}")
+            self.translation_var.set(f"✓ 已将 '{word}' 标记为熟悉，但数据库更新失败")
         
         # 检查是否需要自动下一个单词
-        auto_next = self.settings_manager.get_setting("auto_next_familiar", False)
-        if auto_next:
-            delay = self.settings_manager.get_setting("auto_next_delay", 1000)
-            self.after(delay, self._next_word)
+        try:
+            auto_next = self.settings_manager.get_setting("auto_next_familiar", False) if self.settings_manager else False
+            if auto_next:
+                delay = self.settings_manager.get_setting("auto_next_delay", 1000) if self.settings_manager else 1000
+                self.after(delay, self._next_word)
+        except Exception:
+            pass
     
     def _mark_as_difficult(self):
-        """将当前单词标记为困难"""
+        """将当前单词标记为困难（重构版本，使用数据库中的proficiency字段）"""
         if not self.review_words:
             return
         
-        word, _ = self.review_words[self.current_index]
+        word, _, word_data = self.review_words[self.current_index]
         
-        # 更新熟悉度数据
-        self.word_familiarity[word] = max(self.word_familiarity.get(word, 1.0) - 0.3, 0.0)
+        # 获取当前熟练度
+        current_proficiency = word_data.get('proficiency', 1.0)
+        # 降低熟练度（最小到0.0）
+        new_proficiency = max(current_proficiency - 0.3, 0.0)
+        
+        # 更新本地熟悉度数据
+        self.word_familiarity[word] = new_proficiency
         self.session_stats["difficult"] += 1
         
-        # 调用word_manager更新熟悉度
-        if hasattr(self.word_manager, 'update_word_familiarity'):
-            try:
-                self.word_manager.update_word_familiarity(word, self.word_familiarity[word])
-            except Exception as e:
-                log_error(f"更新单词熟悉度失败: {str(e)}")
+        # 更新word_data中的值
+        word_data['proficiency'] = new_proficiency
         
-        # 同时标记为高权重（需要复习）
+        # 调用word_manager更新数据库中的熟悉度
+        try:
+            self.word_manager.update_word_familiarity(word, new_proficiency)
+            log_info(f"标记困难单词: {word}, 熟练度从 {current_proficiency:.2f} 降低到 {new_proficiency:.2f}")
+            
+            # 显示提示
+            self.translation_var.set(f"❌ 已将 '{word}' 标记为困难\n\n📊 熟练度调整为: {new_proficiency:.2f}")
+        except Exception as e:
+            log_error(f"更新单词熟悉度失败: {str(e)}")
+            self.translation_var.set(f"❌ 已将 '{word}' 标记为困难，但数据库更新失败")
+        
+        # 检查是否需要自动下一个单词
+        try:
+            auto_next = self.settings_manager.get_setting("auto_next_difficult", False) if self.settings_manager else False
+            if auto_next:
+                delay = self.settings_manager.get_setting("auto_next_delay", 1000) if self.settings_manager else 1000
+                self.after(delay, self._next_word)
+        except Exception:
         if hasattr(self.word_manager, 'update_word_weight'):
             try:
                 current_weight = getattr(self.word_manager, 'word_weights', {}).get(word, 1.0)
