@@ -77,6 +77,7 @@ class LearningManager:
         
         # 学习统计
         self.current_batch = []
+        self.current_index = -1  # 当前单词索引，初始为-1表示未开始
         self.mastered_count = 0
         self.review_count = 0
         

@@ -159,10 +159,10 @@
 - 优化短翻译的匹配逻辑，提高识别准确率
 - 创建测试脚本 test_translation_matching.py 验证翻译匹配功能
 
-## v1.1.4 (2025-10-26)
-- 修复 LearningManager 中的 get_word_definition 方法，确保正确获取单词释义
-- 解决 GUI 无法显示单词学习内容的问题
-- 在 main_window.py 中添加了 pack(fill=tk.BOTH, expand=True)使 LearningPage 正确显示
+- v1.1.5 (2025-10-30)
+  - 修复 LearningManager 类中缺少 current_index 属性的问题，解决 'LearningManager' object has no attribute 'current_index' 错误
+  - 在 LearningManager 初始化时添加了 current_index 属性，初始值设为 -1
+  - 优化了 AI 可用性检查逻辑，每次调用都重新验证 Ollama 服务状态
 
 ## v1.1.1 - 修复 LearningManager 初始化依赖问题
 - 修复 LearningManager 初始化依赖问题，解决 'WordManager' object has no attribute 'scheduler' 错误
