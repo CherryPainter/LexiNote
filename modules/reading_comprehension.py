@@ -53,6 +53,9 @@ class ReadingComprehensionModule:
         """
         try:
             with self._lock:
+                # 保存当前题目的ID（如果有），用于离线模式下避免重复
+                current_test_id = self.current_test.get('id') if self.current_test else None
+                
                 # 重置当前状态
                 self.current_test = None
                 self.user_answers = []
@@ -106,11 +109,17 @@ class ReadingComprehensionModule:
                     log_info("离线模式加载阅读理解题目")
                     
                     # 检查数据库是否有题目
-                    if self.db_manager.count_reading_comprehensions() == 0:
+                    test_count = self.db_manager.count_reading_comprehensions()
+                    if test_count == 0:
                         log_error("离线模式下数据库中没有阅读理解题目")
                         return None
                     
-                    self.current_test = self.db_manager.get_reading_comprehension()
+                    # 如果数据库中只有一个题目，就直接获取，无法避免重复
+                    if test_count == 1:
+                        self.current_test = self.db_manager.get_reading_comprehension()
+                    else:
+                        # 否则，排除当前题目的ID，获取不同的随机题目
+                        self.current_test = self.db_manager.get_reading_comprehension(exclude_id=current_test_id)
                 
                 if self.current_test:
                     log_info(f"成功获取阅读理解题目，ID: {self.current_test.get('id')}")

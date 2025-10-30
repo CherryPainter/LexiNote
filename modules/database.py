@@ -125,11 +125,12 @@ class ComprehensionDatabase:
             log_error(f"添加完形填空题目失败: {str(e)}")
             return -1
     
-    def get_cloze_test(self, test_id: Optional[int] = None) -> Optional[Dict]:
+    def get_cloze_test(self, test_id: Optional[int] = None, exclude_id: Optional[int] = None) -> Optional[Dict]:
         """获取完形填空题目
         
         Args:
             test_id: 题目ID，None则随机获取
+            exclude_id: 排除的题目ID，避免重复获取同一题目
             
         Returns:
             Dict: 题目信息
@@ -138,11 +139,15 @@ class ComprehensionDatabase:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             
-            if test_id is None:
-                # 随机获取一个题目
-                cursor.execute('SELECT * FROM cloze_tests ORDER BY RANDOM() LIMIT 1')
-            else:
+            if test_id is not None:
+                # 获取指定ID的题目
                 cursor.execute('SELECT * FROM cloze_tests WHERE id = ?', (test_id,))
+            else:
+                # 随机获取题目，可能需要排除特定ID
+                if exclude_id is not None:
+                    cursor.execute('SELECT * FROM cloze_tests WHERE id != ? ORDER BY RANDOM() LIMIT 1', (exclude_id,))
+                else:
+                    cursor.execute('SELECT * FROM cloze_tests ORDER BY RANDOM() LIMIT 1')
             
             row = cursor.fetchone()
             conn.close()
@@ -230,11 +235,12 @@ class ComprehensionDatabase:
             log_error(f"添加阅读理解题目失败: {str(e)}")
             return -1
     
-    def get_reading_comprehension(self, test_id: Optional[int] = None) -> Optional[Dict]:
+    def get_reading_comprehension(self, test_id: Optional[int] = None, exclude_id: Optional[int] = None) -> Optional[Dict]:
         """获取阅读理解题目
         
         Args:
             test_id: 题目ID，None则随机获取
+            exclude_id: 排除的题目ID，避免重复获取同一题目
             
         Returns:
             Dict: 题目信息
@@ -243,11 +249,15 @@ class ComprehensionDatabase:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             
-            if test_id is None:
-                # 随机获取一个题目
-                cursor.execute('SELECT * FROM reading_comprehensions ORDER BY RANDOM() LIMIT 1')
-            else:
+            if test_id is not None:
+                # 获取指定ID的题目
                 cursor.execute('SELECT * FROM reading_comprehensions WHERE id = ?', (test_id,))
+            else:
+                # 随机获取题目，可能需要排除特定ID
+                if exclude_id is not None:
+                    cursor.execute('SELECT * FROM reading_comprehensions WHERE id != ? ORDER BY RANDOM() LIMIT 1', (exclude_id,))
+                else:
+                    cursor.execute('SELECT * FROM reading_comprehensions ORDER BY RANDOM() LIMIT 1')
             
             row = cursor.fetchone()
             conn.close()
