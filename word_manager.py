@@ -1274,24 +1274,33 @@ class WordManager:
                             # 获取标签
                             ai_attributes['tag'] = self.ai_manager._ask_sync(f"请为单词 '{word}' 提供合适的标签，用逗号分隔，如：名词,动词")
                         
-                        # 保存获取到的属性到数据库
-                        update_data = {}
-                        for attr, value in ai_attributes.items():
-                            if value and "AI功能暂不可用" not in value:
-                                update_data[attr] = value
-                        
-                        if update_data:
-                            success, msg = self.update_word(word_obj['id'], **update_data)
-                            if success:
-                                log_info(f"已保存单词属性到数据库: {word}, 属性: {', '.join(update_data.keys())}")
-                            else:
-                                log_error(f"保存单词属性失败: {msg}")
-                        
                         # 合并数据库已有属性和AI获取的属性
                         result_attributes = {**db_attributes, **ai_attributes}
                         
+                        # 先返回数据给用户展示
                         if callback:
                             callback(result_attributes)
+                        
+                        # 然后在后台异步保存到数据库
+                        def save_attributes_to_database():
+                            try:
+                                update_data = {}
+                                for attr, value in ai_attributes.items():
+                                    if value and "AI功能暂不可用" not in value:
+                                        update_data[attr] = value
+                                
+                                if update_data:
+                                    success, msg = self.update_word(word_obj['id'], **update_data)
+                                    if success:
+                                        log_info(f"已保存单词属性到数据库: {word}, 属性: {', '.join(update_data.keys())}")
+                                    else:
+                                        log_error(f"保存单词属性失败: {msg}")
+                            except Exception as e:
+                                log_error(f"异步保存单词属性时发生异常: {str(e)}")
+                        
+                        # 启动保存数据的后台线程
+                        save_thread = threading.Thread(target=save_attributes_to_database, daemon=True)
+                        save_thread.start()
                             
                     except Exception as e:
                         log_error(f"获取缺失属性时发生异常: {str(e)}")

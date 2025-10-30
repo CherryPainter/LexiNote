@@ -37,6 +37,11 @@ def get_and_save_word_attributes(self, word: str, attributes: List[str] = None, 
     
     只在数据库中对应字段为空时从AI获取数据并存储，已有内容的字段不调用AI
     
+    优化说明：
+    - 异步模式下实现了"先展示后保存"的优化流程
+    - AI获取数据后立即返回给用户界面展示，数据库保存操作在后台异步进行
+    - 这样可以避免数据库操作阻塞UI线程，提升用户体验
+    
     Args:
         word: 单词
         attributes: 需要获取的属性列表，可选值：['phonetic', 'example', 'meaning_en', 'tag']
