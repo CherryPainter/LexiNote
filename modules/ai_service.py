@@ -236,7 +236,7 @@ class AIService:
 6. 简答题格式：具体问题内容（例如：请解释文章中提到的主要观点）
 7. 请严格按照以下JSON格式输出，不要包含任何额外的内容、解释或说明：
 
-{
+{{
   "article": "完整的阅读文章内容",
   "questions": [
     "具体问题1（选择题：A.选项1 B.选项2 C.选项3 D.选项4）",
@@ -253,7 +253,7 @@ class AIService:
     "解析2",
     // 其他解析
   ]
-}
+}}
             """
             
             response = self.ai_manager._ask_sync(prompt)
