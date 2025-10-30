@@ -4,8 +4,10 @@ import random
 import functools
 import threading
 import sqlite3
+import time
 from typing import Dict, List, Optional, Union
 from datetime import datetime
+from collections import deque
 
 from logger import log_info, log_error, log_warning
 from core.database_manager import DatabaseManager
@@ -44,6 +46,12 @@ class WordManager:
         self.ai_manager = None
         self.ai_available = False
         self._init_ai_manager()
+        
+        # 节流控制相关
+        self._throttle_lock = threading.RLock()
+        self._recent_ai_calls = deque(maxlen=20)  # 最近20次AI调用时间
+        self._min_interval_ms = 500  # 最小调用间隔(毫秒)
+        self._max_calls_per_minute = 10  # 每分钟最大调用次数
         
         # 预热缓存
         self._warmup_cache()
@@ -98,9 +106,52 @@ class WordManager:
                         log_info(f"AI功能测试失败: {test_response}")
                         return False
                 except Exception as e:
-                    log_warning(f"测试AI连接失败: {str(e)}")
+                    log_info(f"AI连接测试异常: {str(e)}")
                     return False
-            return False
+        return False
+    
+    def _check_throttle_limit(self) -> bool:
+        """检查是否超过节流限制
+        
+        Returns:
+            bool: True表示可以调用AI，False表示需要限流
+        """
+        with self._throttle_lock:
+            current_time = time.time()
+            
+            # 移除过期的调用记录
+            while self._recent_ai_calls and current_time - self._recent_ai_calls[0] > 60:  # 超过1分钟的记录
+                self._recent_ai_calls.popleft()
+            
+            # 检查每分钟调用次数限制
+            if len(self._recent_ai_calls) >= self._max_calls_per_minute:
+                log_info(f"AI调用频率限制: 每分钟最多{self._max_calls_per_minute}次")
+                return False
+            
+            # 检查两次调用之间的最小间隔
+            if self._recent_ai_calls and current_time - self._recent_ai_calls[-1] < self._min_interval_ms / 1000:
+                log_info(f"AI调用间隔限制: 至少{self._min_interval_ms}毫秒")
+                return False
+            
+            # 记录本次调用
+            self._recent_ai_calls.append(current_time)
+            return True
+    
+    def set_throttle_limits(self, min_interval_ms: int = 500, max_calls_per_minute: int = 10):
+        """设置AI调用节流限制
+        
+        Args:
+            min_interval_ms: 两次调用之间的最小间隔(毫秒)
+            max_calls_per_minute: 每分钟最大调用次数
+        """
+        with self._throttle_lock:
+            self._min_interval_ms = max(100, min_interval_ms)  # 最小100毫秒
+            self._max_calls_per_minute = max(1, max_calls_per_minute)  # 至少1次/分钟
+            log_info(f"已设置AI节流参数: 最小间隔{self._min_interval_ms}ms, 最大频率{self._max_calls_per_minute}次/分钟")
+            
+                log_warning(f"测试AI连接失败: {str(e)}")
+                return False
+        return False
         except Exception as e:
             log_warning(f"检查AI可用性时发生错误: {str(e)}")
             return False
@@ -1117,6 +1168,155 @@ class WordManager:
             if familiarity < threshold
         ]
 
+    def get_and_save_word_attributes(self, word: str, attributes: List[str] = None, async_mode=False, callback=None) -> Dict[str, str]:
+        """获取并保存单词的属性（节流模式）
+        
+        只在数据库中对应字段为空时从AI获取数据并存储，已有内容的字段不调用AI
+        
+        Args:
+            word: 单词
+            attributes: 需要获取的属性列表，可选值：['phonetic', 'example', 'meaning_en', 'tag']
+            async_mode: 是否异步获取
+            callback: 异步模式下的回调函数，接收参数：(attributes_dict: Dict[str, str])
+            
+        Returns:
+            Dict[str, str]: 同步模式返回属性字典，异步模式返回None
+        """
+        if attributes is None:
+            attributes = ['phonetic', 'example', 'meaning_en', 'tag']
+        
+        try:
+            # 验证属性值
+            valid_attributes = ['phonetic', 'example', 'meaning_en', 'tag']
+            attributes = [attr for attr in attributes if attr in valid_attributes]
+            
+            if not attributes:
+                log_error("无效的属性列表")
+                return {}
+            
+            # 从数据库获取单词信息
+            db_attributes = {}
+            missing_attributes = []
+            
+            words = self.get_words_from_active_set(keyword=word)
+            word_obj = None
+            
+            for w in words:
+                if w['word'].lower() == word.lower():
+                    word_obj = w
+                    break
+            
+            if not word_obj:
+                log_error(f"单词不存在于当前词库: {word}")
+                return {}
+            
+            # 检查哪些属性缺失
+            for attr in attributes:
+                if attr in word_obj and word_obj[attr]:
+                    db_attributes[attr] = word_obj[attr]
+                else:
+                    missing_attributes.append(attr)
+            
+            # 如果所有属性都已存在，直接返回
+            if not missing_attributes:
+                log_info(f"所有请求的属性都已存在于数据库: {word}")
+                if async_mode and callback:
+                    callback(db_attributes)
+                return db_attributes
+            
+            # 如果有缺失的属性，从AI获取（仅异步模式）
+            if async_mode:
+                def fetch_missing_attributes():
+                    try:
+                        # 检查AI功能是否可用
+                        if not self.ai_available or not self.ai_manager:
+                            log_warning("AI功能不可用，无法获取缺失的属性")
+                            if callback:
+                                callback(db_attributes)
+                            return
+                        
+                        # 检查节流限制
+                        if not self._check_throttle_limit():
+                            log_info(f"AI调用受节流限制，稍后重试: {word}")
+                            if callback:
+                                callback(db_attributes)
+                            return
+                        
+                        # 请求AI获取缺失的属性
+                        # 构建提示词请求所有缺失的属性
+                        prompt = f"请为单词 '{word}' 提供以下信息：{', '.join(missing_attributes)}"
+                        if 'example' in missing_attributes:
+                            prompt += "，例句需要包含英文句子和中文翻译"
+                        
+                        response = self.ai_manager._ask_sync(prompt)
+                        
+                        # 解析AI返回的数据
+                        # 这里简化处理，实际项目中可能需要更复杂的解析逻辑
+                        # 根据不同属性使用不同的AI方法或更精确的解析
+                        ai_attributes = {}
+                        
+                        if 'phonetic' in missing_attributes:
+                            # 获取音标
+                            # 这里可以使用更精确的方法或正则表达式解析
+                            ai_attributes['phonetic'] = self.ai_manager._ask_sync(f"请提供单词 '{word}' 的标准音标，仅返回音标部分")
+                        
+                        if 'example' in missing_attributes:
+                            # 获取例句
+                            example = self.ai_manager.example_sync(word)
+                            if example and "AI功能暂不可用" not in example and "生成例句失败" not in example:
+                                # 检查例句是否包含翻译
+                                if "(" not in example and ")" not in example:
+                                    translation = self.get_word_translation(word) or "(未知翻译)"
+                                    example = f"{example} (这是一个包含 '{word}' 的例句，意思是：{translation})"
+                                ai_attributes['example'] = example
+                        
+                        if 'meaning_en' in missing_attributes:
+                            # 获取英文释义
+                            ai_attributes['meaning_en'] = self.ai_manager._ask_sync(f"请提供单词 '{word}' 的英文释义，仅返回英文")
+                        
+                        if 'tag' in missing_attributes:
+                            # 获取标签
+                            ai_attributes['tag'] = self.ai_manager._ask_sync(f"请为单词 '{word}' 提供合适的标签，用逗号分隔，如：名词,动词")
+                        
+                        # 保存获取到的属性到数据库
+                        update_data = {}
+                        for attr, value in ai_attributes.items():
+                            if value and "AI功能暂不可用" not in value:
+                                update_data[attr] = value
+                        
+                        if update_data:
+                            success, msg = self.update_word(word_obj['id'], **update_data)
+                            if success:
+                                log_info(f"已保存单词属性到数据库: {word}, 属性: {', '.join(update_data.keys())}")
+                            else:
+                                log_error(f"保存单词属性失败: {msg}")
+                        
+                        # 合并数据库已有属性和AI获取的属性
+                        result_attributes = {**db_attributes, **ai_attributes}
+                        
+                        if callback:
+                            callback(result_attributes)
+                            
+                    except Exception as e:
+                        log_error(f"获取缺失属性时发生异常: {str(e)}")
+                        if callback:
+                            callback(db_attributes)  # 返回已有数据
+                
+                # 启动异步线程
+                thread = threading.Thread(target=fetch_missing_attributes, daemon=True)
+                thread.start()
+                return None
+            else:
+                # 同步模式 - 返回已有属性
+                log_info(f"同步模式下仅返回数据库中已有的属性")
+                return db_attributes
+                
+        except Exception as e:
+            log_error(f"处理单词属性时发生异常: {str(e)}")
+            if async_mode and callback:
+                callback({})
+            return {}
+    
     def get_word_example(self, word: str, async_mode=False, callback=None) -> str:
         """获取单词的例句
 
@@ -1129,64 +1329,41 @@ class WordManager:
             str: 同步模式下返回包含例句和翻译的文本，如果获取失败返回默认例句
                  异步模式下返回None，结果通过callback返回
         """
+        # 使用通用的属性获取方法
+        def example_callback(attributes):
+            if callback:
+                example = attributes.get('example', self._get_default_example(word))
+                callback(example)
+        
+        attributes = self.get_and_save_word_attributes(word, ['example'], async_mode, 
+                                                     callback=example_callback if async_mode else None)
+        
+        if async_mode:
+            return None
+        else:
+            return attributes.get('example', self._get_default_example(word))
+    
+    def _save_example_to_database(self, word: str, example: str):
+        """将例句保存到数据库
+        
+        Args:
+            word: 单词
+            example: 例句
+        """
         try:
-            # 首先检查AI功能是否可用
-            if self.ai_available and self.ai_manager:
-                if async_mode:
-                    # 异步模式 - 在新线程中执行
-                    def fetch_example():
-                        try:
-                            example = self.ai_manager.example_sync(word)
-                            if (example and "AI功能暂不可用" not in example and
-                                    "生成例句失败" not in example):
-                                # 检查返回的例句是否包含翻译
-                                if "(" not in example and ")" not in example:
-                                    # 如果没有翻译，添加一个基本翻译格式
-                                    translation = self.get_word_translation(word) or "(未知翻译)"
-                                    example = f"{example} (这是一个包含 '{word}' 的例句，意思是：{translation})"
-                                log_info(f"获取例句成功: {word}")
-                                if callback:
-                                    callback(example)
-                        except Exception as e:
-                            log_error(f"异步获取例句失败: {str(e)}")
-                            if callback:
-                                callback(self._get_default_example(word))
-                    
-                    # 创建并启动线程
-                    thread = threading.Thread(target=fetch_example, daemon=True)
-                    thread.start()
-                    return None
-                else:
-                    # 同步模式 - 直接调用
-                    example = self.ai_manager.example_sync(word)
-                    if (example and "AI功能暂不可用" not in example and
-                            "生成例句失败" not in example):
-                        # 检查返回的例句是否包含翻译
-                        if "(" not in example and ")" not in example:
-                            # 如果没有翻译，添加一个基本翻译格式
-                            translation = self.get_word_translation(word) or "(未知翻译)"
-                            example = f"{example} (这是一个包含 '{word}' 的例句，意思是：{translation})"
-                        log_info(f"获取例句成功: {word}")
-                        return example
+            # 获取当前激活词库中的单词
+            words = self.get_words_from_active_set(keyword=word)
+            for w in words:
+                if w['word'].lower() == word.lower():
+                    # 更新单词的例句
+                    success, msg = self.update_word(w['id'], example=example)
+                    if success:
+                        log_info(f"例句已保存到数据库: {word}")
                     else:
-                        log_warning(f"获取例句失败: {word}, AI返回: {example}")
-            else:
-                log_warning("获取例句失败: AI功能不可用")
-                
+                        log_error(f"保存例句到数据库失败: {msg}")
+                    return
         except Exception as e:
-            log_error(f"获取例句时发生异常: {str(e)}")
-            if async_mode and callback:
-                callback(self._get_default_example(word))
-                return None
-
-            # 获取默认例句
-            return self._get_default_example(word)
-        except Exception as e:
-            log_error(f"获取例句异常: {str(e)}")
-            # 返回带占位翻译的默认例句
-            translation = self.get_word_translation(word) or "暂无翻译"
-            return f"This is an example sentence with the word '{word}'. " \
-                   f"(这是一个包含 '{word}' 的例句，意思是：{translation}。)"
+            log_error(f"保存例句到数据库异常: {str(e)}")
             
     def get_example_sentence(self, word: str) -> str:
         """获取单词的例句（兼容性方法，调用get_word_example）
