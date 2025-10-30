@@ -315,7 +315,27 @@ class ReadingComprehensionPage(tk.Frame):
                     self.questions_text.delete(1.0, tk.END)
                     
                     for i, question in enumerate(questions, 1):
-                        self.questions_text.insert(tk.END, f"第{i}题: {question}\n\n")
+                        # 插入问题标题（只保留问题部分）
+                        if "Multiple Choice:" in question:
+                            # 提取问题部分
+                            question_part = question.split("Multiple Choice:")[0].strip()
+                            self.questions_text.insert(tk.END, f"第{i}题: {question_part}\n")
+                            
+                            # 提取选项部分
+                            options_part = question.split("Multiple Choice:")[1].strip()
+                            # 分割选项 (A. B. C. D. 格式)
+                            import re
+                            options = re.split(r'([A-D]\.)', options_part)
+                            
+                            # 处理分割后的选项，跳过空字符串
+                            for j in range(1, len(options), 2):
+                                if j+1 < len(options):
+                                    self.questions_text.insert(tk.END, f"{options[j]} {options[j+1].strip()}\n")
+                        else:
+                            # 普通问题，直接显示
+                            self.questions_text.insert(tk.END, f"第{i}题: {question}\n")
+                        
+                        self.questions_text.insert(tk.END, "\n")
                     
                     self.questions_text.config(state=tk.DISABLED)
                     
