@@ -637,9 +637,9 @@ class DictationPage(tk.Frame):
                     elif not self.audio_available:
                         messagebox.showinfo("提示", f"当前单词: {self.current_word}")
                     else:
-                        # 更新状态栏为已播放
+                        # 更新状态栏为已播放，但不显示单词内容
                         try:
-                            self.status_var.set(f"已播放: {self.current_word}")
+                            self.status_var.set("已播放")
                         except Exception:
                             pass
                 except Exception as e:
