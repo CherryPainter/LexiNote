@@ -41,6 +41,7 @@ def get_and_save_word_attributes(self, word: str, attributes: List[str] = None, 
     - 异步模式下实现了"先展示后保存"的优化流程
     - AI获取数据后立即返回给用户界面展示，数据库保存操作在后台异步进行
     - 这样可以避免数据库操作阻塞UI线程，提升用户体验
+    - 每次调用时都会重新验证AI可用性，确保能及时检测到Ollama服务状态变化
     
     Args:
         word: 单词

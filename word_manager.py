@@ -1224,8 +1224,8 @@ class WordManager:
             if async_mode:
                 def fetch_missing_attributes():
                     try:
-                        # 检查AI功能是否可用
-                        if not self.ai_available or not self.ai_manager:
+                        # 检查AI功能是否可用（每次都重新验证）
+                        if not self.is_ai_available() or not self.ai_manager:
                             log_warning("AI功能不可用，无法获取缺失的属性")
                             if callback:
                                 callback(db_attributes)
