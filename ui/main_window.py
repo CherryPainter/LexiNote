@@ -14,6 +14,7 @@ from ui.settings_page import SettingsPage
 from ui.cloze_test_page import ClozeTestPage
 from ui.reading_comprehension_page import ReadingComprehensionPage
 from ui.ai_assistant_page import AIAssistantPage
+from ui.word_set_page import WordSetPage
 from word_manager import WordManager
 from core.learning import LearningManager
 from core.settings_manager import SettingsManager
@@ -90,6 +91,7 @@ class MainWindow:
             ("📊 单词复习", self._show_review_page),
             ("🔤 完形填空", self._show_cloze_test_page),
             ("📖 阅读理解", self._show_reading_comprehension_page),
+            ("📁 词库管理", self._show_word_set_page),
             ("🤖 AI助手", self._show_ai_assistant_page),
             ("📈 学习统计", self._show_statistics),
             ("⚙️ 设置", self._show_settings_page)
@@ -296,7 +298,7 @@ class MainWindow:
         # 懒加载页面
         if page_key not in self._pages:
             # 创建学习管理器
-            learning_manager = LearningManager(
+            self.learning_manager = LearningManager(
                 data_manager=self.word_manager,
                 scheduler=self.word_manager,
                 audio_player=self.audio_player,
@@ -306,11 +308,9 @@ class MainWindow:
             # 先创建页面但不pack
             self._pages[page_key] = LearningPage(
                 self.content_area,
-                learning_manager=learning_manager,
                 word_manager=self.word_manager,
-                settings_manager=self.settings_manager,
-                font_config=self.font_config,
-                bg='white'
+                learning_manager=self.learning_manager,
+                font_config=self.font_config
             )
         
         # 先获取页面实例
@@ -462,6 +462,31 @@ class MainWindow:
             self.current_page.on_show()
             
         log_info("切换到AI助手页面")
+        
+    def _show_word_set_page(self):
+        """显示词库管理页面"""
+        page_key = "word_set"
+        
+        # 懒加载页面
+        if page_key not in self._pages:
+            # 先创建页面但不pack
+            self._pages[page_key] = WordSetPage(
+                self.content_area,
+                word_manager=self.word_manager,
+                font_config=self.font_config
+            )
+        
+        # 先获取页面实例
+        page = self._pages[page_key]
+        
+        # 清空内容区域
+        self._clear_content_area()
+        
+        # 再设置当前页面并pack
+        self.current_page = page
+        self.current_page.pack(fill=tk.BOTH, expand=True)
+        
+        log_info("切换到词库管理页面")
     
     def _apply_decay(self):
         """应用每日权重衰减"""

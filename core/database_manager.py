@@ -62,22 +62,43 @@ class DatabaseManager:
             except Exception:
                 pass
             
-            # 创建单词表
+            # 创建词库信息表
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS word_sets (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT UNIQUE NOT NULL,
+                    description TEXT,
+                    source TEXT,
+                    create_time TEXT,
+                    word_count INTEGER DEFAULT 0
+                )
+            ''')
+            
+            # 创建单词表（支持多词库）
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS words (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    word TEXT UNIQUE NOT NULL,
+                    set_id INTEGER,
+                    word TEXT NOT NULL,
                     translation TEXT NOT NULL,
+                    phonetic TEXT,
+                    example TEXT,
+                    meaning_en TEXT,
+                    tag TEXT,
+                    familiarity INTEGER DEFAULT 0,
                     added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     last_practice TIMESTAMP,
                     last_review TIMESTAMP,
-                    proficiency FLOAT DEFAULT 0.0
+                    proficiency FLOAT DEFAULT 0.0,
+                    FOREIGN KEY (set_id) REFERENCES word_sets(id)
                 )
             ''')
             
             # 创建单词索引
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_word ON words(word)')
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_proficiency ON words(proficiency)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_set_id ON words(set_id)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_set_name ON word_sets(name)')
             
             # 创建学习进度表
             cursor.execute('''
@@ -121,6 +142,9 @@ class DatabaseManager:
             # 从JSON导入现有数据
             self._import_from_json()
             
+            # 创建默认词库（如果不存在）
+            self._create_default_word_set()
+            
             conn.commit()
             conn.close()
             log_info("数据库初始化成功")
@@ -128,19 +152,68 @@ class DatabaseManager:
         except Exception as e:
             log_error(f"初始化数据库失败: {str(e)}")
     
+    def _create_default_word_set(self):
+        """创建默认词库"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            # 检查是否已存在默认词库
+            cursor.execute("SELECT id FROM word_sets WHERE name = '默认词库'")
+            if cursor.fetchone():
+                conn.close()
+                return
+            
+            # 创建默认词库
+            from datetime import datetime
+            create_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            cursor.execute(
+                "INSERT INTO word_sets (name, description, source, create_time, word_count) VALUES (?, ?, ?, ?, ?)",
+                ('默认词库', '系统默认词库', 'system', create_time, 0)
+            )
+            default_set_id = cursor.lastrowid
+            
+            # 更新现有单词的set_id为默认词库
+            cursor.execute("UPDATE words SET set_id = ? WHERE set_id IS NULL", (default_set_id,))
+            
+            # 更新词库单词数
+            cursor.execute("SELECT COUNT(*) FROM words WHERE set_id = ?", (default_set_id,))
+            word_count = cursor.fetchone()[0]
+            cursor.execute("UPDATE word_sets SET word_count = ? WHERE id = ?", (word_count, default_set_id))
+            
+            conn.commit()
+            conn.close()
+            log_info("默认词库创建成功")
+        except Exception as e:
+            log_error(f"创建默认词库失败: {str(e)}")
+    
     def _import_from_json(self):
         """从旧的JSON文件导入数据到SQLite"""
         try:
             # 检查是否已经导入过
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(*) FROM words")
+            cursor.execute("SELECT COUNT(*) FROM words WHERE set_id IS NOT NULL")
             count = cursor.fetchone()[0]
             
             # 如果已经有数据，跳过导入
             if count > 0:
                 conn.close()
                 return
+            
+            # 确保默认词库存在
+            cursor.execute("SELECT id FROM word_sets WHERE name = '默认词库'")
+            result = cursor.fetchone()
+            if not result:
+                from datetime import datetime
+                create_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                cursor.execute(
+                    "INSERT INTO word_sets (name, description, source, create_time, word_count) VALUES (?, ?, ?, ?, ?)",
+                    ('默认词库', '系统默认词库', 'system', create_time, 0)
+                )
+                default_set_id = cursor.lastrowid
+            else:
+                default_set_id = result[0]
             
             # 导入单词数据
             word_dict_file = os.path.join(self.data_dir, 'word_dict.json')
@@ -151,8 +224,8 @@ class DatabaseManager:
                     
                     for word, translation in word_dict.items():
                         cursor.execute(
-                            "INSERT OR IGNORE INTO words (word, translation) VALUES (?, ?)",
-                            (word, translation)
+                            "INSERT OR IGNORE INTO words (set_id, word, translation) VALUES (?, ?, ?)",
+                            (default_set_id, word, translation)
                         )
             
             # 导入设置数据
@@ -194,6 +267,279 @@ class DatabaseManager:
         # 启动工作线程
         worker = threading.Thread(target=write_worker, daemon=True)
         worker.start()
+    
+    # 词库管理相关方法
+    def get_all_word_sets(self):
+        """获取所有词库"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM word_sets ORDER BY name")
+            columns = [desc[0] for desc in cursor.description]
+            results = []
+            for row in cursor.fetchall():
+                results.append(dict(zip(columns, row)))
+            conn.close()
+            return results
+        except Exception as e:
+            log_error(f"获取词库列表失败: {str(e)}")
+            return []
+    
+    def get_word_set_by_id(self, set_id):
+        """根据ID获取词库"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM word_sets WHERE id = ?", (set_id,))
+            columns = [desc[0] for desc in cursor.description]
+            row = cursor.fetchone()
+            conn.close()
+            return dict(zip(columns, row)) if row else None
+        except Exception as e:
+            log_error(f"获取词库信息失败: {str(e)}")
+            return None
+    
+    def get_word_set_by_name(self, name):
+        """根据名称获取词库"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM word_sets WHERE name = ?", (name,))
+            columns = [desc[0] for desc in cursor.description]
+            row = cursor.fetchone()
+            conn.close()
+            return dict(zip(columns, row)) if row else None
+        except Exception as e:
+            log_error(f"根据名称获取词库失败: {str(e)}")
+            return None
+    
+    def create_word_set(self, name, description='', source='user_upload'):
+        """创建新的词库"""
+        try:
+            # 检查词库名是否已存在
+            if self.get_word_set_by_name(name):
+                return None, "词库名称已存在"
+            
+            from datetime import datetime
+            create_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT INTO word_sets (name, description, source, create_time, word_count) VALUES (?, ?, ?, ?, ?)",
+                (name, description, source, create_time, 0)
+            )
+            set_id = cursor.lastrowid
+            conn.commit()
+            conn.close()
+            
+            log_info(f"创建词库成功: {name}")
+            return set_id, "创建成功"
+        except Exception as e:
+            log_error(f"创建词库失败: {str(e)}")
+            return None, str(e)
+    
+    def update_word_set(self, set_id, **kwargs):
+        """更新词库信息"""
+        try:
+            # 检查词库是否存在
+            if not self.get_word_set_by_id(set_id):
+                return False, "词库不存在"
+            
+            # 构建更新字段
+            fields = []
+            values = []
+            for key, value in kwargs.items():
+                if key in ['name', 'description', 'source', 'word_count']:
+                    fields.append(f"{key} = ?")
+                    values.append(value)
+            
+            if fields:
+                values.append(set_id)
+                sql = f"UPDATE word_sets SET {', '.join(fields)} WHERE id = ?"
+                
+                conn = sqlite3.connect(self.db_path)
+                cursor = conn.cursor()
+                cursor.execute(sql, values)
+                conn.commit()
+                conn.close()
+                
+                log_info(f"更新词库成功: {set_id}")
+                return True, "更新成功"
+            return True, "无更新内容"
+        except Exception as e:
+            log_error(f"更新词库失败: {str(e)}")
+            return False, str(e)
+    
+    def delete_word_set(self, set_id):
+        """删除词库"""
+        try:
+            # 检查词库是否存在
+            if not self.get_word_set_by_id(set_id):
+                return False, "词库不存在"
+            
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            # 先删除词库中的单词
+            cursor.execute("DELETE FROM words WHERE set_id = ?", (set_id,))
+            
+            # 再删除词库
+            cursor.execute("DELETE FROM word_sets WHERE id = ?", (set_id,))
+            
+            conn.commit()
+            conn.close()
+            
+            log_info(f"删除词库成功: {set_id}")
+            return True, "删除成功"
+        except Exception as e:
+            log_error(f"删除词库失败: {str(e)}")
+            return False, str(e)
+    
+    # 单词管理相关方法（支持词库）
+    def get_words_by_set_id(self, set_id, keyword=None, limit=None, offset=None):
+        """获取指定词库的单词"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            sql = "SELECT * FROM words WHERE set_id = ?"
+            params = [set_id]
+            
+            if keyword:
+                sql += " AND word LIKE ?"
+                params.append(f"%{keyword}%")
+            
+            sql += " ORDER BY word"
+            
+            if limit is not None:
+                sql += " LIMIT ?"
+                params.append(limit)
+                if offset is not None:
+                    sql += " OFFSET ?"
+                    params.append(offset)
+            
+            cursor.execute(sql, params)
+            columns = [desc[0] for desc in cursor.description]
+            results = []
+            for row in cursor.fetchall():
+                results.append(dict(zip(columns, row)))
+            
+            conn.close()
+            return results
+        except Exception as e:
+            log_error(f"获取词库单词失败: {str(e)}")
+            return []
+    
+    def get_word_by_id(self, word_id):
+        """根据ID获取单词"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM words WHERE id = ?", (word_id,))
+            columns = [desc[0] for desc in cursor.description]
+            row = cursor.fetchone()
+            conn.close()
+            return dict(zip(columns, row)) if row else None
+        except Exception as e:
+            log_error(f"获取单词信息失败: {str(e)}")
+            return None
+    
+    def add_word_to_set(self, set_id, word, translation, phonetic='', example='', meaning_en='', tag=''):
+        """向词库添加单词"""
+        try:
+            # 检查词库是否存在
+            if not self.get_word_set_by_id(set_id):
+                return False, "词库不存在"
+            
+            # 检查词库中是否已存在该单词
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            cursor.execute("SELECT id FROM words WHERE set_id = ? AND word = ?", (set_id, word))
+            if cursor.fetchone():
+                conn.close()
+                return False, "单词已存在于当前词库"
+            
+            # 添加单词
+            cursor.execute(
+                "INSERT INTO words (set_id, word, translation, phonetic, example, meaning_en, tag) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (set_id, word, translation, phonetic, example, meaning_en, tag)
+            )
+            
+            # 更新词库单词数
+            cursor.execute("UPDATE word_sets SET word_count = word_count + 1 WHERE id = ?", (set_id,))
+            
+            conn.commit()
+            conn.close()
+            
+            log_info(f"添加单词成功: {word} 到词库 {set_id}")
+            return True, "添加成功"
+        except Exception as e:
+            log_error(f"添加单词失败: {str(e)}")
+            return False, str(e)
+    
+    def update_word(self, word_id, **kwargs):
+        """更新单词信息"""
+        try:
+            # 检查单词是否存在
+            word = self.get_word_by_id(word_id)
+            if not word:
+                return False, "单词不存在"
+            
+            # 构建更新字段
+            fields = []
+            values = []
+            valid_fields = ['word', 'translation', 'phonetic', 'example', 'meaning_en', 'tag', 'familiarity', 'proficiency']
+            
+            for key, value in kwargs.items():
+                if key in valid_fields:
+                    fields.append(f"{key} = ?")
+                    values.append(value)
+            
+            if fields:
+                values.append(word_id)
+                sql = f"UPDATE words SET {', '.join(fields)} WHERE id = ?"
+                
+                conn = sqlite3.connect(self.db_path)
+                cursor = conn.cursor()
+                cursor.execute(sql, values)
+                conn.commit()
+                conn.close()
+                
+                log_info(f"更新单词成功: {word_id}")
+                return True, "更新成功"
+            return True, "无更新内容"
+        except Exception as e:
+            log_error(f"更新单词失败: {str(e)}")
+            return False, str(e)
+    
+    def delete_word(self, word_id):
+        """删除单词"""
+        try:
+            # 获取单词信息以获取set_id
+            word = self.get_word_by_id(word_id)
+            if not word:
+                return False, "单词不存在"
+            
+            set_id = word['set_id']
+            
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            # 删除单词
+            cursor.execute("DELETE FROM words WHERE id = ?", (word_id,))
+            
+            # 更新词库单词数
+            cursor.execute("UPDATE word_sets SET word_count = word_count - 1 WHERE id = ?", (set_id,))
+            
+            conn.commit()
+            conn.close()
+            
+            log_info(f"删除单词成功: {word_id}")
+            return True, "删除成功"
+        except Exception as e:
+            log_error(f"删除单词失败: {str(e)}")
+            return False, str(e)
     
     def _process_write_queue(self):
         """处理写入队列"""
@@ -301,23 +647,44 @@ class DatabaseManager:
     
     def get_all_words(self) -> List[str]:
         """获取所有单词"""
-        results = self.execute_read("SELECT word FROM words")
-        return [row['word'] for row in results]
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            cursor.execute("SELECT word FROM words ORDER BY word")
+            result = [row[0] for row in cursor.fetchall()]
+            conn.close()
+            return result
+        except Exception as e:
+            log_error(f"获取所有单词失败: {str(e)}")
+            return []
     
-    def add_word(self, word: str, translation: str):
-        """添加单词"""
-        self.execute_write(
-            "INSERT OR IGNORE INTO words (word, translation) VALUES (?, ?)",
-            (word, translation)
-        )
+    def add_word(self, word: str, translation: str) -> bool:
+        """添加单词到数据库（兼容旧接口，添加到默认词库）"""
+        try:
+            # 获取默认词库
+            default_set = self.get_word_set_by_name('默认词库')
+            if not default_set:
+                log_error("默认词库不存在")
+                return False
+            
+            success, msg = self.add_word_to_set(default_set['id'], word, translation)
+            return success
+        except Exception as e:
+            log_error(f"添加单词失败: {str(e)}")
+            return False
     
     def get_word_translation(self, word: str) -> Optional[str]:
         """获取单词翻译"""
-        results = self.execute_read(
-            "SELECT translation FROM words WHERE word = ?",
-            (word,)
-        )
-        return results[0]['translation'] if results else None
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            cursor.execute("SELECT translation FROM words WHERE word = ?", (word,))
+            result = cursor.fetchone()
+            conn.close()
+            return result[0] if result else None
+        except Exception as e:
+            log_error(f"获取单词翻译失败: {str(e)}")
+            return None
     
     def update_proficiency(self, word: str, proficiency: float):
         """更新单词熟练度"""

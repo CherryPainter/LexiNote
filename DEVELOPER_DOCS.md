@@ -9,6 +9,7 @@
 - [核心模块](#核心模块)
 - [功能模块](#功能模块)
 - [数据管理](#数据管理)
+- [词库管理](#词库管理)
 - [AI功能](#ai功能)
 - [UI设计](#ui设计)
 - [开发环境设置](#开发环境设置)
@@ -16,6 +17,7 @@
 - [测试策略](#测试策略)
 - [部署指南](#部署指南)
 - [附录](#附录)
+- [版本历史](#版本历史)
 
 ## 项目概述
 
@@ -23,6 +25,7 @@ LexiNote 是一个个人英语学习工具，旨在提供高效、智能的英�
 
 ### 主要功能
 
+- 多词库管理：支持导入、导出、创建、删除词库
 - 单词管理与学习进度跟踪
 - 多模式练习：翻译、听写、阅读理解、完形填空
 - AI辅助学习：翻译判断、例句生成、智能评估
@@ -311,6 +314,112 @@ LexiNote 是一个个人英语学习工具，旨在提供高效、智能的英�
 - 用户设置存储在 user_settings.json 文件中
 - 所有数据操作必须通过相应的管理器类进行，避免直接访问文件
 
+## 词库管理
+
+词库管理模块是v1.1.0版本新增的核心功能，提供多词库支持，允许用户创建和管理多个独立的词汇集合。
+
+### 核心功能
+
+- **多词库支持**：创建和管理多个独立的单词集合
+- **JSON导入导出**：支持标准格式的词库文件导入导出
+- **词库隔离**：每个词库数据独立存储，确保数据安全
+- **单词管理**：在词库内进行单词的增删改查
+- **默认词库机制**：自动创建和管理默认词库，确保兼容性
+
+### 数据库结构
+
+#### word_sets 表
+```sql
+CREATE TABLE IF NOT EXISTS word_sets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    description TEXT,
+    source TEXT DEFAULT 'user_upload',
+    word_count INTEGER DEFAULT 0,
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_set_id ON word_sets(id);
+CREATE INDEX IF NOT EXISTS idx_set_name ON word_sets(name);
+```
+
+#### words 表 (更新)
+```sql
+CREATE TABLE IF NOT EXISTS words (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    set_id INTEGER NOT NULL,
+    word TEXT NOT NULL,
+    translation TEXT NOT NULL,
+    phonetic TEXT,
+    example TEXT,
+    meaning_en TEXT,
+    tag TEXT,
+    proficiency REAL DEFAULT 0,
+    familiarity INTEGER DEFAULT 0,
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (set_id) REFERENCES word_sets(id) ON DELETE CASCADE,
+    UNIQUE(set_id, word)
+);
+```
+
+### WordManager 词库API
+
+#### 词库管理接口
+```python
+# 获取所有词库
+def get_all_word_sets()
+
+# 获取词库信息
+def get_word_set_by_id(set_id)
+def get_word_set_by_name(name)
+def get_active_word_set()
+
+# 设置操作
+def set_active_word_set(set_id)
+def create_word_set(name, description='')
+def delete_word_set(set_id)
+```
+
+#### 导入导出功能
+```python
+# 从JSON文件导入词库
+def import_word_set_from_json(json_file_path)
+
+# 导出词库到JSON文件
+def export_word_set_to_json(set_id, output_file_path)
+```
+
+#### 单词操作接口
+```python
+# 获取单词列表
+def get_words_from_active_set(keyword=None, limit=None, offset=None)
+def get_words_by_set_id(set_id, keyword=None, limit=None, offset=None)
+
+# 单词管理
+def add_word_to_active_set(word, translation, phonetic='', example='', meaning_en='', tag='')
+def update_word(word_id, **kwargs)
+def delete_word(word_id)
+```
+
+### 数据一致性规则
+
+1. 所有词库数据读写必须指定 set_id
+2. 导入时检查JSON结构，若错误给出错误提示
+3. 词库删除需二次确认
+4. 若无active_word_set，提示用户先选择词库
+5. 所有编辑动作完成后，更新word_count
+6. 对词库名称、单词名进行唯一性校验
+
+### 迁移机制
+
+系统实现了从单词库到多词库的平滑迁移：
+
+1. 首次启动时，自动创建"默认词库"
+2. 检测并迁移现有单词数据到默认词库
+3. 自动设置默认词库为当前激活词库
+4. 默认词库不能被删除，确保系统稳定性
+
 ## AI功能
 
 ### AI 翻译判断
@@ -467,6 +576,31 @@ LexiNote 是一个个人英语学习工具，旨在提供高效、智能的英�
 - Ollama 默认服务地址：http://localhost:11434
 - 数据存储目录：./data/
 - 日志文件：./logs/
+
+## 版本历史
+
+### v1.1.0 - 2025-10-25
+
+**主要功能**: 实现词库管理模块
+
+**核心变更**:
+- 数据库架构更新：新增word_sets表，修改words表结构
+- WordManager添加完整的词库管理API
+- 创建词库管理UI页面
+- 学习模块适配多词库功能
+- 实现词库导入导出功能
+- 添加词库切换和管理机制
+
+**数据迁移**:
+- 自动创建默认词库并迁移现有数据
+- 维护与旧版本的向后兼容性
+
+### v1.0.0 - 初始版本
+
+- 基础单词学习功能
+- 听写、翻译、复习等练习模式
+- AI助手功能
+- 个性化学习进度跟踪
 
 ## 附录
 

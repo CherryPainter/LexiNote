@@ -23,7 +23,8 @@ class LearningPage(tk.Frame):
     学习模式页面，用于用户主动学习单词
     """
     
-    def __init__(self, parent, learning_manager, word_manager=None, settings_manager=None, font_config=None, **kwargs):
+    def __init__(self, parent, word_manager=None, learning_manager=None, settings_manager=None, font_config=None, **kwargs):
+        """注意：调整参数顺序，将word_manager设为主要参数"""
         """
         初始化学习页面
         
@@ -241,10 +242,28 @@ class LearningPage(tk.Frame):
                 
             # 如果没有进度可恢复，开始新的学习批次
             batch_size = int(self.batch_size_var.get())
-            self.current_batch = self.learning_manager.get_batch(batch_size)
+            
+            # 获取当前激活词库信息
+            active_set = self.word_manager.get_active_word_set()
+            if not active_set:
+                messagebox.showwarning("提示", "请先在词库管理中选择一个词库")
+                return
+            
+            # 获取学习单词
+            if self.learning_manager:
+                self.current_batch = self.learning_manager.get_batch(batch_size)
+            else:
+                # 直接从word_manager获取单词
+                words = self.word_manager.get_words_from_active_set()
+                if not words:
+                    messagebox.showinfo("提示", f"词库 '{active_set['name']}' 中没有单词")
+                    return
+                # 取指定数量的单词
+                import random
+                self.current_batch = random.sample(words, min(batch_size, len(words)))
             
             if not self.current_batch:
-                messagebox.showinfo("提示", "没有可学习的单词，请先添加单词")
+                messagebox.showinfo("提示", f"词库 '{active_set['name']}' 中没有可学习的单词")
                 return
             
             # 开始学习第一个单词
@@ -267,7 +286,20 @@ class LearningPage(tk.Frame):
             self.word_label.config(text=self.current_word)
             
             # 获取并显示释义
-            definition = self.learning_manager.get_word_definition(self.current_word)
+            if isinstance(self.current_word, dict):
+                # 如果是字典格式（从数据库获取）
+                word_text = self.current_word['word']
+                definition = self.current_word['translation']
+            else:
+                # 字符串格式
+                word_text = self.current_word
+                if self.learning_manager:
+                    definition = self.learning_manager.get_word_definition(self.current_word)
+                else:
+                    definition = self.word_manager.get_translation(self.current_word)
+            
+            # 更新单词标签
+            self.word_label.config(text=word_text)
             self.definition_label.config(text=definition or "无释义")
             
             # 重置例句状态

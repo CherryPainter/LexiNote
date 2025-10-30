@@ -35,6 +35,10 @@ class WordManager:
         # 单词熟悉度映射（在内存中缓存，避免频繁查询数据库）
         self.word_familiarity = {}
         
+        # 当前激活的词库ID
+        self.active_word_set_id = None
+        self._load_active_word_set()
+        
         # 初始化AI管理器（延迟加载方式）
         self.ai_manager = None
         self.ai_available = False
@@ -152,6 +156,202 @@ class WordManager:
             log_error(f"保存数据文件失败: {file_path}, 错误: {str(e)}")
     
     @functools.lru_cache(maxsize=1000)
+    # 词库管理相关方法
+    def get_all_word_sets(self):
+        """获取所有词库"""
+        return self.db_manager.get_all_word_sets()
+    
+    def get_word_set_by_id(self, set_id):
+        """根据ID获取词库信息"""
+        return self.db_manager.get_word_set_by_id(set_id)
+    
+    def get_active_word_set(self):
+        """获取当前激活的词库"""
+        if not self.active_word_set_id:
+            self._set_default_word_set()
+        return self.db_manager.get_word_set_by_id(self.active_word_set_id)
+    
+    def set_active_word_set(self, set_id):
+        """设置当前激活的词库"""
+        try:
+            # 验证词库是否存在
+            word_set = self.db_manager.get_word_set_by_id(set_id)
+            if not word_set:
+                return False, "词库不存在"
+            
+            # 更新激活词库
+            self.active_word_set_id = set_id
+            
+            # 保存到设置
+            conn = sqlite3.connect(self.db_manager.db_path)
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+                ('active_word_set', str(set_id))
+            )
+            conn.commit()
+            conn.close()
+            
+            log_info(f"切换激活词库成功: {word_set['name']}")
+            return True, f"切换到词库 '{word_set['name']}' 成功"
+        except Exception as e:
+            log_error(f"设置激活词库失败: {str(e)}")
+            return False, str(e)
+    
+    def create_word_set(self, name, description=''):
+        """创建新词库"""
+        return self.db_manager.create_word_set(name, description)
+    
+    def delete_word_set(self, set_id):
+        """删除词库"""
+        # 检查是否是当前激活的词库
+        if set_id == self.active_word_set_id:
+            return False, "不能删除当前激活的词库"
+        
+        # 检查是否是默认词库
+        word_set = self.db_manager.get_word_set_by_id(set_id)
+        if word_set and word_set['name'] == '默认词库':
+            return False, "不能删除默认词库"
+        
+        return self.db_manager.delete_word_set(set_id)
+    
+    def import_word_set_from_json(self, json_file_path):
+        """从JSON文件导入词库"""
+        try:
+            import json
+            
+            # 读取JSON文件
+            with open(json_file_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            
+            # 验证JSON结构
+            if 'name' not in data:
+                # 如果没有name字段，使用文件名
+                import os
+                data['name'] = os.path.splitext(os.path.basename(json_file_path))[0]
+            
+            if 'words' not in data or not isinstance(data['words'], list):
+                return False, "词库文件格式错误：缺少words数组"
+            
+            if len(data['words']) == 0:
+                return False, "词库文件为空"
+            
+            # 检查词库名是否已存在
+            existing_set = self.db_manager.get_word_set_by_name(data['name'])
+            if existing_set:
+                # 返回特殊消息，表示需要确认覆盖
+                return None, "overwrite"
+            
+            # 创建词库
+            set_id, msg = self.db_manager.create_word_set(
+                name=data['name'],
+                description=data.get('description', ''),
+                source='user_upload'
+            )
+            
+            if not set_id:
+                return False, msg
+            
+            # 添加单词
+            success_count = 0
+            for word_data in data['words']:
+                # 验证单词数据格式
+                if 'word' not in word_data or 'translation' not in word_data:
+                    continue
+                
+                success, _ = self.db_manager.add_word_to_set(
+                    set_id=set_id,
+                    word=word_data['word'],
+                    translation=word_data['translation'],
+                    phonetic=word_data.get('phonetic', ''),
+                    example=word_data.get('example', ''),
+                    meaning_en=word_data.get('meaning_en', ''),
+                    tag=word_data.get('tag', '')
+                )
+                if success:
+                    success_count += 1
+            
+            log_info(f"词库导入成功: {data['name']}, {success_count}个单词")
+            return True, f"导入成功！共添加{success_count}个单词"
+            
+        except json.JSONDecodeError:
+            return False, "JSON文件格式错误"
+        except Exception as e:
+            log_error(f"导入词库失败: {str(e)}")
+            return False, str(e)
+    
+    def export_word_set_to_json(self, set_id, output_file_path):
+        """导出词库到JSON文件"""
+        try:
+            # 获取词库信息
+            word_set = self.db_manager.get_word_set_by_id(set_id)
+            if not word_set:
+                return False, "词库不存在"
+            
+            # 获取词库中的单词
+            words = self.db_manager.get_words_by_set_id(set_id)
+            
+            # 构建导出数据
+            export_data = {
+                'name': word_set['name'],
+                'description': word_set.get('description', ''),
+                'source': word_set.get('source', 'user_upload'),
+                'words': []
+            }
+            
+            for word in words:
+                word_data = {
+                    'word': word['word'],
+                    'translation': word['translation'],
+                    'phonetic': word.get('phonetic', ''),
+                    'example': word.get('example', ''),
+                    'meaning_en': word.get('meaning_en', ''),
+                    'tag': word.get('tag', '')
+                }
+                export_data['words'].append(word_data)
+            
+            # 写入JSON文件
+            import json
+            with open(output_file_path, 'w', encoding='utf-8') as f:
+                json.dump(export_data, f, ensure_ascii=False, indent=2)
+            
+            log_info(f"词库导出成功: {word_set['name']}")
+            return True, "导出成功"
+        except Exception as e:
+            log_error(f"导出词库失败: {str(e)}")
+            return False, str(e)
+    
+    # 单词管理相关方法
+    def get_words_from_active_set(self, keyword=None, limit=None, offset=None):
+        """从当前激活的词库获取单词"""
+        if not self.active_word_set_id:
+            self._set_default_word_set()
+        return self.db_manager.get_words_by_set_id(
+            self.active_word_set_id, keyword, limit, offset
+        )
+    
+    def get_words_by_set_id(self, set_id, keyword=None, limit=None, offset=None):
+        """从指定词库获取单词"""
+        return self.db_manager.get_words_by_set_id(
+            set_id, keyword, limit, offset
+        )
+    
+    def add_word_to_active_set(self, word, translation, phonetic='', example='', meaning_en='', tag=''):
+        """向当前激活的词库添加单词"""
+        if not self.active_word_set_id:
+            self._set_default_word_set()
+        return self.db_manager.add_word_to_set(
+            self.active_word_set_id, word, translation, phonetic, example, meaning_en, tag
+        )
+    
+    def update_word(self, word_id, **kwargs):
+        """更新单词信息"""
+        return self.db_manager.update_word(word_id, **kwargs)
+    
+    def delete_word(self, word_id):
+        """删除单词"""
+        return self.db_manager.delete_word(word_id)
+    
     def get_translation(self, word: str) -> Optional[str]:
         """获取单词翻译（带缓存）
         
@@ -325,6 +525,49 @@ class WordManager:
             log_info(f"加载单词熟悉度: {len(self.word_familiarity)} 条")
         except Exception as e:
             log_error(f"加载单词熟悉度失败: {str(e)}")
+    
+    def _load_active_word_set(self):
+        """加载当前激活的词库"""
+        try:
+            # 从设置中读取当前激活的词库
+            conn = sqlite3.connect(self.db_manager.db_path)
+            cursor = conn.cursor()
+            cursor.execute("SELECT value FROM settings WHERE key = 'active_word_set'")
+            result = cursor.fetchone()
+            conn.close()
+            
+            if result:
+                try:
+                    self.active_word_set_id = int(result[0])
+                except ValueError:
+                    # 如果设置值无效，设置为默认词库
+                    self._set_default_word_set()
+            else:
+                # 如果没有设置，设置为默认词库
+                self._set_default_word_set()
+        except Exception as e:
+            log_error(f"加载激活词库失败: {str(e)}")
+            # 失败时设置默认词库
+            self._set_default_word_set()
+    
+    def _set_default_word_set(self):
+        """设置默认词库为激活状态"""
+        try:
+            # 获取默认词库
+            default_set = self.db_manager.get_word_set_by_name('默认词库')
+            if default_set:
+                self.active_word_set_id = default_set['id']
+                # 保存到设置
+                conn = sqlite3.connect(self.db_manager.db_path)
+                cursor = conn.cursor()
+                cursor.execute(
+                    "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+                    ('active_word_set', str(self.active_word_set_id))
+                )
+                conn.commit()
+                conn.close()
+        except Exception as e:
+            log_error(f"设置默认词库失败: {str(e)}")
 
     def check_spelling(self, correct_word: str, user_input: str) -> bool:
         """检查拼写是否正确
