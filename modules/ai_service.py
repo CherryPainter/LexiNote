@@ -297,8 +297,27 @@ class AIService:
                         return None
                 
                 # 检查问题内容是否有效
-                if not result['questions'] or all(q.lower().strip() == 'question' for q in result['questions']):
-                    log_error("AI返回的题目内容无效，所有题目都是'question'")
+                if not result['questions']:
+                    log_error("AI返回的题目为空")
+                    self._save_raw_response('reading_invalid_questions', response)
+                    return None
+                
+                # 检查是否有选择题只包含'question'文本
+                has_invalid_questions = False
+                invalid_question_indices = []
+                
+                for i, question in enumerate(result['questions']):
+                    # 检查是否是选择题
+                    is_multiple_choice = any(opt in question.upper() for opt in ["A.", "B.", "C.", "D.", "MULTIPLE CHOICE"])
+                    
+                    # 检查题目是否只包含'question'文本（特别是选择题）
+                    if question.lower().strip() == 'question' or (is_multiple_choice and len(question.strip()) < 10):
+                        has_invalid_questions = True
+                        invalid_question_indices.append(i+1)  # 题目编号从1开始
+                
+                if has_invalid_questions:
+                    log_error(f"AI返回的选择题内容无效，问题编号: {invalid_question_indices}")
+                    log_error(f"无效题目内容示例: {result['questions'][invalid_question_indices[0]-1]}")
                     self._save_raw_response('reading_invalid_questions', response)
                     return None
                 
