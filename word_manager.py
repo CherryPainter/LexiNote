@@ -1325,6 +1325,27 @@ class WordManager:
                 callback({})
             return {}
     
+    def _format_example(self, example_text):
+        """格式化例句文本
+        
+        Args:
+            example_text: 原始例句文本（可能是"英文例句|中文翻译"格式）
+            
+        Returns:
+            格式化后的例句文本
+        """
+        if not example_text:
+            return ""
+            
+        # 检查是否包含分隔符
+        if '|' in example_text:
+            parts = example_text.split('|', 1)
+            if len(parts) == 2:
+                return f"🌍 {parts[0].strip()}\n📝 {parts[1].strip()}"
+        
+        # 如果不是预期格式，直接返回
+        return example_text
+            
     def get_word_example(self, word: str, async_mode=False, callback=None) -> str:
         """获取单词的例句
 
@@ -1340,8 +1361,10 @@ class WordManager:
         # 使用通用的属性获取方法
         def example_callback(attributes):
             if callback:
-                example = attributes.get('example', self._get_default_example(word))
-                callback(example)
+                raw_example = attributes.get('example', self._get_default_example(word))
+                # 格式化例句
+                formatted_example = self._format_example(raw_example)
+                callback(formatted_example)
         
         attributes = self.get_and_save_word_attributes(word, ['example'], async_mode, 
                                                      callback=example_callback if async_mode else None)
@@ -1349,7 +1372,9 @@ class WordManager:
         if async_mode:
             return None
         else:
-            return attributes.get('example', self._get_default_example(word))
+            raw_example = attributes.get('example', self._get_default_example(word))
+            # 格式化例句
+            return self._format_example(raw_example)
     
     def _save_example_to_database(self, word: str, example: str):
         """将例句保存到数据库

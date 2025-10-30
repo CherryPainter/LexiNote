@@ -159,8 +159,15 @@
 - 优化短翻译的匹配逻辑，提高识别准确率
 - 创建测试脚本 test_translation_matching.py 验证翻译匹配功能
 
-- v1.1.5 (2025-10-30)
-  - 修复 LearningManager 类中缺少 current_index 属性的问题，解决 'LearningManager' object has no attribute 'current_index' 错误
+## v1.1.6 (2025-10-30)
+- 优化了例句生成和显示格式，去除繁杂内容，使例句更加简洁易读
+- 修改了AI提示词，确保返回标准化的格式
+- 添加了例句格式化处理，支持更清晰的中英文例句展示
+
+## v1.1.5 (2025-10-30)
+- 修复了LearningManager对象缺少current_index属性的错误，导致更新每日学习记录失败
+- 优化了学习进度保存逻辑
+- 修复了例句获取功能，现在在同步模式下也能从AI获取数据
   - 在 LearningManager 初始化时添加了 current_index 属性，初始值设为 -1
   - 优化了 AI 可用性检查逻辑，每次调用都重新验证 Ollama 服务状态
   - 修复了例句获取功能，现在在同步模式下也能从AI获取数据

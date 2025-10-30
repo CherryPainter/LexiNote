@@ -244,7 +244,9 @@ class AIManager:
         Returns:
             包含例句和翻译的文本
         """
-        prompt = f"请为单词 {word} 生成一个简单的英文例句，并附上中文翻译。"
+        prompt = f"请为单词 {word} 生成一个简单的英文例句，并附上中文翻译。\n"
+        prompt += "请严格按照以下格式返回，不要添加任何额外内容和解释：\n"
+        prompt += "英文例句|中文翻译"
         return await self._ask(prompt, callback)
     
     def example_sync(self, word: str, callback=None) -> str:
@@ -257,6 +259,7 @@ class AIManager:
         Returns:
             包含例句和翻译的文本
         """
+        # 直接调用异步方法
         try:
             loop = asyncio.get_event_loop()
             return loop.run_until_complete(self.example(word, callback))
