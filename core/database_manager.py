@@ -74,25 +74,48 @@ class DatabaseManager:
                 )
             ''')
             
-            # 创建单词表（支持多词库）
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS words (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    set_id INTEGER,
-                    word TEXT NOT NULL,
-                    translation TEXT NOT NULL,
-                    phonetic TEXT,
-                    example TEXT,
-                    meaning_en TEXT,
-                    tag TEXT,
-                    familiarity INTEGER DEFAULT 0,
-                    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    last_practice TIMESTAMP,
-                    last_review TIMESTAMP,
-                    proficiency FLOAT DEFAULT 0.0,
-                    FOREIGN KEY (set_id) REFERENCES word_sets(id)
-                )
-            ''')
+            # 先创建默认词库
+            self._create_default_word_set(conn=conn)
+            
+            # 检查并迁移现有的words表
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='words'")
+            if cursor.fetchone():
+                # 检查表是否有set_id列
+                cursor.execute("PRAGMA table_info(words)")
+                columns = [col[1] for col in cursor.fetchall()]
+                
+                if 'set_id' not in columns:
+                    # 添加set_id列
+                    log_info("检测到旧版本words表，正在添加set_id列...")
+                    cursor.execute("ALTER TABLE words ADD COLUMN set_id INTEGER")
+                    
+                    # 获取默认词库ID
+                    cursor.execute("SELECT id FROM word_sets WHERE name='默认词库'")
+                    default_set_id = cursor.fetchone()[0]
+                    
+                    # 更新所有现有单词的set_id为默认词库
+                    cursor.execute("UPDATE words SET set_id = ?", (default_set_id,))
+                    log_info("单词表迁移完成，所有单词已关联到默认词库")
+            else:
+                # 创建新的单词表
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS words (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        set_id INTEGER,
+                        word TEXT NOT NULL,
+                        translation TEXT NOT NULL,
+                        phonetic TEXT,
+                        example TEXT,
+                        meaning_en TEXT,
+                        tag TEXT,
+                        familiarity INTEGER DEFAULT 0,
+                        added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        last_practice TIMESTAMP,
+                        last_review TIMESTAMP,
+                        proficiency FLOAT DEFAULT 0.0,
+                        FOREIGN KEY (set_id) REFERENCES word_sets(id)
+                    )
+                ''')
             
             # 创建单词索引
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_word ON words(word)')
@@ -139,11 +162,22 @@ class DatabaseManager:
             # 创建缓存索引
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_prompt_hash ON ai_cache(prompt_hash)')
             
-            # 从JSON导入现有数据
-            self._import_from_json()
+            # 创建索引
+            try:
+                cursor.execute('CREATE INDEX IF NOT EXISTS idx_word ON words(word)')
+                cursor.execute('CREATE INDEX IF NOT EXISTS idx_proficiency ON words(proficiency)')
+                cursor.execute('CREATE INDEX IF NOT EXISTS idx_set_id ON words(set_id)')
+                cursor.execute('CREATE INDEX IF NOT EXISTS idx_set_name ON word_sets(name)')
+            except Exception as e:
+                log_warning(f"创建索引时出错: {e}")
+            # 从JSON导入现有数据（延迟执行，确保数据库结构完全创建）
+            try:
+                self._import_from_json()
+            except Exception as e:
+                log_error(f"导入JSON数据失败: {str(e)}")
             
-            # 创建默认词库（如果不存在）
-            self._create_default_word_set()
+            # 更新词库的单词数量
+            self._update_all_word_counts(conn=conn)
             
             conn.commit()
             conn.close()
@@ -152,16 +186,22 @@ class DatabaseManager:
         except Exception as e:
             log_error(f"初始化数据库失败: {str(e)}")
     
-    def _create_default_word_set(self):
+    def _create_default_word_set(self, conn=None):
         """创建默认词库"""
         try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
+            if conn is None:
+                conn = sqlite3.connect(self.db_path)
+                cursor = conn.cursor()
+                auto_close = True
+            else:
+                cursor = conn.cursor()
+                auto_close = False
             
-            # 检查是否已存在默认词库
+            # 检查默认词库是否存在
             cursor.execute("SELECT id FROM word_sets WHERE name = '默认词库'")
             if cursor.fetchone():
-                conn.close()
+                if auto_close:
+                    conn.close()
                 return
             
             # 创建默认词库
@@ -181,11 +221,52 @@ class DatabaseManager:
             word_count = cursor.fetchone()[0]
             cursor.execute("UPDATE word_sets SET word_count = ? WHERE id = ?", (word_count, default_set_id))
             
-            conn.commit()
-            conn.close()
             log_info("默认词库创建成功")
+            
+            if auto_close:
+                conn.commit()
+                conn.close()
         except Exception as e:
             log_error(f"创建默认词库失败: {str(e)}")
+            if 'conn' in locals() and not conn.in_transaction:
+                conn.rollback()
+                if 'auto_close' in locals() and auto_close:
+                    conn.close()
+    
+    def _update_all_word_counts(self, conn=None):
+        """更新所有词库的单词数量"""
+        try:
+            if conn is None:
+                conn = sqlite3.connect(self.db_path)
+                cursor = conn.cursor()
+                auto_close = True
+            else:
+                cursor = conn.cursor()
+                auto_close = False
+            
+            # 获取所有词库
+            cursor.execute("SELECT id FROM word_sets")
+            sets = cursor.fetchall()
+            
+            for set_id, in sets:
+                # 统计每个词库的单词数量
+                cursor.execute("SELECT COUNT(*) FROM words WHERE set_id = ?", (set_id,))
+                count = cursor.fetchone()[0]
+                
+                # 更新词库的单词数量
+                cursor.execute("UPDATE word_sets SET word_count = ? WHERE id = ?", (count, set_id))
+            
+            log_info("所有词库单词数量更新完成")
+            
+            if auto_close:
+                conn.commit()
+                conn.close()
+        except Exception as e:
+            log_error(f"更新词库单词数量失败: {str(e)}")
+            if 'conn' in locals() and not conn.in_transaction:
+                conn.rollback()
+                if 'auto_close' in locals() and auto_close:
+                    conn.close()
     
     def _import_from_json(self):
         """从旧的JSON文件导入数据到SQLite"""
@@ -193,58 +274,87 @@ class DatabaseManager:
             # 检查是否已经导入过
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(*) FROM words WHERE set_id IS NOT NULL")
-            count = cursor.fetchone()[0]
             
-            # 如果已经有数据，跳过导入
-            if count > 0:
-                conn.close()
-                return
-            
-            # 确保默认词库存在
-            cursor.execute("SELECT id FROM word_sets WHERE name = '默认词库'")
-            result = cursor.fetchone()
-            if not result:
-                from datetime import datetime
-                create_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                cursor.execute(
-                    "INSERT INTO word_sets (name, description, source, create_time, word_count) VALUES (?, ?, ?, ?, ?)",
-                    ('默认词库', '系统默认词库', 'system', create_time, 0)
-                )
-                default_set_id = cursor.lastrowid
-            else:
+            # 检查表结构是否正确
+            try:
+                # 先获取默认词库ID
+                cursor.execute("SELECT id FROM word_sets WHERE name = '默认词库'")
+                result = cursor.fetchone()
+                if not result:
+                    log_error("默认词库不存在，无法导入数据")
+                    conn.close()
+                    return
                 default_set_id = result[0]
-            
-            # 导入单词数据
-            word_dict_file = os.path.join(self.data_dir, 'word_dict.json')
-            if os.path.exists(word_dict_file):
-                import json
-                with open(word_dict_file, 'r', encoding='utf-8') as f:
-                    word_dict = json.load(f)
-                    
-                    for word, translation in word_dict.items():
-                        cursor.execute(
-                            "INSERT OR IGNORE INTO words (set_id, word, translation) VALUES (?, ?, ?)",
-                            (default_set_id, word, translation)
-                        )
-            
-            # 导入设置数据
-            settings_file = os.path.join(self.data_dir, 'settings.json')
-            if os.path.exists(settings_file):
-                import json
-                with open(settings_file, 'r', encoding='utf-8') as f:
-                    settings = json.load(f)
-                    
-                    for key, value in settings.items():
-                        cursor.execute(
-                            "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",
-                            (key, json.dumps(value))
-                        )
-            
-            conn.commit()
-            log_info("数据从JSON导入成功")
-            conn.close()
-            
+                
+                # 检查words表结构
+                cursor.execute("PRAGMA table_info(words)")
+                columns = [col[1] for col in cursor.fetchall()]
+                
+                if 'set_id' not in columns:
+                    log_error("words表没有set_id列，跳过导入")
+                    conn.close()
+                    return
+                
+                # 检查是否已经导入过数据
+                cursor.execute("SELECT COUNT(*) FROM words")
+                count = cursor.fetchone()[0]
+                
+                # 如果已经有数据，跳过导入
+                if count > 0:
+                    log_info(f"数据库已有{count}条单词记录，跳过导入")
+                    conn.close()
+                    return
+                
+                # 导入单词数据
+                word_dict_file = os.path.join(self.data_dir, 'word_dict.json')
+                if os.path.exists(word_dict_file):
+                    import json
+                    with open(word_dict_file, 'r', encoding='utf-8') as f:
+                        word_dict = json.load(f)
+                        
+                        imported_count = 0
+                        for word, translation in word_dict.items():
+                            try:
+                                cursor.execute(
+                                    "INSERT OR IGNORE INTO words (set_id, word, translation) VALUES (?, ?, ?)",
+                                    (default_set_id, word, translation)
+                                )
+                                imported_count += cursor.rowcount
+                            except Exception as e:
+                                log_warning(f"导入单词 {word} 失败: {e}")
+                                continue
+                        
+                        log_info(f"成功导入 {imported_count} 个单词到默认词库")
+                        
+                        # 更新默认词库的单词数量
+                        if imported_count > 0:
+                            cursor.execute("UPDATE word_sets SET word_count = ? WHERE id = ?", 
+                                         (imported_count, default_set_id))
+                
+                # 导入设置数据
+                settings_file = os.path.join(self.data_dir, 'settings.json')
+                if os.path.exists(settings_file):
+                    import json
+                    with open(settings_file, 'r', encoding='utf-8') as f:
+                        settings = json.load(f)
+                        
+                        for key, value in settings.items():
+                            try:
+                                cursor.execute(
+                                    "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",
+                                    (key, json.dumps(value))
+                                )
+                            except Exception as e:
+                                log_warning(f"导入设置 {key} 失败: {e}")
+                                continue
+                
+                conn.commit()
+                log_info("JSON数据导入成功")
+            except Exception as inner_e:
+                log_error(f"导入JSON数据时出错: {str(inner_e)}")
+                conn.rollback()
+            finally:
+                conn.close()
         except Exception as e:
             log_error(f"导入JSON数据失败: {str(e)}")
     
@@ -924,8 +1034,11 @@ class DatabaseManager:
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_session_start ON exercise_sessions(start_time)')
             
             conn.commit()
-            conn.close()
             log_info("练习会话表创建成功")
-            
         except Exception as e:
             log_error(f"创建练习会话表失败: {str(e)}")
+            if 'conn' in locals():
+                conn.rollback()
+        finally:
+            if 'conn' in locals():
+                conn.close()

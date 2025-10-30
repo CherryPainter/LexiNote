@@ -316,109 +316,356 @@ LexiNote 是一个个人英语学习工具，旨在提供高效、智能的英�
 
 ## 词库管理
 
-词库管理模块是v1.1.0版本新增的核心功能，提供多词库支持，允许用户创建和管理多个独立的词汇集合。
+词库管理模块是LexiNote的核心功能模块，从v1.1.0版本开始提供全面的多词库支持，允许用户创建、管理和组织多个独立的词汇集合，实现个性化学习内容管理。
 
 ### 核心功能
 
-- **多词库支持**：创建和管理多个独立的单词集合
-- **JSON导入导出**：支持标准格式的词库文件导入导出
-- **词库隔离**：每个词库数据独立存储，确保数据安全
-- **单词管理**：在词库内进行单词的增删改查
-- **默认词库机制**：自动创建和管理默认词库，确保兼容性
+- **多词库支持**：创建和管理多个独立的单词集合，每个词库可以代表不同的学习主题或难度级别
+- **JSON导入导出**：支持标准格式的词库文件导入导出，方便数据备份和共享
+- **词库隔离**：每个词库数据独立存储，确保数据安全和一致性
+- **单词管理**：在词库内进行单词的增删改查，支持批量操作
+- **默认词库机制**：自动创建和管理默认词库，确保系统兼容性和数据迁移平滑过渡
+- **词库统计**：实时统计各词库的单词数量、学习进度等指标
+- **词库搜索**：支持按关键词搜索词库内的单词
+- **词库切换**：快速切换不同的词库进行学习
 
 ### 数据库结构
+
+词库管理模块基于SQLite数据库实现，主要包含以下表结构：
 
 #### word_sets 表
 ```sql
 CREATE TABLE IF NOT EXISTS word_sets (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL UNIQUE,
-    description TEXT,
-    source TEXT DEFAULT 'user_upload',
-    word_count INTEGER DEFAULT 0,
-    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    name TEXT NOT NULL UNIQUE,        -- 词库名称（唯一）
+    description TEXT,                -- 词库描述
+    source TEXT DEFAULT 'user_upload',-- 词库来源
+    word_count INTEGER DEFAULT 0,     -- 单词数量（缓存）
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- 创建时间
+    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- 更新时间
+    is_default INTEGER DEFAULT 0      -- 是否为默认词库
 );
 CREATE INDEX IF NOT EXISTS idx_set_id ON word_sets(id);
 CREATE INDEX IF NOT EXISTS idx_set_name ON word_sets(name);
+CREATE INDEX IF NOT EXISTS idx_set_default ON word_sets(is_default);
 ```
 
-#### words 表 (更新)
+#### words 表
 ```sql
 CREATE TABLE IF NOT EXISTS words (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    set_id INTEGER NOT NULL,
-    word TEXT NOT NULL,
-    translation TEXT NOT NULL,
-    phonetic TEXT,
-    example TEXT,
-    meaning_en TEXT,
-    tag TEXT,
-    proficiency REAL DEFAULT 0,
-    familiarity INTEGER DEFAULT 0,
-    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    set_id INTEGER NOT NULL,          -- 所属词库ID
+    word TEXT NOT NULL,               -- 英文单词
+    translation TEXT NOT NULL,        -- 中文翻译
+    phonetic TEXT,                    -- 音标
+    example TEXT,                     -- 例句
+    meaning_en TEXT,                  -- 英文释义
+    tag TEXT,                         -- 标签
+    proficiency REAL DEFAULT 0,       -- 掌握度
+    familiarity INTEGER DEFAULT 0,    -- 熟悉度
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- 创建时间
+    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- 更新时间
+    weight REAL DEFAULT 1.0,          -- 学习权重
     FOREIGN KEY (set_id) REFERENCES word_sets(id) ON DELETE CASCADE,
-    UNIQUE(set_id, word)
+    UNIQUE(set_id, word)              -- 确保同一词库内单词不重复
 );
+CREATE INDEX IF NOT EXISTS idx_words_set_id ON words(set_id);
+CREATE INDEX IF NOT EXISTS idx_words_word ON words(word);
+CREATE INDEX IF NOT EXISTS idx_words_weight ON words(weight);
+```
+
+#### word_progress 表
+```sql
+CREATE TABLE IF NOT EXISTS word_progress (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    word_id INTEGER NOT NULL,         -- 单词ID
+    set_id INTEGER NOT NULL,          -- 所属词库ID（冗余字段，用于优化查询）
+    correct_count INTEGER DEFAULT 0,  -- 正确次数
+    wrong_count INTEGER DEFAULT 0,    -- 错误次数
+    last_practice_time TIMESTAMP,     -- 最后练习时间
+    mastery_level REAL DEFAULT 0,     -- 掌握级别
+    FOREIGN KEY (word_id) REFERENCES words(id) ON DELETE CASCADE,
+    FOREIGN KEY (set_id) REFERENCES word_sets(id) ON DELETE CASCADE,
+    UNIQUE(word_id)
+);
+CREATE INDEX IF NOT EXISTS idx_progress_word_id ON word_progress(word_id);
+CREATE INDEX IF NOT EXISTS idx_progress_set_id ON word_progress(set_id);
 ```
 
 ### WordManager 词库API
 
+WordManager提供了完整的词库管理接口，支持词库的创建、查询、修改、删除以及单词的增删改查操作。所有词库相关操作都通过WordManager统一接口访问，确保数据一致性和安全性。
+
 #### 词库管理接口
+
 ```python
-# 获取所有词库
-def get_all_word_sets()
+def get_all_word_sets():
+    """获取所有词库列表
+    
+    Returns:
+        list: 词库字典列表，每个字典包含id, name, description, word_count等信息
+    """
 
-# 获取词库信息
-def get_word_set_by_id(set_id)
-def get_word_set_by_name(name)
-def get_active_word_set()
+def get_word_set_by_id(set_id):
+    """根据ID获取词库信息
+    
+    Args:
+        set_id (int): 词库ID
+        
+    Returns:
+        dict or None: 词库信息字典，不存在时返回None
+    """
 
-# 设置操作
-def set_active_word_set(set_id)
-def create_word_set(name, description='')
-def delete_word_set(set_id)
+def get_word_set_by_name(name):
+    """根据名称获取词库信息
+    
+    Args:
+        name (str): 词库名称
+        
+    Returns:
+        dict or None: 词库信息字典，不存在时返回None
+    """
+
+def get_active_word_set():
+    """获取当前激活的词库
+    
+    Returns:
+        dict or None: 当前激活的词库信息，无激活词库时返回None
+    """
+
+def set_active_word_set(set_id):
+    """设置当前激活的词库
+    
+    Args:
+        set_id (int): 词库ID
+        
+    Returns:
+        bool: 设置成功返回True，失败返回False
+    """
+
+def create_word_set(name, description=''):
+    """创建新的词库
+    
+    Args:
+        name (str): 词库名称
+        description (str): 词库描述
+        
+    Returns:
+        dict or None: 新创建的词库信息，失败返回None
+    """
+
+def delete_word_set(set_id):
+    """删除词库（默认词库不可删除）
+    
+    Args:
+        set_id (int): 词库ID
+        
+    Returns:
+        bool: 删除成功返回True，失败返回False
+    """
 ```
 
 #### 导入导出功能
-```python
-# 从JSON文件导入词库
-def import_word_set_from_json(json_file_path)
 
-# 导出词库到JSON文件
-def export_word_set_to_json(set_id, output_file_path)
+```python
+def import_word_set_from_json(json_file_path):
+    """从JSON文件导入词库数据
+    
+    Args:
+        json_file_path (str): JSON文件路径
+        
+    Returns:
+        dict: 导入结果，包含success, message, word_count等字段
+    """
+
+def export_word_set_to_json(set_id, output_file_path):
+    """导出词库到JSON文件
+    
+    Args:
+        set_id (int): 词库ID
+        output_file_path (str): 输出文件路径
+        
+    Returns:
+        dict: 导出结果，包含success, message, word_count等字段
+    """
+
+def batch_import_words(file_path):
+    """批量导入单词到当前激活的词库
+    
+    Args:
+        file_path (str): JSON文件路径
+        
+    Returns:
+        dict: 导入统计信息，包含total, imported, failed等字段
+    """
 ```
 
 #### 单词操作接口
-```python
-# 获取单词列表
-def get_words_from_active_set(keyword=None, limit=None, offset=None)
-def get_words_by_set_id(set_id, keyword=None, limit=None, offset=None)
 
-# 单词管理
-def add_word_to_active_set(word, translation, phonetic='', example='', meaning_en='', tag='')
-def update_word(word_id, **kwargs)
-def delete_word(word_id)
+```python
+def get_words_from_active_set(keyword=None, limit=None, offset=None):
+    """从当前激活的词库获取单词列表
+    
+    Args:
+        keyword (str, optional): 搜索关键词
+        limit (int, optional): 返回结果数量限制
+        offset (int, optional): 分页偏移量
+        
+    Returns:
+        list: 单词字典列表
+    """
+
+def get_words_by_set_id(set_id, keyword=None, limit=None, offset=None):
+    """根据词库ID获取单词列表
+    
+    Args:
+        set_id (int): 词库ID
+        keyword (str, optional): 搜索关键词
+        limit (int, optional): 返回结果数量限制
+        offset (int, optional): 分页偏移量
+        
+    Returns:
+        list: 单词字典列表
+    """
+
+def add_word_to_active_set(word, translation, phonetic='', example='', meaning_en='', tag=''):
+    """向当前激活的词库添加单词
+    
+    Args:
+        word (str): 英文单词
+        translation (str): 中文翻译
+        phonetic (str, optional): 音标
+        example (str, optional): 例句
+        meaning_en (str, optional): 英文释义
+        tag (str, optional): 标签
+        
+    Returns:
+        dict or None: 新添加的单词信息，失败返回None
+    """
+
+def update_word(word_id, **kwargs):
+    """更新单词信息
+    
+    Args:
+        word_id (int): 单词ID
+        **kwargs: 要更新的字段，如translation, phonetic等
+        
+    Returns:
+        bool: 更新成功返回True，失败返回False
+    """
+
+def delete_word(word_id):
+    """删除单词
+    
+    Args:
+        word_id (int): 单词ID
+        
+    Returns:
+        bool: 删除成功返回True，失败返回False
+    """
+```
+
+#### 使用示例
+
+```python
+# 词库管理示例
+word_manager = WordManager()
+
+# 创建新词库
+new_set = word_manager.create_word_set("英语四级词汇", "大学英语四级核心词汇")
+
+# 设置为激活词库
+word_manager.set_active_word_set(new_set['id'])
+
+# 添加单词
+word_manager.add_word_to_active_set("abandon", "放弃", "/əˈbændən/")
+
+# 导入单词
+result = word_manager.batch_import_words("path/to/words.json")
+print(f"导入成功: {result['imported']}个单词")
+
+# 获取单词列表
+words = word_manager.get_words_from_active_set(limit=10)
+for word in words:
+    print(f"{word['word']} - {word['translation']}")
 ```
 
 ### 数据一致性规则
 
-1. 所有词库数据读写必须指定 set_id
-2. 导入时检查JSON结构，若错误给出错误提示
-3. 词库删除需二次确认
-4. 若无active_word_set，提示用户先选择词库
-5. 所有编辑动作完成后，更新word_count
-6. 对词库名称、单词名进行唯一性校验
+词库管理模块严格遵循以下数据一致性规则，确保数据的完整性和准确性：
+
+1. **词库关联约束**：所有词库数据读写操作必须明确指定 set_id，确保数据与正确的词库关联
+2. **数据验证**：
+   - 导入时严格检查JSON结构，确保数据格式正确
+   - 对单词和翻译进行非空验证
+   - 验证单词长度和格式有效性
+3. **事务保障**：所有涉及多表修改的操作都使用数据库事务，确保原子性
+4. **删除保护**：
+   - 词库删除操作需二次确认
+   - 默认词库不允许删除，确保系统稳定性
+   - 使用CASCADE级联删除，确保关联数据一致性
+5. **状态检查**：操作前检查系统状态，如无active_word_set则提示用户先选择词库
+6. **计数同步**：所有编辑动作完成后，自动更新word_count字段，确保统计数据准确
+7. **唯一性校验**：对词库名称、单词名等关键字段进行唯一性校验，避免重复数据
+8. **并发控制**：通过SQLite事务和锁机制，保证多线程环境下的数据一致性
 
 ### 迁移机制
 
-系统实现了从单词库到多词库的平滑迁移：
+系统实现了从旧版单一单词库到新版多词库的平滑迁移机制，确保用户数据不会丢失且应用正常运行：
 
-1. 首次启动时，自动创建"默认词库"
-2. 检测并迁移现有单词数据到默认词库
-3. 自动设置默认词库为当前激活词库
-4. 默认词库不能被删除，确保系统稳定性
+1. **自动检测**：首次启动时，自动检测数据库结构和现有数据
+2. **默认词库创建**：自动创建"默认词库"作为初始词库
+3. **数据迁移**：
+   - 检测并迁移现有单词数据到默认词库
+   - 迁移学习进度和统计数据
+   - 保留原始数据的创建时间和更新时间
+4. **状态设置**：自动设置默认词库为当前激活词库
+5. **向后兼容**：
+   - 保留对旧API的兼容调用
+   - 默认操作自动应用于当前激活词库
+   - 默认词库不能被删除，确保系统稳定性
+6. **迁移日志**：记录数据迁移过程，便于问题排查
+
+### 事务处理最佳实践
+
+在实现词库管理功能时，遵循以下事务处理最佳实践：
+
+```python
+# 事务处理示例
+def safe_word_operation():
+    conn = None
+    try:
+        conn = sqlite3.connect(self.db_path)
+        conn.execute('BEGIN TRANSACTION')
+        
+        # 执行单词操作
+        # ...
+        
+        # 更新词库统计
+        # ...
+        
+        conn.commit()
+        return True
+    except Exception as e:
+        log_error(f"事务操作失败: {str(e)}")
+        if conn:
+            conn.rollback()
+        return False
+    finally:
+        if conn:
+            conn.close()
+```
+
+### 错误处理策略
+
+词库管理模块采用多层次的错误处理策略，确保系统稳定运行：
+
+1. **输入验证**：在API层面验证所有输入参数
+2. **异常捕获**：对所有数据库操作和文件操作使用try-except捕获异常
+3. **错误日志**：详细记录所有错误信息，包括操作类型、参数、错误堆栈
+4. **用户反馈**：将技术性错误转换为用户友好的错误消息
+5. **降级处理**：在核心功能失败时提供替代方案或默认行为
+6. **状态恢复**：确保错误发生后系统状态一致，不会留下脏数据
 
 ## AI功能
 

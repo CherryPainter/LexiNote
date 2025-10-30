@@ -17,7 +17,13 @@
 
 ## 目录
 
+- [单词批量导入模块](#单词批量导入模块)
 - [WordManager API](#wordmanager-api)
+  - [基础单词操作](#基础单词操作)
+  - [词库管理操作](#词库管理操作)
+  - [单词操作接口](#单词操作接口)
+  - [导入导出功能](#导入导出功能)
+  - [学习功能方法](#学习功能方法)
 - [AIManager API](#aimanager-api)
 - [LearningManager API](#learningmanager-api)
 - [AudioPlayer API](#audioplayer-api)
@@ -62,7 +68,7 @@ class WordImporter:
 
 ## WordManager API
 
-WordManager 是项目的核心类，负责单词管理和练习功能。
+WordManager 是项目的核心类，负责单词管理、词库管理、学习进度跟踪和AI功能调用。
 
 ### 批量导入单词
 
@@ -150,6 +156,229 @@ def delete_word(self, word):
 
     Returns:
         bool: 删除成功返回True，失败返回False
+    """
+```
+
+### 词库管理操作
+
+#### get_all_word_sets
+
+```python
+def get_all_word_sets(self):
+    """获取所有词库列表
+
+    Returns:
+        list: 词库字典列表，每个字典包含id, name, description, word_count等信息
+    """
+```
+
+#### get_word_set_by_id
+
+```python
+def get_word_set_by_id(self, set_id):
+    """根据ID获取词库信息
+
+    Args:
+        set_id (int): 词库ID
+
+    Returns:
+        dict or None: 词库信息字典，不存在时返回None
+    """
+```
+
+#### get_word_set_by_name
+
+```python
+def get_word_set_by_name(self, name):
+    """根据名称获取词库信息
+
+    Args:
+        name (str): 词库名称
+
+    Returns:
+        dict or None: 词库信息字典，不存在时返回None
+    """
+```
+
+#### get_active_word_set
+
+```python
+def get_active_word_set(self):
+    """获取当前激活的词库
+
+    Returns:
+        dict or None: 当前激活的词库信息，无激活词库时返回None
+    """
+```
+
+#### set_active_word_set
+
+```python
+def set_active_word_set(self, set_id):
+    """设置当前激活的词库
+
+    Args:
+        set_id (int): 词库ID
+
+    Returns:
+        bool: 设置成功返回True，失败返回False
+    """
+```
+
+#### create_word_set
+
+```python
+def create_word_set(self, name, description=''):
+    """创建新的词库
+
+    Args:
+        name (str): 词库名称
+        description (str): 词库描述
+
+    Returns:
+        dict or None: 新创建的词库信息，失败返回None
+    """
+```
+
+#### delete_word_set
+
+```python
+def delete_word_set(self, set_id):
+    """删除词库（默认词库不可删除）
+
+    Args:
+        set_id (int): 词库ID
+
+    Returns:
+        bool: 删除成功返回True，失败返回False
+    """
+```
+
+### 单词操作接口
+
+#### get_words_from_active_set
+
+```python
+def get_words_from_active_set(self, keyword=None, limit=None, offset=None):
+    """从当前激活的词库获取单词列表
+
+    Args:
+        keyword (str, optional): 搜索关键词
+        limit (int, optional): 返回结果数量限制
+        offset (int, optional): 分页偏移量
+
+    Returns:
+        list: 单词字典列表
+    """
+```
+
+#### get_words_by_set_id
+
+```python
+def get_words_by_set_id(self, set_id, keyword=None, limit=None, offset=None):
+    """根据词库ID获取单词列表
+
+    Args:
+        set_id (int): 词库ID
+        keyword (str, optional): 搜索关键词
+        limit (int, optional): 返回结果数量限制
+        offset (int, optional): 分页偏移量
+
+    Returns:
+        list: 单词字典列表
+    """
+```
+
+#### add_word_to_active_set
+
+```python
+def add_word_to_active_set(self, word, translation, phonetic='', example='', meaning_en='', tag=''):
+    """向当前激活的词库添加单词
+
+    Args:
+        word (str): 英文单词
+        translation (str): 中文翻译
+        phonetic (str, optional): 音标
+        example (str, optional): 例句
+        meaning_en (str, optional): 英文释义
+        tag (str, optional): 标签
+
+    Returns:
+        dict or None: 新添加的单词信息，失败返回None
+    """
+```
+
+#### update_word
+
+```python
+def update_word(self, word_id, **kwargs):
+    """更新单词信息
+
+    Args:
+        word_id (int): 单词ID
+        **kwargs: 要更新的字段，如translation, phonetic等
+
+    Returns:
+        bool: 更新成功返回True，失败返回False
+    """
+```
+
+#### delete_word
+
+```python
+def delete_word(self, word_id):
+    """删除单词
+
+    Args:
+        word_id (int): 单词ID
+
+    Returns:
+        bool: 删除成功返回True，失败返回False
+    """
+```
+
+### 导入导出功能
+
+#### import_word_set_from_json
+
+```python
+def import_word_set_from_json(self, json_file_path):
+    """从JSON文件导入词库数据
+
+    Args:
+        json_file_path (str): JSON文件路径
+
+    Returns:
+        dict: 导入结果，包含success, message, word_count等字段
+    """
+```
+
+#### export_word_set_to_json
+
+```python
+def export_word_set_to_json(self, set_id, output_file_path):
+    """导出词库到JSON文件
+
+    Args:
+        set_id (int): 词库ID
+        output_file_path (str): 输出文件路径
+
+    Returns:
+        dict: 导出结果，包含success, message, word_count等字段
+    """
+```
+
+#### batch_import_words
+
+```python
+def batch_import_words(self, file_path):
+    """批量导入单词到当前激活的词库
+
+    Args:
+        file_path (str): JSON文件路径
+
+    Returns:
+        dict: 导入统计信息，包含total, imported, failed等字段
     """
 ```
 
