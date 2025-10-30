@@ -255,6 +255,9 @@ class AIService:
             
             response = self.ai_manager._ask_sync(prompt)
             
+            # 保存原始响应用于调试
+            self._save_raw_response('reading_generation', response)
+            
             # 解析AI返回的JSON
             try:
                 # 去除可能的代码块标记
@@ -272,8 +275,8 @@ class AIService:
                     # 保存原始响应以便排查
                     log_error(f"AI返回原始内容: {response}")
                     try:
-                          self._save_raw_response('reading_parse_fail', response)
-                      except Exception:
+                        self._save_raw_response('reading_parse_fail', response)
+                    except Exception:
                         pass
                     return None
                 
@@ -293,10 +296,17 @@ class AIService:
                         log_error(f"AI返回的阅读理解数据缺少{field}字段")
                         return None
                 
+                # 检查问题内容是否有效
+                if not result['questions'] or all(q.lower().strip() == 'question' for q in result['questions']):
+                    log_error("AI返回的题目内容无效，所有题目都是'question'")
+                    self._save_raw_response('reading_invalid_questions', response)
+                    return None
+                
                 # 检查问题数量是否匹配
                 if len(result['questions']) != len(result['answers']) or \
                    len(result['questions']) != len(result['explanations']):
                     log_error("问题、答案和解析数量不匹配")
+                    log_error(f"问题数: {len(result['questions'])}, 答案数: {len(result['answers'])}, 解析数: {len(result['explanations'])}")
                     return None
                 
                 # 保存到数据库
@@ -312,6 +322,7 @@ class AIService:
                     log_info(f"成功生成并保存阅读理解题目，ID: {test_id}")
                     return result
                 else:
+                    log_error("保存阅读理解题目到数据库失败")
                     return None
                     
             except Exception as e:

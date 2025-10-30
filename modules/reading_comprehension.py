@@ -3,7 +3,7 @@ import re
 from typing import Dict, List, Optional, Tuple
 import threading
 
-from logger import log_info, log_error
+from logger import log_info, log_error, log_warning
 from .database import ComprehensionDatabase
 from .ai_service import AIService
 from word_manager import WordManager
@@ -68,11 +68,40 @@ class ReadingComprehensionModule:
                 if mode == "online" and self.word_manager.ai_available:
                     # 在线模式：AI生成题目
                     log_info(f"在线模式生成阅读理解题目，难度: {level}，长度: {length}，题目数: {question_count}")
-                    self.current_test = self.ai_service.generate_reading_comprehension(
-                        level, length, question_count
-                    )
                     
-                else:
+                    # 添加重试机制，最多尝试3次
+                    max_retries = 3
+                    for attempt in range(max_retries):
+                        try:
+                            self.current_test = self.ai_service.generate_reading_comprehension(
+                                level, length, question_count
+                            )
+                            
+                            # 检查生成的题目是否有效
+                            if self.current_test and self.current_test.get('questions'):
+                                # 验证题目内容是否有效（不是简单的'question'字符串）
+                                if not any(q.lower().strip() == 'question' for q in self.current_test['questions']):
+                                    break
+                                else:
+                                    log_warning(f"第{attempt+1}次尝试生成的题目内容无效，将重试")
+                                    self.current_test = None
+                        except Exception as e:
+                            log_warning(f"第{attempt+1}次尝试生成题目失败: {str(e)}")
+                            self.current_test = None
+                    
+                    # 如果多次尝试后仍失败，尝试使用离线模式
+                    if not self.current_test:
+                        log_error(f"在线模式生成题目失败，已尝试{max_retries}次")
+                        # 如果离线模式可用，切换到离线模式
+                        if self.db_manager.count_reading_comprehensions() > 0:
+                            log_info("切换到离线模式")
+                            self._current_mode = "offline"
+                        else:
+                            log_error("离线模式也没有可用题目")
+                            return None
+                
+                # 如果仍然是离线模式或者在线模式失败后切换到离线模式
+                if self._current_mode == "offline":
                     # 离线模式：从数据库加载
                     log_info("离线模式加载阅读理解题目")
                     
