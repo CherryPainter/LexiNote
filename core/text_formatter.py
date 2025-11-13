@@ -8,10 +8,11 @@ class TextFormatter:
     def __init__(self):
         """初始化文本格式化器"""
         # 定义Markdown格式的正则表达式
-        self.bold_pattern = re.compile(r'\*\*(.*?)\*\*|\*(.*?)\*')  # **粗体** 或 *粗体*
-        self.italic_pattern = re.compile(r'_(.*?)_')  # _斜体_
+        self.bold_pattern = re.compile(r'\*\*(.*?)\*\*')  # **粗体**
+        self.italic_pattern = re.compile(r'\*(.*?)\*|_(.*?)_')  # *斜体* 或 _斜体_
         self.heading_pattern = re.compile(r'^(#{1,6})\s+(.*)$', re.MULTILINE)  # # 标题
-        self.list_pattern = re.compile(r'^(\s*)([-*+]|\d+\.)\s+(.*)$', re.MULTILINE)  # 列表项
+        self.unordered_list_pattern = re.compile(r'(^|\n)(\s*)([-*+])\s+', re.MULTILINE)  # 无序列表项
+        self.ordered_list_pattern = re.compile(r'(^|\n)(\s*)(\d+\.)\s+', re.MULTILINE)  # 有序列表项
         self.code_block_pattern = re.compile(r'```(\w+)?\n(.*?)\n```', re.DOTALL)  # 代码块
         self.inline_code_pattern = re.compile(r'`([^`]+)`')  # `行内代码`
         self.link_pattern = re.compile(r'\[(.*?)\]\((.*?)\)')  # [链接文本](链接地址)
@@ -33,14 +34,17 @@ class TextFormatter:
         # 移除可能导致垂直堆叠的特殊字符和格式
         formatted_text = self._remove_vertical_stack_chars(formatted_text)
         
-        # 处理列表项，将*替换为适当的格式
-        formatted_text = self._format_lists(formatted_text)
+        # 首先处理所有的列表格式（无序列表和有序列表）
+        formatted_text = self._format_all_lists(formatted_text)
         
         # 处理行内格式（粗体、斜体、行内代码）
         formatted_text = self._format_inline_elements(formatted_text)
         
         # 处理链接
         formatted_text = self._format_links(formatted_text)
+        
+        # 清理残留的星号
+        formatted_text = self._cleanup_asterisks(formatted_text)
         
         # 调整整体排版
         formatted_text = self._adjust_formatting(formatted_text)
@@ -77,14 +81,17 @@ class TextFormatter:
         # 处理行内代码
         text = self.inline_code_pattern.sub(r'"\1"', text)
         
-        # 处理粗体和斜体，使用简单的标记
-        text = self.bold_pattern.sub(r'\1\2', text)  # 直接移除粗体标记
-        text = self.italic_pattern.sub(r'\1', text)  # 直接移除斜体标记
+        # 处理粗体（**内容**）
+        text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)
+        
+        # 处理斜体（*内容* 或 _内容_）
+        text = re.sub(r'\*(.*?)\*', r'\1', text)
+        text = re.sub(r'_(.*?)_', r'\1', text)
         
         return text
     
-    def _format_lists(self, text: str) -> str:
-        """处理列表格式
+    def _cleanup_asterisks(self, text: str) -> str:
+        """清理残留的星号
         
         Args:
             text: 原始文本
@@ -92,12 +99,31 @@ class TextFormatter:
         Returns:
             处理后的文本
         """
-        # 处理无序列表项（以*、-、+开头的行）
-        # 匹配以空格缩进 + * + 空格开头的行
+        # 移除单独的星号（不在单词内部的）
+        text = re.sub(r'(?<!\w)\*(?!\w)', ' ', text)
+        
+        # 移除连续的星号
+        text = re.sub(r'\*{2,}', ' ', text)
+        
+        return text
+    
+    def _format_all_lists(self, text: str) -> str:
+        """处理所有列表格式，包括嵌套列表
+        
+        Args:
+            text: 原始文本
+            
+        Returns:
+            处理后的文本
+        """
+        # 处理无序列表项，匹配以*、-、+开头的行
+        # 考虑各种可能的缩进情况
         text = re.sub(r'(^|\n)(\s*)\*\s+', r'\1\2• ', text)
-        # 处理可能的其他无序列表标记
         text = re.sub(r'(^|\n)(\s*)-\s+', r'\1\2• ', text)
         text = re.sub(r'(^|\n)(\s*)\+\s+', r'\1\2• ', text)
+        
+        # 处理有序列表项，保持数字格式
+        text = re.sub(r'(^|\n)(\s*)(\d+)\.\s+', r'\1\2\3. ', text)
         
         return text
     
@@ -174,30 +200,7 @@ class TextFormatter:
         
         return self.heading_pattern.sub(replace_heading, text)
     
-    def _format_lists(self, text: str) -> str:
-        """处理列表项
-        
-        Args:
-            text: 原始文本
-            
-        Returns:
-            处理后的文本
-        """
-        def replace_list_item(match):
-            indent = match.group(1)
-            marker = match.group(2)
-            content = match.group(3)
-            
-            # 转换无序列表标记为统一的 "- "
-            if marker in ['-', '*', '+']:
-                list_marker = "- "
-            else:
-                # 保留有序列表的数字
-                list_marker = f"{marker} "
-            
-            return f"{indent}{list_marker}{content}"
-        
-        return self.list_pattern.sub(replace_list_item, text)
+
     
     def _format_links(self, text: str) -> str:
         """处理链接
