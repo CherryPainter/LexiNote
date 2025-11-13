@@ -7,6 +7,7 @@
 - 重构了update_word_familiarity方法，使用数据库中的proficiency字段进行熟悉度管理
 - 优化了ReviewPage类，使用完整的单词数据，支持显示音标、英文解释等更多信息
 - 改进了单词过滤逻辑，根据实际数据库字段进行过滤和排序
+- 删除了临时测试脚本：test_ai_completion.py、test_ai_completion_fix.py、test_get_words.py、check_words.py、query_db.py，保持项目结构清晰
 
 ## v1.6.9 - 2025-10-31
 ### Fixed
