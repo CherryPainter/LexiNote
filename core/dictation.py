@@ -556,7 +556,7 @@ class DictationManager:
         """
         try:
             # 记录练习开始
-            log_exercise_start(f"听写练习开始，来源: {source}")
+            log_exercise_start(f"听写练习开始，来源: {source}", 1)
             
             # 获取当前激活词库ID
             active_set_id = self.word_manager.active_word_set_id if hasattr(self.word_manager, 'active_word_set_id') else None

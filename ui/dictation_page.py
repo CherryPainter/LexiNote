@@ -374,6 +374,7 @@ class DictationPage(tk.Frame):
         # 开始会话
         batch_size = self.batch_size if self.current_mode == "queue" else 1
         self.dictation_manager.start_session(
+            mode=self.current_mode,
             source=self.current_source, 
             batch_size=batch_size,
             difficulty=self.current_difficulty
@@ -544,17 +545,7 @@ class DictationPage(tk.Frame):
         self.word_entry.pack(pady=10, ipady=5)
         self.word_entry.bind('<Return>', lambda event: self._check_answer())
 
-        # 例句显示区域
-        self.example_var = tk.StringVar(value="")
-        self.example_label = tk.Label(
-            input_frame,
-            textvariable=self.example_var,
-            font=self.font_config['normal'],
-            bg='white',
-            fg='#666666',
-            wraplength=600,
-            justify=tk.LEFT
-        )
+
 
         # 按钮区域
         buttons_frame = tk.Frame(self.main_frame, bg='white')
@@ -727,7 +718,6 @@ class DictationPage(tk.Frame):
             mistakes_label = tk.Label(
                 content_frame,
                 text="最常错单词:",
-                font=self.font_config['normal'],
                 bg='white',
                 font=('SimHei', 12, 'bold')
             )
@@ -918,10 +908,7 @@ class DictationPage(tk.Frame):
         self.word_entry.delete(0, tk.END)
         self.result_var.set("")
 
-        # 隐藏例句
-        if hasattr(self, 'example_label'):
-            self.example_var.set("")
-            self.example_label.pack_forget()
+
 
         self.status_var.set(f"请听发音并输入单词")
 
@@ -964,10 +951,7 @@ class DictationPage(tk.Frame):
         self.word_entry.delete(0, tk.END)
         self.result_var.set("")
 
-        # 隐藏例句
-        if hasattr(self, 'example_label'):
-            self.example_var.set("")
-            self.example_label.pack_forget()
+
 
         self.status_var.set(f"请听发音并输入单词")
 
@@ -1203,17 +1187,7 @@ class DictationPage(tk.Frame):
                 pass
             log_wrong_word(self.current_word, user_input)
 
-        # 显示例句（如果有）
-        if hasattr(self, 'example_var'):
-            # 确保传递的是单词字符串而不是字典
-            word_str = self.current_word['word'] if isinstance(self.current_word, dict) else self.current_word
-            example = self.word_manager.get_word_example(word_str)
-            if example:
-                self.example_var.set(f"例句: {example}")
-                self.example_label.pack(pady=10)
-            else:
-                self.example_var.set("")
-                self.example_label.pack_forget()
+
 
         # 更新状态栏
         progress = self.word_manager.get_progress()

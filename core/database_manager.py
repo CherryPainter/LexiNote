@@ -1040,36 +1040,51 @@ class DatabaseManager:
             return False
     
     def create_exercise_sessions_table(self):
-        """创建练习会话表（如果不存在）"""
+        """创建练习会话表（如果不存在）并确保包含所有必要的列"""
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             
+            # 创建表（如果不存在）
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS exercise_sessions (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     exercise_type TEXT NOT NULL,
-                    mode TEXT NOT NULL,
-                    source TEXT NOT NULL,
-                    difficulty TEXT,
-                    batch_size INTEGER,
-                    total_words INTEGER,
                     start_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    end_time TIMESTAMP,
-                    duration INTEGER,
-                    correct_words INTEGER,
-                    accuracy REAL
+                    end_time TIMESTAMP
                 )
             ''')
+            
+            # 检查并添加缺失的列
+            cursor.execute("PRAGMA table_info(exercise_sessions)")
+            existing_columns = [col[1] for col in cursor.fetchall()]
+            
+            # 需要的列及其类型
+            required_columns = {
+                'mode': 'TEXT NOT NULL',
+                'source': 'TEXT NOT NULL',
+                'difficulty': 'TEXT',
+                'batch_size': 'INTEGER',
+                'total_words': 'INTEGER',
+                'duration': 'INTEGER',
+                'correct_words': 'INTEGER',
+                'accuracy': 'REAL'
+            }
+            
+            # 添加缺失的列
+            for col_name, col_type in required_columns.items():
+                if col_name not in existing_columns:
+                    cursor.execute(f"ALTER TABLE exercise_sessions ADD COLUMN {col_name} {col_type}")
+                    log_info(f"为exercise_sessions表添加列: {col_name}")
             
             # 创建索引
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_session_type ON exercise_sessions(exercise_type)')
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_session_start ON exercise_sessions(start_time)')
             
             conn.commit()
-            log_info("练习会话表创建成功")
+            log_info("练习会话表创建/更新成功")
         except Exception as e:
-            log_error(f"创建练习会话表失败: {str(e)}")
+            log_error(f"创建/更新练习会话表失败: {str(e)}")
             if 'conn' in locals():
                 conn.rollback()
         finally:
