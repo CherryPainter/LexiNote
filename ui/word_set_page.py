@@ -196,6 +196,17 @@ class WordSetPage(tk.Frame):
         )
         delete_word_btn.pack(side=tk.LEFT, padx=5)
         
+        # AI补全按钮
+        ai_complete_btn = tk.Button(
+            word_actions_frame,
+            text="🤖 AI补全",
+            font=self.font_config['button'],
+            command=self._ai_complete_words,
+            bg='#e0e0e0',
+            relief=tk.RAISED
+        )
+        ai_complete_btn.pack(side=tk.LEFT, padx=5)
+        
         # 单词列表表格
         columns = ("id", "word", "translation", "phonetic", "tag")
         self.word_tree = ttk.Treeview(right_frame, columns=columns, show="headings")
@@ -584,6 +595,89 @@ class WordSetPage(tk.Frame):
                 self._load_word_sets()
             else:
                 messagebox.showerror("错误", msg)
+    
+    def _ai_complete_words(self):
+        """使用AI补全单词的详细属性"""
+        if not self.current_set_id:
+            messagebox.showwarning("警告", "请先选择一个词库")
+            return
+            
+        # 创建进度对话框
+        progress_window = tk.Toplevel(self)
+        progress_window.title("AI补全进度")
+        progress_window.geometry("400x150")
+        progress_window.resizable(False, False)
+        progress_window.transient(self)
+        progress_window.grab_set()
+        
+        # 设置居中位置
+        x = self.winfo_x() + self.winfo_width() // 2 - 200
+        y = self.winfo_y() + self.winfo_height() // 2 - 75
+        progress_window.geometry(f"400x150+{x}+{y}")
+        
+        # 进度标签
+        progress_label = tk.Label(
+            progress_window,
+            text="正在准备AI补全...",
+            font=self.font_config['normal']
+        )
+        progress_label.pack(pady=20)
+        
+        # 进度条
+        progress_var = tk.DoubleVar()
+        progress_bar = ttk.Progressbar(
+            progress_window,
+            variable=progress_var,
+            length=300,
+            mode='determinate'
+        )
+        progress_bar.pack(pady=10)
+        
+        # 关闭按钮（初始禁用）
+        close_btn = tk.Button(
+            progress_window,
+            text="关闭",
+            command=progress_window.destroy,
+            state=tk.DISABLED
+        )
+        close_btn.pack(pady=10)
+        
+        # 定义进度回调函数
+        def update_progress(current, total, word):
+            progress = (current / total) * 100
+            progress_var.set(progress)
+            progress_label.config(text=f"正在补全单词 {current}/{total}: {word}")
+            progress_window.update_idletasks()
+        
+        # 定义补全完成后的回调函数
+        def on_completion(completed_count, total_count):
+            if completed_count > 0:
+                progress_label.config(text=f"AI补全完成！成功补全 {completed_count}/{total_count} 个单词")
+            else:
+                progress_label.config(text="没有需要补全的单词或补全失败")
+            
+            progress_var.set(100)
+            close_btn.config(state=tk.NORMAL)
+            
+            # 重新加载单词列表以显示更新后的信息
+            keyword = self.search_entry.get().strip() or None
+            self._load_words(keyword=keyword)
+        
+        # 在后台线程中执行AI补全操作
+        def ai_complete_task():
+            try:
+                completed_count = self.word_manager.ai_complete_word_details(callback=update_progress)
+                self.after(0, lambda: on_completion(completed_count, len(self.word_manager.get_words_missing_details(10))))
+            except Exception as e:
+                log_error(f"AI补全单词失败: {str(e)}")
+                self.after(0, lambda: messagebox.showerror("错误", f"AI补全单词失败: {str(e)}"))
+                self.after(0, progress_window.destroy)
+        
+        # 启动后台线程
+        import threading
+        thread = threading.Thread(target=ai_complete_task)
+        thread.daemon = True
+        thread.start()
     
     def _show_word_edit_dialog(self, word_id=None):
         """显示单词编辑对话框"""

@@ -400,6 +400,126 @@ class WordManager:
         """删除单词"""
         return self.db_manager.delete_word(word_id)
     
+    def get_words_missing_details(self, limit=10):
+        """获取词库中缺失详细属性的单词
+        
+        Args:
+            limit: 返回的最大单词数量
+            
+        Returns:
+            缺失详细属性的单词列表
+        """
+        if not self.active_word_set_id:
+            self._set_default_word_set()
+            
+        # 查询当前词库中缺少例句、音标、词性或英语释义的单词
+        sql = """
+        SELECT * FROM words 
+        WHERE set_id = ? 
+        AND (example = '' OR phonetic = '' OR tag = '' OR meaning_en = '')
+        ORDER BY word
+        LIMIT ?
+        """
+        
+        try:
+            return self.db_manager.execute_read(sql, (self.active_word_set_id, limit))
+        except Exception as e:
+            log_error(f"获取缺失属性单词失败: {str(e)}")
+            return []
+    
+    def ai_complete_word_details(self, callback=None):
+        """使用AI补全单词的详细属性
+        
+        Args:
+            callback: 进度回调函数，接收参数：(current: int, total: int, word: str)
+            
+        Returns:
+            补全成功的单词数量
+        """
+        if not self.ai_available or not self.ai_manager:
+            log_warning("AI不可用，无法补全单词属性")
+            return 0
+            
+        # 获取需要补全的单词
+        words_to_complete = self.get_words_missing_details(10)
+        if not words_to_complete:
+            log_info("没有需要补全属性的单词")
+            return 0
+            
+        completed_count = 0
+        total = len(words_to_complete)
+        
+        for i, word_data in enumerate(words_to_complete):
+            word = word_data['word']
+            word_id = word_data['id']
+            
+            try:
+                # 调用AI获取单词详细属性
+                ai_response = self.ai_manager.get_word_details_sync(word)
+                
+                # 解析AI响应
+                import json
+                import re
+                
+                # 提取JSON部分，处理可能包含的Markdown代码块或额外内容
+                json_str = ai_response
+                
+                # 尝试提取JSON部分（处理可能的代码块）
+                json_match = re.search(r'```json\s*(.*?)\s*```', ai_response, re.DOTALL)
+                if json_match:
+                    json_str = json_match.group(1)
+                else:
+                    # 尝试直接提取JSON对象
+                    json_match = re.search(r'\{.*?\}', ai_response, re.DOTALL)
+                    if json_match:
+                        json_str = json_match.group(0)
+                
+                # 清理JSON字符串，确保有效的JSON格式
+                json_str = json_str.replace('\\_', '_')  # 处理转义的下划线
+                
+                details = json.loads(json_str)
+                
+                # 准备更新数据
+                update_data = {}
+                
+                # 只更新缺失的属性
+                if word_data['phonetic'] == '' and 'phonetic' in details and details['phonetic']:
+                    update_data['phonetic'] = details['phonetic']
+                
+                if word_data['tag'] == '' and 'tag' in details and details['tag']:
+                    update_data['tag'] = details['tag']
+                
+                if word_data['meaning_en'] == '' and 'meaning_en' in details and details['meaning_en']:
+                    update_data['meaning_en'] = details['meaning_en']
+                
+                if word_data['example'] == '' and 'example' in details and details['example']:
+                    update_data['example'] = details['example']
+                
+                # 如果有例句翻译，也更新
+                if 'example_translation' in details and details['example_translation']:
+                    update_data['example_translation'] = details['example_translation']
+                
+                # 更新数据库
+                if update_data:
+                    success, msg = self.update_word(word_id, **update_data)
+                    if success:
+                        completed_count += 1
+                        log_info(f"AI补全单词 '{word}' 成功: {update_data}")
+                    else:
+                        log_error(f"AI补全单词 '{word}' 失败: {msg}")
+                
+                # 调用进度回调
+                if callback:
+                    callback(i + 1, total, word)
+                    
+            except json.JSONDecodeError:
+                log_error(f"解析AI响应失败 (单词: {word}): {ai_response}")
+            except Exception as e:
+                log_error(f"AI补全单词 '{word}' 失败: {str(e)}")
+                
+        log_info(f"AI补全单词完成，成功补全 {completed_count}/{total} 个单词")
+        return completed_count
+    
     def get_translation(self, word: str) -> Optional[str]:
         """获取单词翻译（带缓存）
         

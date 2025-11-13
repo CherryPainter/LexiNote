@@ -353,7 +353,8 @@ class LearningPage(tk.Frame):
             def _play():
                 try:
                     self.is_playing = True
-                    result = self.learning_manager.play_pronunciation(self.current_word)
+                    # 传递单词字符串而不是完整字典
+                    result = self.learning_manager.play_pronunciation(self.current_word['word'])
                 except Exception as e:
                     result = False
                     try:
@@ -385,13 +386,14 @@ class LearningPage(tk.Frame):
                 pass
 
             threading.Thread(target=_play, daemon=True).start()
-    
+
     def mark_mastered(self):
         """
         标记当前单词为已掌握
         """
         if self.current_word:
-            self.learning_manager.mark_mastered(self.current_word)
+            # 传递单词字符串而不是完整字典
+            self.learning_manager.mark_mastered(self.current_word['word'])
             
             # 检查是否需要自动下一个单词
             if self.settings_manager and self.settings_manager.get_setting("auto_next_correct", False):
@@ -400,13 +402,14 @@ class LearningPage(tk.Frame):
             else:
                 # 手动下一个单词
                 self._move_to_next_word()
-    
+
     def mark_review(self):
         """
         标记当前单词需要复习
         """
         if self.current_word:
-            self.learning_manager.mark_review(self.current_word)
+            # 传递单词字符串而不是完整字典
+            self.learning_manager.mark_review(self.current_word['word'])
             
             # 检查是否需要自动下一个单词
             if self.settings_manager and self.settings_manager.get_setting("auto_next_wrong", False):

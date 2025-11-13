@@ -268,6 +268,43 @@ class AIManager:
             asyncio.set_event_loop(loop)
             return loop.run_until_complete(self.example(word, callback))
     
+    async def get_word_details(self, word: str, callback=None) -> str:
+        """异步获取单词的详细属性（音标、词性、英语释义、例句）
+        
+        Args:
+            word: 要获取详细属性的单词
+            callback: 用于处理流式输出的回调函数，接收参数：(chunk: str, done: bool)
+            
+        Returns:
+            包含单词详细属性的JSON字符串
+        """
+        prompt = f"请提供单词 '{word}' 的详细属性，包括：\n"
+        prompt += "1. 音标（phonetic）\n"
+        prompt += "2. 词性（tag）\n"
+        prompt += "3. 英语释义（meaning_en）\n"
+        prompt += "4. 例句（example）及中文翻译（example_translation）\n"
+        prompt += "请严格按照以下JSON格式返回，不要添加任何额外内容和解释：\n"
+        prompt += '{"phonetic": "音标", "tag": "词性", "meaning_en": "英语释义", "example": "例句", "example_translation": "例句翻译"}'
+        return await self._ask(prompt, callback)
+    
+    def get_word_details_sync(self, word: str, callback=None) -> str:
+        """同步获取单词的详细属性（兼容旧接口）
+        
+        Args:
+            word: 要获取详细属性的单词
+            callback: 用于处理流式输出的回调函数，接收参数：(chunk: str, done: bool)
+            
+        Returns:
+            包含单词详细属性的JSON字符串
+        """
+        try:
+            loop = asyncio.get_event_loop()
+            return loop.run_until_complete(self.get_word_details(word, callback))
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            return loop.run_until_complete(self.get_word_details(word, callback))
+    
     async def evaluate(self, expected: str, user_input: str, callback=None) -> dict:
         """异步评估听写结果
         

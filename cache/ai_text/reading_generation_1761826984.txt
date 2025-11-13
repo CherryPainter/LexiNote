@@ -1,0 +1,26 @@
+```json
+{
+ "article": "The rise of remote work has dramatically altered the landscape of modern employment.  Prior to the COVID-19 pandemic, remote work was often viewed as a perk, available to a select few.  However, the pandemic forced many companies to adopt remote work policies, proving that productivity could be maintained, and often even increased, outside of a traditional office setting.  This shift has led to a re-evaluation of workplace culture and management styles.  Companies are now grappling with how to foster collaboration and maintain employee engagement when employees are geographically dispersed.  Effective communication strategies, utilizing tools like video conferencing and project management software, are becoming essential.  Furthermore, the blurring of lines between work and personal life presents new challenges for employees, requiring careful attention to work-life balance.  While some companies are planning a full return to the office, many are embracing a hybrid model, offering employees flexibility to work from home some days and come into the office on others. This hybrid approach aims to combine the benefits of both remote and in-person work, fostering a more adaptable and attractive work environment.  The long-term impact of this transition remains to be seen, but it’s clear that remote work is here to stay, reshaping how we work and live.",
+ "questions": [
+   "文章主要讨论了哪一个主题？ A. 传统办公室的优势 B. 远程工作的兴起和影响 C. 疫情对经济的影响 D. 员工工作效率的提升",
+   "请解释文章中提到的‘hybrid model’是什么意思。",
+   "文章指出，远程工作带来了哪些新的挑战？",
+   "根据文章，远程工作对公司管理方式提出了什么新的要求？ A. 减少员工福利 B. 提高办公室租金 C. 优化沟通策略 D. 减少员工培训",
+   "文章认为，远程工作在未来将会如何发展？"
+ ],
+ "answeers": [
+   "B. 远程工作的兴起和影响",
+   "‘Hybrid model’指的是结合了远程工作和在办公室工作的模式，允许员工在某些日子远程工作，在其他日子到办公室工作。",
+   "文章指出，远程工作带来了工作与生活平衡的挑战。",
+   "C. 优化沟通策略",
+   "文章认为，远程工作将会持续存在，并改变我们的工作和生活方式。"
+ ],
+ "explanaations": [
+   "问题1考察对文章主旨的理解。选项B准确概括了文章的核心内容。",
+   "问题2考察对文章中专业术语的理解。‘Hybrid model’是当前远程工作趋势中的重要概念。",
+   "问题3考察对文章细节的理解。文章明确指出，远程工作会带来工作与生活平衡的挑战。",
+   "问题4考察对文章中新要求的理解。文章强调了远程工作对公司管理方式提出的新要求，其中优化沟通策略是关键。",
+   "问题5考察对文章未来趋势的理解。文章明确指出远程工作将持续存在，并对工作和生活产生深远影响。"
+ ]
+}
+```

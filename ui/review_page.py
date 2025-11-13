@@ -21,7 +21,7 @@ class ReviewPage(tk.Frame):
         self.parent = parent
         self.settings_manager = settings_manager
         self.word_manager = word_manager
-        self.font_config = font_config or {'title': ('Arial', 24), 'normal': ('Arial', 16), 'small': ('Arial', 12)}
+        self.font_config = font_config or {'header': ('Arial', 24), 'title': ('Arial', 24), 'normal': ('Arial', 16), 'small': ('Arial', 12), 'button': ('Arial', 14)}
         self.audio_player = audio_player
         # 添加音频可用性标志
         self.audio_available = self.audio_player is not None
@@ -498,9 +498,9 @@ class ReviewPage(tk.Frame):
 
         try:
             self.pronounce_button.config(state=tk.DISABLED, text="🔊 播放中...")
-            self.status_var.set("正在播放...")
-        except Exception:
-            pass
+            # 移除对未定义变量status_var的引用
+        except Exception as e:
+            log_error(f"更新发音按钮状态失败: {str(e)}")
 
         threading.Thread(target=_play, daemon=True).start()
     
@@ -510,22 +510,31 @@ class ReviewPage(tk.Frame):
             return
         
         word, _ = self.review_words[self.current_index]
-        # 直接修改权重，增加1.0
-        if word in self.word_manager.word_weights:
-            self.word_manager.word_weights[word] += 1.0
-            self.word_manager._save_data(
-                self.word_manager.word_weights_file, 
-                {word: self.word_manager.word_weights[word]}
-            )
-        else:
-            self.word_manager.word_weights[word] = 2.0
-            self.word_manager._save_data(
-                self.word_manager.word_weights_file, 
-                {word: 2.0}
-            )
         
-        messagebox.showinfo("成功", f"已将 '{word}' 标记为重点单词")
-        log_info(f"标记重点单词: {word}")
+        try:
+            # 优先使用word_manager的公开方法
+            if hasattr(self.word_manager, 'update_word_weight'):
+                # 使用update_word_weight方法更新权重
+                self.word_manager.update_word_weight(word, True, 0)  # True表示认识，增加权重
+            elif hasattr(self.word_manager, 'word_weights') and hasattr(self.word_manager, '_save_data'):
+                # 如果没有公开方法但有权重字典，尝试直接修改
+                if word in self.word_manager.word_weights:
+                    self.word_manager.word_weights[word] += 1.0
+                else:
+                    self.word_manager.word_weights[word] = 2.0
+                    
+                # 保存数据
+                if hasattr(self.word_manager, 'word_weights_file'):
+                    self.word_manager._save_data(
+                        self.word_manager.word_weights_file, 
+                        {word: self.word_manager.word_weights[word]}
+                    )
+            
+            messagebox.showinfo("成功", f"已将 '{word}' 标记为重点单词")
+            log_info(f"标记重点单词: {word}")
+        except Exception as e:
+            log_error(f"标记重点单词失败: {str(e)}")
+            messagebox.showerror("错误", f"无法将 '{word}' 标记为重点单词: {str(e)}")
     
     def _on_filter_change(self):
         """过滤条件改变时重新加载单词"""
@@ -621,121 +630,120 @@ class ReviewPage(tk.Frame):
             if auto_next:
                 delay = self.settings_manager.get_setting("auto_next_delay", 1000) if self.settings_manager else 1000
                 self.after(delay, self._next_word)
-        except Exception:
+        except Exception as e:
+            log_error(f"自动下一个单词设置检查失败: {str(e)}")
+        
+        # 如果word_manager支持update_word_weight，也更新单词权重
         if hasattr(self.word_manager, 'update_word_weight'):
             try:
-                current_weight = getattr(self.word_manager, 'word_weights', {}).get(word, 1.0)
                 # 因为这里没有时间统计，使用0作为默认值
                 self.word_manager.update_word_weight(word, False, 0)  # False表示不认识，增加权重
             except Exception as e:
                 log_error(f"更新单词权重失败: {str(e)}")
-        
-        # 显示提示并自动下一个单词
-        self.translation_var.set(f"! 已将 '{word}' 标记为困难，需要加强复习")
-        log_info(f"标记困难单词: {word}, 熟悉度: {self.word_familiarity[word]:.2f}")
-        
-        # 检查是否需要自动下一个单词
-        auto_next = self.settings_manager.get_setting("auto_next_difficult", False)
-        if auto_next:
-            delay = self.settings_manager.get_setting("auto_next_delay", 1000)
-            self.after(delay, self._next_word)
     
     def _show_summary(self):
         """显示复习总结"""
-        # 创建新窗口显示总结
-        summary_window = tk.Toplevel(self)
-        summary_window.title("复习总结")
-        summary_window.geometry("500x400")
-        summary_window.configure(bg='white')
-        summary_window.transient(self.parent)
-        summary_window.grab_set()
-        
-        # 标题
-        title_label = tk.Label(
-            summary_window,
-            text="复习总结",
-            font=self.font_config['header'],
-            bg='white'
-        )
-        title_label.pack(pady=20)
-        
-        # 统计信息框架
-        stats_frame = tk.Frame(summary_window, bg='white')
-        stats_frame.pack(pady=20, padx=30, fill=tk.BOTH, expand=True)
-        
-        # 总单词数
-        total_words = len(self.review_words)
-        tk.Label(
-            stats_frame,
-            text=f"本次复习单词总数: {total_words}",
-            font=self.font_config['normal'],
-            bg='white'
-        ).pack(anchor='w', pady=5)
-        
-        # 熟悉单词数
-        familiar_count = self.session_stats["familiar"]
-        familiar_percent = (familiar_count / total_words * 100) if total_words > 0 else 0
-        tk.Label(
-            stats_frame,
-            text=f"熟悉单词: {familiar_count} ({familiar_percent:.1f}%)",
-            font=self.font_config['normal'],
-            bg='white',
-            fg='#4CAF50'
-        ).pack(anchor='w', pady=5)
-        
-        # 困难单词数
-        difficult_count = self.session_stats["difficult"]
-        difficult_percent = (difficult_count / total_words * 100) if total_words > 0 else 0
-        tk.Label(
-            stats_frame,
-            text=f"困难单词: {difficult_count} ({difficult_percent:.1f}%)",
-            font=self.font_config['normal'],
-            bg='white',
-            fg='#F44336'
-        ).pack(anchor='w', pady=5)
-        
-        # 获取熟悉度低于阈值的单词列表
-        difficult_words = [word for word, familiarity in self.word_familiarity.items() 
-                          if familiarity < self.familiar_threshold]
-        
-        # 复习建议
-        tk.Label(
-            stats_frame,
-            text="复习建议:",
-            font=self.font_config['normal'],
-            bg='white',
-            fg='#2196F3'
-        ).pack(anchor='w', pady=(15, 5))
-        
-        if not difficult_words:
-            advice = "太棒了！所有单词都掌握得很好。"
-        elif len(difficult_words) <= 5:
-            advice = f"建议重点复习这些单词: {', '.join(difficult_words)}"
-        else:
-            advice = f"建议使用'难词'模式进行针对性复习，共有{len(difficult_words)}个单词需要加强。"
-        
-        advice_label = tk.Label(
-            stats_frame,
-            text=advice,
-            font=self.font_config['normal'],
-            bg='white',
-            fg='#333333',
-            wraplength=400,
-            justify=tk.LEFT
-        )
-        advice_label.pack(anchor='w', pady=5)
-        
-        # 按钮
-        button_frame = tk.Frame(summary_window, bg='white')
-        button_frame.pack(pady=20)
-        
-        tk.Button(
-            button_frame,
-            text="关闭",
-            font=self.font_config['button'],
-            width=15,
-            height=2,
-            command=summary_window.destroy,
-            bg='#9E9E9E',
-            fg='white'
-        ).pack(pady=10)
+        try:
+            # 创建新窗口显示总结
+            summary_window = tk.Toplevel(self)
+            summary_window.title("复习总结")
+            summary_window.geometry("500x400")
+            summary_window.configure(bg='white')
+            if self.parent:
+                summary_window.transient(self.parent)
+            summary_window.grab_set()
+            
+            # 标题
+            title_label = tk.Label(
+                summary_window,
+                text="复习总结",
+                font=self.font_config['header'],
+                bg='white'
+            )
+            title_label.pack(pady=20)
+            
+            # 统计信息框架
+            stats_frame = tk.Frame(summary_window, bg='white')
+            stats_frame.pack(pady=20, padx=30, fill=tk.BOTH, expand=True)
+            
+            # 总单词数
+            total_words = len(self.review_words)
+            tk.Label(
+                stats_frame,
+                text=f"本次复习单词总数: {total_words}",
+                font=self.font_config['normal'],
+                bg='white'
+            ).pack(anchor='w', pady=5)
+            
+            # 熟悉单词数
+            familiar_count = self.session_stats["familiar"]
+            familiar_percent = (familiar_count / total_words * 100) if total_words > 0 else 0
+            tk.Label(
+                stats_frame,
+                text=f"熟悉单词: {familiar_count} ({familiar_percent:.1f}%)",
+                font=self.font_config['normal'],
+                bg='white',
+                fg='#4CAF50'
+            ).pack(anchor='w', pady=5)
+            
+            # 困难单词数
+            difficult_count = self.session_stats["difficult"]
+            difficult_percent = (difficult_count / total_words * 100) if total_words > 0 else 0
+            tk.Label(
+                stats_frame,
+                text=f"困难单词: {difficult_count} ({difficult_percent:.1f}%)",
+                font=self.font_config['normal'],
+                bg='white',
+                fg='#F44336'
+            ).pack(anchor='w', pady=5)
+            
+            # 获取熟悉度低于阈值的单词列表
+            difficult_words = [word for word, familiarity in self.word_familiarity.items() 
+                              if familiarity < self.familiar_threshold]
+            
+            # 复习建议
+            tk.Label(
+                stats_frame,
+                text="复习建议:",
+                font=self.font_config['normal'],
+                bg='white',
+                fg='#2196F3'
+            ).pack(anchor='w', pady=(15, 5))
+            
+            if not difficult_words:
+                advice = "太棒了！所有单词都掌握得很好。"
+            elif len(difficult_words) <= 5:
+                advice = f"建议重点复习这些单词: {', '.join(difficult_words)}"
+            else:
+                advice = f"建议使用'难词'模式进行针对性复习，共有{len(difficult_words)}个单词需要加强。"
+            
+            advice_label = tk.Label(
+                stats_frame,
+                text=advice,
+                font=self.font_config['normal'],
+                bg='white',
+                fg='#333333',
+                wraplength=400,
+                justify=tk.LEFT
+            )
+            advice_label.pack(anchor='w', pady=5)
+            
+            # 按钮
+            button_frame = tk.Frame(summary_window, bg='white')
+            button_frame.pack(pady=20)
+            
+            tk.Button(
+                button_frame,
+                text="关闭",
+                font=self.font_config['button'],
+                width=15,
+                height=2,
+                command=summary_window.destroy,
+                bg='#9E9E9E',
+                fg='white'
+            ).pack(pady=10)
+            
+        except Exception as e:
+            log_error(f"显示复习总结失败: {str(e)}")
+            messagebox.showerror("错误", f"无法显示复习总结: {str(e)}")
+            return

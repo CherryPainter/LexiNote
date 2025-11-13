@@ -1,0 +1,26 @@
+```json
+{
+ "article": "The old lighthouse stood sentinel against the crashing waves, a steadfast beacon for ships navigating the treacherous coastline. For over a century, it had guided countless vessels safely to harbor, its powerful beam cutting through the darkest storms.  Old Man Hemlock, the lighthouse keeper for the past 30 years, knew every creak and groan of the structure like the back of his hand. He’d seen countless sunrises and sunsets from its lofty height, and the rhythmic sweep of the light was as familiar as his own heartbeat. \n\nRecently, however, a new technology threatened the lighthouse’s existence.  The Coast Guard was considering replacing it with a modern, automated system.  Proponents argued the new system was more efficient and required less human intervention.  But Hemlock felt a deep connection to the lighthouse, a sense of responsibility passed down through generations of his family. He believed the automated system lacked the human element, the intuition to respond to unforeseen circumstances.  He worried about the loss of tradition and the feeling of isolation that came with being the sole guardian of the light. \n\nOne particularly foggy night, a distress call crackled over the radio. A small fishing boat was lost and rapidly taking on water.  The automated system would have simply relayed the information to a rescue vessel.  But Hemlock, relying on his experience and understanding of the currents, guided the rescue boat through the dense fog, pinpointing the boat's location with uncanny accuracy.  That night, he reaffirmed his belief that the lighthouse was more than just a structure; it was a symbol of human connection and unwavering dedication.",
+ "questions": [
+   "Question 1 (Multiple Choice: A. The lighthouse is being replaced due to its inefficiency. B. The lighthouse keeper is reluctant to adapt to new technology. C. The lighthouse is a symbol of human connection and tradition. D. The Coast Guard is prioritizing cost savings over safety.)",
+   "Question 2",
+   "Question 3 (Multiple Choice: A. The automated system is more reliable than the lighthouse. B. Old Man Hemlock is indifferent to the future of the lighthouse. C. The lighthouse keeper relies on experience and intuition to guide the rescue boat. D. The fishing boat was lost due to a mechanical failure.)",
+   "Question 4",
+   "Question 5 (True or False: The automated system is designed to require more human intervention.)"
+ ],
+ "answeers": [
+   "C. The lighthouse is a symbol of human connection and tradition.",
+   "What was the primary concern of Old Man Hemlock regarding the new automated system?",
+   "C. The lighthouse keeper relies on experience and intuition to guide the rescue boat.",
+   "Describe the role of Old Man Hemlock in the story. What does he represent?",
+   "False"
+ ],
+ "explanations": [
+   "Option C is the correct answer. The passage explicitly states that Hemlock feels a deep connection to the lighthouse and sees it as a symbol of tradition.",
+   "The passage states that Hemlock worried about the loss of tradition and the feeling of isolation. He felt the automated system lacked the human element.",
+   "The passage highlights Hemlock's reliance on his experience and intuition to guide the rescue boat through the fog, demonstrating his unique ability.",
+   "Old Man Hemlock is the lighthouse keeper, a figure representing tradition, experience, and a deep connection to the lighthouse and the community it serves. He is a guardian of the light and a symbol of human dedication.",
+   "The passage explicitly states that the automated system is designed to require less human intervention, making the statement false."
+ ]
+}
+```

@@ -2,3 +2,10 @@
 10.AI 生成建议:当 AI 接到开发任务时，应优先：检查是否符合目录结构;判断逻辑层是否被重复实现;保证模块接口清晰可调用;代码可被人类继续维护（注释规范） 11.代码质量,所有代码必须符合 PEP8 规范。使用 flake8 检查代码质量。 12.可以使用数据库存储用户数据（如 SQLite），但必须通过 WordManager 接口访问。 13.不允许将逻辑混写在 UI 文件中，不允许输出过多控制台打印信息 14.不允许在 UI 文件中直接调用 AI 逻辑，所有 AI 调用都必须通过 WordManager 接口。 15.版本控制约定：每次重大修改须更新版本号：v1.0.0 → v1.1.0；所有核心逻辑变更记录 DEVELOPER_DOCS.md
 16.git 远程仓库地址：https://github.com/CherryPainter/LexiNote.git
 17.git config --global user.name "CherryPainter" git config --global user.email "sqy3258731070@163.com"
+ai_execution_checklist:
+
+- [ ] 是否会影响原有 API 调用？
+- [ ] 是否需要修改数据库结构？
+- [ ] 是否需要同步前端 UI？
+- [ ] 是否有测试或验证逻辑？
+- [ ] 是否存在回滚策略？

@@ -562,6 +562,19 @@ class DictationPage(tk.Frame):
             fg='white'
         )
         self.skip_button.pack(side=tk.LEFT, padx=10)
+        
+        # 退出按钮
+        self.exit_button = tk.Button(
+            buttons_frame,
+            text="❌ 退出",
+            font=self.font_config['button'],
+            width=15,
+            height=2,
+            command=self._exit_dictation,
+            bg='#f44336',
+            fg='white'
+        )
+        self.exit_button.pack(side=tk.LEFT, padx=10)
 
         # 下一个按钮（默认不显示，仅在手动模式下使用）
         self.next_button = tk.Button(
@@ -608,6 +621,26 @@ class DictationPage(tk.Frame):
             relief=tk.SUNKEN
         )
         self.status_bar.pack(side=tk.BOTTOM, fill=tk.X, pady=10)
+        
+    def _exit_dictation(self):
+        """退出听写练习，返回模式选择界面"""
+        # 停止计时器
+        if self.timer_id:
+            try:
+                self.main_frame.after_cancel(self.timer_id)
+                self.timer_id = None
+            except Exception:
+                pass
+        
+        # 重置状态
+        self.current_word = None
+        self.session_results = []
+        
+        # 返回模式选择界面
+        self._show_mode_selection()
+        
+        # 记录日志
+        log_info("用户退出听写练习")
 
     def _play_pronunciation(self):
         """播放单词发音"""

@@ -96,6 +96,21 @@ class DatabaseManager:
                     # 更新所有现有单词的set_id为默认词库
                     cursor.execute("UPDATE words SET set_id = ?", (default_set_id,))
                     log_info("单词表迁移完成，所有单词已关联到默认词库")
+                
+                # 检查并添加其他必要的列
+                columns_to_add = [
+                    ('phonetic', 'TEXT'),
+                    ('example', 'TEXT'),
+                    ('meaning_en', 'TEXT'),
+                    ('tag', 'TEXT'),
+                    ('example_translation', 'TEXT')
+                ]
+                
+                for column_name, column_type in columns_to_add:
+                    if column_name not in columns:
+                        log_info(f"检测到单词表缺少 {column_name} 列，正在添加...")
+                        cursor.execute(f"ALTER TABLE words ADD COLUMN {column_name} {column_type}")
+                        log_info(f"成功添加 {column_name} 列")
             else:
                 # 创建新的单词表
                 cursor.execute('''
@@ -103,11 +118,12 @@ class DatabaseManager:
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         set_id INTEGER,
                         word TEXT NOT NULL,
-                        translation TEXT NOT NULL,
-                        phonetic TEXT,
-                        example TEXT,
-                        meaning_en TEXT,
-                        tag TEXT,
+                    translation TEXT NOT NULL,
+                    phonetic TEXT,
+                    example TEXT,
+                    meaning_en TEXT,
+                    tag TEXT,
+                    example_translation TEXT,
                         familiarity INTEGER DEFAULT 0,
                         added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         last_practice TIMESTAMP,
@@ -605,7 +621,7 @@ class DatabaseManager:
             # 构建更新字段，只使用实际存在的列
             fields = []
             values = []
-            valid_fields = ['word', 'translation', 'phonetic', 'example', 'meaning_en', 'tag', 'familiarity', 'proficiency']
+            valid_fields = ['word', 'translation', 'phonetic', 'example', 'meaning_en', 'tag', 'familiarity', 'proficiency', 'example_translation']
             
             for key, value in kwargs.items():
                 if key in valid_fields and key in existing_columns:

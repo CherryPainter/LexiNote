@@ -29,7 +29,7 @@ class MainWindow:
         """初始化主窗口"""
         self.root = root
         self.root.title("LexiNote - 个人英语学习工具")
-        self.root.geometry("1650x980")
+        self.root.geometry("1080x720")
         self.root.minsize(600, 400)
         
         # 设置中文字体
@@ -299,10 +299,8 @@ class MainWindow:
         if page_key not in self._pages:
             # 创建学习管理器
             self.learning_manager = LearningManager(
-                data_manager=self.word_manager,
-                scheduler=self.word_manager,
-                audio_player=self.audio_player,
-                logger=self.word_manager
+                word_manager=self.word_manager,
+                audio_player=self.audio_player
             )
             
             # 先创建页面但不pack

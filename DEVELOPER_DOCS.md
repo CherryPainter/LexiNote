@@ -1,187 +1,138 @@
-# LexiNote 开发文档
+# 开发者文档
 
-## 项目结构
+## 1. 项目概述
+LexiNote 是一个个人英语学习工具，帮助用户管理单词库、学习单词和跟踪学习进度。
+
+## 2. 版本历史
+
+### v1.7.0 - 2025-11-13
+- **功能增强**: AI补全单词属性功能增加了例句翻译字段(example_translation)
+- **数据库更新**: 
+  - 在words表中添加了example_translation字段
+  - 更新了数据库迁移逻辑以支持新字段
+  - 在update_word方法中添加了example_translation到valid_fields列表
+- **AI响应解析改进**: 增强了JSON解析逻辑，处理转义下划线等特殊字符
+- **测试改进**: 创建了AI补全功能测试脚本，验证所有属性的完整性
+
+### v1.1.0 - 2025-11-13
+- **重构单词学习模块**：将 LearningManager 拆分为多个独立组件，提高代码可维护性
+- **新增组件**：
+  - ForgettingCurve：实现艾宾浩斯遗忘曲线算法
+  - WordSelector：负责单词选择和批次生成
+  - LearningProgress：管理学习进度和统计信息
+  - LearningScheduler：处理学习计划和调度
+- **优化API**：简化 LearningManager 的初始化和方法调用
+- **改进UI交互**：确保 LearningPage 与重构后的 API 兼容
+
+### v1.0.0 - 初始版本
+- 实现基本的单词管理功能
+- 支持学习模式和测试模式
+- 提供单词发音和例句功能
+- 支持学习进度跟踪
+
+## 3. 项目结构
+
 ```
-├── data/              # 数据文件夹（相对路径）
-├── cache/             # 缓存文件夹
-├── core/              # 核心模块
-│   ├── database_manager.py  # 数据库管理器
-│   ├── ai_interface.py      # AI接口
-├── modules/           # 功能模块
-│   ├── ai_service.py        # AI服务
-├── word_manager.py    # 单词管理器
-├── logger.py          # 日志模块
-├── .gitignore         # Git忽略文件
-└── README.md          # 项目说明
+LexiNote/
+├── core/                  # 核心业务逻辑
+│   ├── __init__.py
+│   ├── learning.py        # 学习模块（重构后）
+│   ├── word_manager.py    # 单词管理器
+│   └── settings.py        # 设置管理器
+├── ui/                    # 用户界面
+│   ├── __init__.py
+│   ├── main_window.py     # 主窗口
+│   ├── learning_page.py   # 学习模式页面
+│   ├── test_page.py       # 测试模式页面
+│   └── components/        # UI组件
+├── data/                  # 数据存储
+├── utils/                 # 工具函数
+│   ├── __init__.py
+│   ├── audio_player.py    # 音频播放
+│   └── logger.py          # 日志记录
+├── main.py                # 程序入口
+├── requirements.txt       # 依赖项
+└── DEVELOPER_DOCS.md      # 开发者文档
 ```
 
-## 版本历史
+## 4. 核心模块说明
 
-### v1.7.0
-- 根据当前数据库结构重构了单词复习模块
-- 在WordManager中新增了专用的get_words_for_review方法，直接从数据库获取复习单词
-- 重构了update_word_familiarity方法，使用数据库中的proficiency字段进行熟悉度管理
-- 优化了ReviewPage类，使用完整的单词数据，支持显示音标、英文解释等更多信息
-- 改进了单词过滤逻辑，根据实际数据库字段进行过滤和排序
+### 4.1 学习模块 (core/learning.py)
 
-### v1.6.9
-- 修复了单词复习模块中的数据库兼容性问题，使代码能够安全处理数据库中可能不存在的列
-- 优化了update_word方法，增加了列存在性检查，避免出现"no such column"错误
-- 改进了错误处理机制，使系统更加健壮
+#### 组件结构
+- **ForgettingCurve**：计算单词的遗忘曲线和复习时间
+- **WordSelector**：从单词库中选择合适的单词生成学习批次
+- **LearningProgress**：管理学习进度、统计信息和保存/加载功能
+- **LearningScheduler**：处理学习计划和调度
+- **LearningManager**：整合所有组件，提供统一的学习接口
 
-### v1.1.7
-- **增强：** 完善离线模式选题功能，在离线状态下点击新题目时从离线题库随机读取且避免重复获取当前题目
-- **改进：** 数据库模块中添加了exclude_id参数支持，允许在随机获取题目时排除特定ID
-### v1.1.6
-- **增强：** 优化AI提示模板，明确要求选择题选项必须使用英文，不允许使用中文选项，以增加学习的挑战性
-### v1.1.5
-- **修复：** 修复f-string中的JSON格式错误，转义大括号以避免与Python格式说明符冲突
-### v1.1.4
-- **增强：** 优化AI提示模板，明确要求选择题和简答题必须包含具体题目内容，禁止使用'Question X'等占位符
-- **改进：** 完善提示模板中的示例格式，提供更清晰的问题格式指导
-
-### v1.1.3
-- **修复：** 解决阅读理解模块题目只显示'question'的问题
-- **优化：** 增强AI服务生成题目时的错误检测和重试机制
-- **优化：** 添加更详细的日志记录，便于调试问题
-
-### v1.1.2
-- **优化：** 整合AI服务连接检测，统一由WordManager在程序启动时检测，移除完形填空和阅读理解模块的独立检测逻辑
-
-### v1.1.1
-- **优化：** 阅读理解模块题目显示，使题目和每个选项都单独占一行，提高阅读体验
-
-### v1.1.0
-- **新增：** 实现通用的单词属性获取与存储机制
-- **新增：** AI调用节流控制功能
-- **更新：** 单词例句获取机制优化，实现按需存储
-- **新增：** 改进了错误处理和日志记录
-- **修复：** 修复了代码结构和语法错误，提高了系统稳定性
-- **更新：** 将`update_word(word, translation)`重命名为`update_word_translation(word, translation)`以避免方法名冲突
-- **增强：** JSON解析功能，优化了`extract_json_from_text`函数的鲁棒性
-- **添加：** 更多的预处理和修复步骤，提高了从AI返回中提取JSON的成功率
-- **更新：** 窗口几何设置，从1080x720调整为1650x980
-- **改进：** 错误处理逻辑，增加了更详细的日志记录
-
-### v1.0.0
-- 初始版本
-- 实现了基本的单词学习功能
-- 实现了AI辅助翻译和解释功能
-- 实现了阅读理解模块
-
-## 功能概述
-
-### 单词属性管理
-
-#### get_and_save_word_attributes 方法
+#### API 说明
 ```python
-def get_and_save_word_attributes(self, word: str, attributes: List[str] = None, async_mode=False, callback=None) -> Dict[str, str]:
-    """
-    获取并保存单词的属性（节流模式）
-    
-    只在数据库中对应字段为空时从AI获取数据并存储，已有内容的字段不调用AI
-    
-    优化说明：
-    - 异步模式下实现了"先展示后保存"的优化流程
-    - AI获取数据后立即返回给用户界面展示，数据库保存操作在后台异步进行
-    - 这样可以避免数据库操作阻塞UI线程，提升用户体验
-    - 每次调用时都会重新验证AI可用性，确保能及时检测到Ollama服务状态变化
-    
-    Args:
-        word: 单词
-        attributes: 需要获取的属性列表，可选值：['phonetic', 'example', 'meaning_en', 'tag']
-        async_mode: 是否异步获取
-        callback: 异步模式下的回调函数，接收参数：(attributes_dict: Dict[str, str])
-        
-    Returns:
-        Dict[str, str]: 同步模式返回属性字典，异步模式返回None
-    """
+# 初始化
+learning_manager = LearningManager(word_manager, audio_player)
+
+# 获取学习批次
+batch = learning_manager.get_batch(batch_size=10)
+
+# 标记单词掌握度
+learning_manager.mark_mastered(word)
+learning_manager.mark_review(word)
+
+# 保存和加载进度
+learning_manager.save_progress(finished=True)
+learning_manager.load_daily_progress()
+
+# 获取统计信息
+stats = learning_manager.get_current_stats()
 ```
 
-### AI 节流控制
+## 5. 开发规范
 
-#### 节流控制参数
-- `_min_interval_ms`: 两次AI调用之间的最小间隔（毫秒），默认500ms
-- `_max_calls_per_minute`: 每分钟最大AI调用次数，默认10次
+### 5.1 命名规范
+- 文件名：小写 + 下划线（如 `word_manager.py`）
+- 变量名和函数名：小写 + 下划线（如 `get_random_word()`）
+- 类名：PascalCase（如 `WordManager`）
 
-#### set_throttle_limits 方法
-```python
-def set_throttle_limits(self, min_interval_ms: int = 500, max_calls_per_minute: int = 10):
-    """
-    设置AI调用节流限制
-    
-    Args:
-        min_interval_ms: 两次调用之间的最小间隔(毫秒)
-        max_calls_per_minute: 每分钟最大调用次数
-    """
+### 5.2 代码质量
+- 所有代码必须符合 PEP8 规范
+- 使用 flake8 检查代码质量
+- 为所有类和方法添加详细注释
+
+### 5.3 数据管理
+- 所有用户数据统一保存在 `data/` 目录下
+- 使用相对路径访问数据文件
+- 写入 JSON 前必须先读取并合并旧数据，避免覆盖
+
+### 5.4 错误处理
+- 所有用户输入和外部调用需 try/except 捕获
+- 不在 AI 逻辑中直接 exit() 程序
+- 所有重要操作写入日志
+
+## 6. 测试说明
+
+### 6.1 单元测试
+- 为核心功能编写单元测试
+- 测试覆盖主要业务逻辑
+
+### 6.2 集成测试
+- 测试模块之间的交互
+- 确保 UI 与业务逻辑正确集成
+
+## 7. 部署说明
+
+### 7.1 依赖安装
+```bash
+pip install -r requirements.txt
 ```
 
-## 使用示例
-
-### 获取并保存单词例句（带节流）
-
-```python
-# 初始化单词管理器
-word_manager = WordManager()
-
-# 设置节流限制（可选）
-word_manager.set_throttle_limits(min_interval_ms=300, max_calls_per_minute=15)
-
-# 异步获取单词例句（会自动检查节流限制）
-def example_callback(example):
-    print(f"获取到例句: {example}")
-
-word_manager.get_word_example("example", async_mode=True, callback=example_callback)
-
-# 获取多个属性
-word_manager.get_and_save_word_attributes(
-    "example", 
-    attributes=['phonetic', 'example', 'meaning_en'], 
-    async_mode=True, 
-    callback=lambda attrs: print(f"获取到属性: {attrs}")
-)
+### 7.2 运行程序
+```bash
+python -m main
 ```
 
-## 数据格式规范
+## 8. 未来计划
 
-### AI返回数据格式要求
-
-AI系统需要返回以下格式的数据，以便正确存储到数据库：
-
-1. **音标 (phonetic)**：仅返回标准音标字符串，如 "/ɪɡˈzɑːmpəl/"
-
-2. **例句 (example)**：英文例句加中文翻译，格式为：
-   ```
-   This is an example sentence with the word "example". (这是一个包含"example"的例句。)
-   ```
-
-3. **英文释义 (meaning_en)**：纯英文的单词释义，如 "a thing characteristic of its kind or illustrating a general rule"
-
-4. **标签 (tag)**：逗号分隔的标签列表，如 "名词,动词,常用"
-
-### 数据库结构
-
-单词表 (words) 结构如下：
-- `id`: 主键
-- `set_id`: 词库ID
-- `word`: 单词
-- `translation`: 翻译
-- `phonetic`: 音标
-- `example`: 例句
-- `meaning_en`: 英文释义
-- `tag`: 标签
-- 其他学习相关字段
-
-## 开发注意事项
-
-1. **节流控制**：AI调用前必须检查节流限制，避免频繁调用导致性能问题或API限制
-
-2. **数据存储**：只有当数据库中对应字段为空时才从AI获取数据并存储
-
-3. **异步操作**：所有可能耗时的AI调用都应支持异步模式，避免阻塞UI线程
-
-4. **错误处理**：所有用户输入和外部调用需使用try/except捕获异常，提供适当的错误提示
-
-5. **日志记录**：所有重要操作都应记录日志，便于调试和问题排查
-
-6. **代码规范**：遵循PEP8规范，保持代码风格一致
+- 增加更多学习模式（如拼写练习、听力练习）
+- 改进遗忘曲线算法
+- 支持单词分类和标签
+- 添加学习统计图表
