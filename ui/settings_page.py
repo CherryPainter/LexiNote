@@ -67,6 +67,9 @@ class SettingsPage(tk.Frame):
         
         # 更新画布滚动区域
         def _on_canvas_configure(event):
+            # 调整主框架宽度以匹配画布宽度
+            canvas_width = event.width
+            main_frame.configure(width=canvas_width)
             self.canvas.configure(scrollregion=self.canvas.bbox("all"))
         
         def _on_main_frame_configure(event):
