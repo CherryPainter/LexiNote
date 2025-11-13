@@ -27,8 +27,8 @@ class AIAssistantPage(tk.Frame):
         self.main_window = main_window
         self.font_config = main_window.font_config
         
-        # 初始化AI服务
-        self.ai_service = AIService()
+        # 延迟初始化AI服务，避免在页面加载时阻塞UI
+        self.ai_service = None
         
         # 任务类型和提示模板
         self.task_types = [
@@ -45,8 +45,8 @@ class AIAssistantPage(tk.Frame):
         # 创建UI
         self._create_ui()
         
-        # 检查AI连接状态
-        self._check_ai_connection()
+        # 注册页面显示回调
+        self.on_show = self._on_show_page
     
     def _create_ui(self):
         """创建用户界面"""
@@ -386,9 +386,14 @@ class AIAssistantPage(tk.Frame):
         self.result_text.delete("1.0", tk.END)
         self.result_text.config(state=tk.DISABLED)
     
-    def on_show(self):
-        """当页面显示时调用"""
+    def _on_show_page(self):
+        """页面显示时执行的操作，延迟初始化AI服务"""
         log_info("显示AI助手页面")
+        
+        # 延迟初始化AI服务
+        if self.ai_service is None:
+            self.ai_service = AIService()
+            
         # 重新检查AI连接状态
         self._check_ai_connection()
 
