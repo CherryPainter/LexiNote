@@ -319,9 +319,11 @@ class LearningPage(tk.Frame):
         """
         if self.current_batch:
             stats = self.learning_manager.get_current_stats()
+            batch_stats = stats['batch']
+            
             progress_text = f"进度: {self.current_index + 1}/{len(self.current_batch)}  |  "
-            progress_text += f"掌握: {stats['mastered']}  |  "
-            progress_text += f"需复习: {stats['review']}"
+            progress_text += f"掌握: {batch_stats['mastered']}  |  "
+            progress_text += f"需复习: {batch_stats['review']}"
             self.progress_label.config(text=progress_text)
     
     def _enable_buttons(self):
@@ -443,12 +445,21 @@ class LearningPage(tk.Frame):
         if self.learning_manager.save_progress(finished=True):
             # 获取统计信息
             stats = self.learning_manager.get_current_stats()
+            batch_stats = stats['batch']
+            summary_stats = stats['summary']
             
             # 显示学习总结
             summary = f"学习完成！\n\n"
-            summary += f"总学习单词: {stats['total']}\n"
-            summary += f"掌握单词: {stats['mastered']}\n"
-            summary += f"需复习单词: {stats['review']}"
+            summary += f"本次学习:\n"
+            summary += f"- 总学习单词: {batch_stats['total']}\n"
+            summary += f"- 掌握单词: {batch_stats['mastered']}\n"
+            summary += f"- 需复习单词: {batch_stats['review']}\n\n"
+            
+            summary += f"学习统计:\n"
+            summary += f"- 总单词数: {summary_stats['total_words']}\n"
+            summary += f"- 已学习单词: {summary_stats['learned_words']}\n"
+            summary += f"- 总体正确率: {summary_stats['overall_accuracy']:.2%}\n"
+            summary += f"- 今日学习: {summary_stats['today_practices']}次练习\n"
             
             messagebox.showinfo("学习完成", summary)
         else:

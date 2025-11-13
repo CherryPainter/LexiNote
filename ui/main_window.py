@@ -15,9 +15,11 @@ from ui.cloze_test_page import ClozeTestPage
 from ui.reading_comprehension_page import ReadingComprehensionPage
 from ui.ai_assistant_page import AIAssistantPage
 from ui.word_set_page import WordSetPage
+from ui.statistics_page import StatisticsPage
 from word_manager import WordManager
 from core.learning import LearningManager
 from core.settings_manager import SettingsManager
+from statistics import StatisticsManager
 from audio_player import AudioPlayer
 from logger import log_info
 
@@ -36,9 +38,11 @@ class MainWindow:
         self._set_fonts()
         
         # 初始化核心管理器
-        self.word_manager = WordManager()
         self.settings_manager = SettingsManager()
         self.audio_player = AudioPlayer()
+        
+        # 直接创建单词管理器，它会自动初始化统计管理器
+        self.word_manager = WordManager()
         
         # 页面实例缓存，使用懒加载模式
         self._pages = {}
@@ -382,55 +386,33 @@ class MainWindow:
         
     def _show_statistics(self):
         """显示学习统计页面"""
+        page_key = "statistics"
+        
+        # 懒加载页面
+        if page_key not in self._pages:
+            # 先创建页面但不pack
+            self._pages[page_key] = StatisticsPage(
+                self.content_area,
+                word_manager=self.word_manager,
+                settings_manager=self.settings_manager,
+                font_config=self.font_config
+            )
+        
+        # 先获取页面实例
+        page = self._pages[page_key]
+        
+        # 清空内容区域
         self._clear_content_area()
         
-        stats_frame = tk.Frame(self.content_area, bg='white')
-        stats_frame.pack(expand=True, fill=tk.BOTH)
+        # 再设置当前页面并pack
+        self.current_page = page
+        self.current_page.pack(fill=tk.BOTH, expand=True)
         
-        title_label = tk.Label(
-            stats_frame, 
-            text="学习统计", 
-            font=self.font_config['header'],
-            bg='white'
-        )
-        title_label.pack(pady=30)
-        
-        # 获取进度数据
-        progress = self.word_manager.get_progress()
-        
-        # 创建统计信息表格
-        stats_data = [
-            ("总学习单词数", str(progress.get('total_learned', 0))),
-            ("总练习次数", str(progress.get('total_attempts', 0))),
-            ("正确次数", str(progress.get('total_correct', 0))),
-            ("正确率", f"{progress.get('correct_rate', 0) * 100:.1f}%"),
-            ("最后学习时间", progress.get('last_session', '未开始')),
-            ("错误单词数", str(len(self.word_manager.get_wrong_words())))
-        ]
-        
-        for i, (label_text, value_text) in enumerate(stats_data):
-            row_frame = tk.Frame(stats_frame, bg='white')
-            row_frame.pack(pady=10, padx=50, fill=tk.X)
+        # 调用页面的on_enter方法
+        if hasattr(self.current_page, 'on_enter'):
+            self.current_page.on_enter()
             
-            label = tk.Label(
-                row_frame, 
-                text=label_text, 
-                font=self.font_config['normal'],
-                width=20,
-                bg='white',
-                anchor='w'
-            )
-            label.pack(side=tk.LEFT)
-            
-            value = tk.Label(
-                row_frame, 
-                text=value_text, 
-                font=self.font_config['normal'],
-                bg='white',
-                fg='#0066cc',
-                anchor='w'
-            )
-            value.pack(side=tk.LEFT, padx=20)
+        log_info("切换到学习统计页面")
     
     # _show_settings方法已被_settings_page替代，保留_apply_decay方法用于设置页面
     

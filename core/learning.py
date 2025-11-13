@@ -417,6 +417,9 @@ class LearningManager:
         self.progress_manager = LearningProgress()
         self.scheduler = LearningScheduler(self.word_selector, self.progress_manager)
         
+        # 获取统计管理器实例
+        self.statistics_manager = word_manager.statistics_manager
+        
         # 学习状态
         self.current_batch = []
         self.current_index = -1  # 当前单词索引，初始为-1表示未开始
@@ -720,12 +723,24 @@ class LearningManager:
         Returns:
             Dict: 统计信息字典
         """
-        return {
+        # 使用新的统计管理器获取更多统计信息
+        batch_stats = {
             'total': len(self.current_batch),
             'mastered': self.mastered_count,
             'review': self.review_count,
             'remaining': len(self.current_batch) - self.mastered_count - self.review_count
         }
+        
+        # 获取综合统计信息
+        summary_stats = self.statistics_manager.get_summary_stats()
+        
+        # 合并统计信息
+        combined_stats = {
+            'batch': batch_stats,
+            'summary': summary_stats
+        }
+        
+        return combined_stats
     
     def adjust_batch_size(self, new_batch_size: int, set_id: Optional[int] = None) -> bool:
         """

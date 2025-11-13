@@ -12,13 +12,18 @@ from collections import deque
 
 from logger import log_info, log_error, log_warning
 from core.database_manager import DatabaseManager
+from statistics import StatisticsManager
 
 
 class WordManager:
     """优化版单词管理器类，提供单词管理相关功能，支持异步操作和缓存"""
 
-    def __init__(self):
-        """初始化单词管理器"""
+    def __init__(self, statistics_manager: Optional[StatisticsManager] = None):
+        """初始化单词管理器
+        
+        Args:
+            statistics_manager: 统计管理器实例，如果为None则自动创建
+        """
         self.data_dir = 'data'
         
         # 确保数据目录存在
@@ -27,6 +32,12 @@ class WordManager:
         
         # 使用数据库管理器
         self.db_manager = DatabaseManager()
+        
+        # 初始化统计管理器
+        if statistics_manager is None:
+            self.statistics_manager = StatisticsManager(self.db_manager)
+        else:
+            self.statistics_manager = statistics_manager
         
         # 内存缓存
         self._word_cache = {}  # 单词翻译缓存
@@ -750,33 +761,18 @@ class WordManager:
             统计信息字典
         """
         try:
-            # 总单词数
-            total_words = len(self.get_all_words())
+            # 使用统计管理器获取综合统计信息
+            summary_stats = self.statistics_manager.get_summary_stats()
             
-            # 今日练习次数
-            today = datetime.now().strftime('%Y-%m-%d')
-            today_practices = self.db_manager.execute_read(
-                "SELECT COUNT(*) as count FROM progress WHERE practice_date LIKE ?",
-                (f"{today}%",)
-            )[0]['count']
-            
-            # 今日正确次数
-            today_correct = self.db_manager.execute_read(
-                "SELECT COUNT(*) as count FROM progress WHERE practice_date LIKE ? AND is_correct = 1",
-                (f"{today}%",)
-            )[0]['count']
-            
-            # 平均熟练度
-            avg_proficiency = self.db_manager.execute_read(
-                "SELECT AVG(proficiency) as avg FROM words"
-            )[0]['avg'] or 0.0
+            # 获取今日统计
+            today_stats = self.statistics_manager.get_daily_stats()
             
             return {
-                "total_words": total_words,
-                "today_practices": today_practices,
-                "today_correct": today_correct,
-                "today_accuracy": today_correct / today_practices if today_practices > 0 else 0.0,
-                "avg_proficiency": float(avg_proficiency)
+                "total_words": summary_stats['total_words'],
+                "today_practices": today_stats['practices'],
+                "today_correct": today_stats['correct'],
+                "today_accuracy": today_stats['accuracy'],
+                "avg_proficiency": summary_stats['overall_accuracy']
             }
             
         except Exception as e:
@@ -977,7 +973,8 @@ class WordManager:
             int: 单词数量
         """
         try:
-            return len(self.get_all_words())
+            # 使用统计管理器获取总单词数
+            return self.statistics_manager.get_total_word_count()
         except Exception as e:
             log_error(f"获取单词数量失败: {str(e)}")
             return 0
@@ -1105,42 +1102,13 @@ class WordManager:
             - last_session: 最后学习时间
         """
         try:
-            # 计算总学习单词数
-            total_learned = self.get_word_count()
-            
-            # 计算正确率
-            stats = self.get_learning_stats()
-            total_attempts = stats.get('today_practices', 0)
-            if total_attempts > 0:
-                correct_rate = stats.get('today_accuracy', 0.0)
-            else:
-                # 如果没有今日练习记录，查询历史数据
-                try:
-                    result = self.db_manager.execute_read(
-                        "SELECT COUNT(*) as total, SUM(CASE WHEN is_correct = 1 THEN 1 ELSE 0 END) as correct FROM progress"
-                    )[0]
-                    if result['total'] > 0:
-                        correct_rate = result['correct'] / result['total']
-                    else:
-                        correct_rate = 0.0
-                except Exception:
-                    correct_rate = 0.0
-            
-            # 获取最后学习时间
-            last_session = "未开始"
-            try:
-                result = self.db_manager.execute_read(
-                    "SELECT MAX(practice_date) as last_date FROM progress"
-                )[0]
-                if result['last_date']:
-                    last_session = result['last_date']
-            except Exception as e:
-                log_info(f"获取最后学习时间失败: {str(e)}")
+            # 使用统计管理器获取综合统计信息
+            summary_stats = self.statistics_manager.get_summary_stats()
             
             return {
-                'total_learned': total_learned,
-                'correct_rate': correct_rate,
-                'last_session': last_session
+                'total_learned': summary_stats['learned_words'],
+                'correct_rate': summary_stats['overall_accuracy'],
+                'last_session': summary_stats['last_session']
             }
         except Exception as e:
             log_info(f"获取学习进度失败: {str(e)}")
