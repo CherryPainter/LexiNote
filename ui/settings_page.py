@@ -51,9 +51,29 @@ class SettingsPage(tk.Frame):
         # 设置页面背景
         self.configure(bg="#f0f0f0")
         
+        # 创建滚动条和画布
+        self.scrollbar = tk.Scrollbar(self, orient=tk.VERTICAL)
+        self.scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        self.canvas = tk.Canvas(self, bg="#f0f0f0", yscrollcommand=self.scrollbar.set)
+        self.canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        
+        # 配置滚动条
+        self.scrollbar.config(command=self.canvas.yview)
+        
         # 创建主框架
-        main_frame = tk.Frame(self, bg="#f0f0f0", padx=30, pady=20)
-        main_frame.pack(fill=tk.BOTH, expand=True)
+        main_frame = tk.Frame(self.canvas, bg="#f0f0f0", padx=30, pady=20)
+        self.canvas.create_window((0, 0), window=main_frame, anchor=tk.NW)
+        
+        # 更新画布滚动区域
+        def _on_canvas_configure(event):
+            self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+        
+        def _on_main_frame_configure(event):
+            self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+        
+        main_frame.bind("<Configure>", _on_main_frame_configure)
+        self.canvas.bind("<Configure>", _on_canvas_configure)
         
         # 标题
         title_label = tk.Label(
