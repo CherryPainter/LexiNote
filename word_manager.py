@@ -912,11 +912,12 @@ class WordManager:
             log_error(f"更新单词失败: {str(e)}")
             return False
     
-    def batch_import_words(self, json_file_path: str) -> Dict:
+    def batch_import_words(self, json_file_path: str, set_id: int = None) -> Dict:
         """批量导入单词
         
         Args:
             json_file_path: JSON文件路径，文件格式应为 {"word1": "translation1", "word2": "translation2", ...}
+            set_id: 词库ID，默认为默认词库
             
         Returns:
             Dict: 导入结果统计信息，包含success, total, imported, skipped, errors等字段
@@ -926,7 +927,7 @@ class WordManager:
             from modules.word_importer import import_words_from_json
             
             # 调用导入功能
-            result = import_words_from_json(json_file_path)
+            result = import_words_from_json(json_file_path, set_id)
             
             # 如果导入成功，更新缓存
             if result.get("success", False) and result.get("imported", 0) > 0:

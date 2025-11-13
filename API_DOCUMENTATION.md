@@ -42,28 +42,39 @@ class WordImporter:
     提供独立的单词导入功能，可作为脚本直接运行或通过WordManager调用
     """
     
-    def __init__(self, logger=None):
+    def __init__(self):
         """
         初始化WordImporter
-        
-        参数:
-            logger: 可选的日志记录器实例
         """
         
-    def import_words_from_json(self, json_file_path: str) -> Dict:
+    def import_from_json_file(self, json_file_path: str, set_id: int = None) -> Tuple[bool, Dict]:
         """
         从JSON文件导入单词到数据库
         
         参数:
             json_file_path: JSON文件路径，文件格式应为 {"word1": "translation1", "word2": "translation2", ...}
+            set_id: 词库ID，默认为默认词库
         
         返回:
-            Dict: 导入结果统计信息，包含以下字段：
+            Tuple[bool, Dict]: 导入是否成功和统计信息
+            统计信息包含以下字段：
                 - success: 布尔值，表示导入是否成功
                 - total: 整数，文件中总单词数量
                 - imported: 整数，成功导入的单词数量
                 - skipped: 整数，跳过的单词数量（包括重复和无效单词）
                 - errors: 列表，包含错误信息（如果有）
+        """
+        
+    def import_words_from_json(json_file_path: str, set_id: int = None) -> Dict:
+        """
+        便捷函数：从JSON文件批量导入单词
+        
+        参数:
+            json_file_path: JSON文件路径
+            set_id: 词库ID，默认为默认词库
+        
+        返回:
+            Dict: 导入结果统计信息
         """
 
 ## WordManager API
@@ -73,12 +84,13 @@ WordManager 是项目的核心类，负责单词管理、词库管理、学习�
 ### 批量导入单词
 
 ```python
-def batch_import_words(self, json_file_path: str) -> Dict:
+def batch_import_words(self, json_file_path: str, set_id: int = None) -> Dict:
     """
     从JSON文件批量导入单词到数据库
     
     参数:
         json_file_path: JSON文件路径，文件格式应为 {"word1": "translation1", "word2": "translation2", ...}
+        set_id: 词库ID，默认为默认词库
     
     返回:
         Dict: 导入结果统计信息，包含以下字段：
