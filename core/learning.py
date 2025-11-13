@@ -726,3 +726,90 @@ class LearningManager:
             'review': self.review_count,
             'remaining': len(self.current_batch) - self.mastered_count - self.review_count
         }
+    
+    def adjust_batch_size(self, new_batch_size: int, set_id: Optional[int] = None) -> bool:
+        """
+        调整当前学习批次的大小
+        
+        Args:
+            new_batch_size: 新的批次大小
+            set_id: 词库ID，默认使用当前激活词库
+            
+        Returns:
+            bool: 是否成功调整批次大小
+        """
+        try:
+            if new_batch_size <= 0:
+                self.log_error("批次大小必须大于0")
+                return False
+            
+            current_batch_size = len(self.current_batch)
+            
+            # 如果当前没有批次或批次已完成，直接开始新批次
+            if not self.current_batch or self.current_index >= current_batch_size - 1:
+                return self.start_new_batch(new_batch_size, set_id)
+            
+            # 根据新批次大小调整当前批次
+            if new_batch_size > current_batch_size:
+                # 需要添加新单词
+                additional_count = new_batch_size - current_batch_size
+                
+                # 获取新单词，确保不与当前批次重复
+                all_words = self.word_manager.get_words_by_set_id(set_id) if set_id else self.word_manager.get_words_from_active_set()
+                current_word_texts = {word['word'] for word in self.current_batch}
+                
+                # 过滤掉当前批次已有的单词
+                available_words = [word for word in all_words if word['word'] not in current_word_texts]
+                
+                if not available_words:
+                    self.log_error("词库中没有足够的新单词来扩展批次")
+                    return False
+                
+                # 如果可用单词不足，只添加能添加的数量
+                if len(available_words) < additional_count:
+                    additional_count = len(available_words)
+                    self.log_info(f"词库中可用单词不足，仅添加 {additional_count} 个新单词")
+                
+                # 为可用单词计算权重，优先选择掌握度低的单词
+                weighted_words = []
+                for word in available_words:
+                    mastery_score = word.get('mastery_score', 0.0)
+                    weight = 1.0 - mastery_score
+                    weighted_words.append((word, weight))
+                
+                # 基于权重选择新单词
+                new_words = random.choices(
+                    [w[0] for w in weighted_words],
+                    weights=[w[1] for w in weighted_words],
+                    k=additional_count
+                )
+                
+                # 将新单词添加到当前批次
+                self.current_batch.extend(new_words)
+                
+            elif new_batch_size < current_batch_size:
+                # 需要减少单词数量，只保留当前索引之前的单词
+                self.current_batch = self.current_batch[:new_batch_size]
+                
+                # 更新掌握和复习计数（只保留已处理的单词）
+                self.mastered_count = min(self.mastered_count, new_batch_size)
+                self.review_count = min(self.review_count, new_batch_size - self.mastered_count)
+                
+                # 如果当前索引超出新批次大小，调整索引
+                if self.current_index >= new_batch_size:
+                    self.current_index = new_batch_size - 1
+            
+            # 更新每日进度
+            self.progress_manager.update_daily_progress(
+                self.current_batch,
+                self.current_index,
+                self.mastered_count,
+                self.review_count
+            )
+            
+            self.log_info(f"批次大小已调整为 {len(self.current_batch)} 个单词")
+            return True
+            
+        except Exception as e:
+            self.log_error(f"调整批次大小失败: {str(e)}")
+            return False

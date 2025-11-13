@@ -5,6 +5,14 @@ LexiNote 是一个个人英语学习工具，帮助用户管理单词库、学�
 
 ## 2. 版本历史
 
+### v1.9.0 - 2025-11-13
+- **学习批次管理增强**: 
+  - 在LearningManager类中新增adjust_batch_size方法，支持动态调整学习批次大小
+  - 实现了批次扩展功能：可以在现有批次基础上添加新单词
+  - 实现了批次缩减功能：可以减少当前批次的单词数量
+  - 确保调整后保持学习进度（当前索引、掌握和复习计数）
+  - 新单词选择算法：优先选择掌握度低的单词，避免重复选择
+
 ### v1.8.0 - 2025-11-01
 - **听写功能重构**: 
   - 创建了独立的DictationManager类，专门负责听写功能的管理
@@ -108,6 +116,9 @@ learning_manager.load_daily_progress()
 
 # 获取统计信息
 stats = learning_manager.get_current_stats()
+
+# 调整批次大小
+learning_manager.adjust_batch_size(new_batch_size=15)
 ```
 
 ## 5. 开发规范

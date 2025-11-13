@@ -88,20 +88,12 @@ class SettingsPage(tk.Frame):
         )
         title_label.pack(pady=20)
         
-        # 创建主容器框架
-        outer_frame = tk.Frame(main_frame, bg="#f0f0f0")
-        outer_frame.pack(fill=tk.BOTH, expand=True, pady=10)
+        # 创建居中容器框架
+        center_frame = tk.Frame(main_frame, bg="#f0f0f0")
+        center_frame.pack(fill=tk.X, pady=10)
         
-        # 创建左侧设置面板
-        left_panel = tk.Frame(outer_frame, bg="#f0f0f0")
-        left_panel.pack(side=tk.LEFT, fill=tk.BOTH, expand=False, padx=0, pady=0)
-        
-        # 创建右侧空白区域
-        right_panel = tk.Frame(outer_frame, bg="#f0f0f0")
-        right_panel.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=0, pady=0)
-        
-        # 创建设置卡片
-        settings_card = tk.Frame(left_panel, bg="white", bd=2, relief=tk.RAISED)
+        # 创建设置卡片，设置固定宽度并居中
+        settings_card = tk.Frame(center_frame, bg="white", bd=2, relief=tk.RAISED, width=2000)
         settings_card.pack(fill=tk.X, pady=10)
         
         # 自动切换设置
@@ -268,8 +260,8 @@ class SettingsPage(tk.Frame):
         self.translation_mode_combo.bind('<<ComboboxSelected>>', _on_translation_mode_change)
         self.translation_mode_combo.pack(fill=tk.X, pady=5)
         
-        # 重置设置按钮
-        button_frame = tk.Frame(left_panel, bg="#f0f0f0")
+        # 重置设置按钮，居中显示
+        button_frame = tk.Frame(center_frame, bg="#f0f0f0")
         button_frame.pack(pady=20)
         
         reset_button = tk.Button(
@@ -286,7 +278,7 @@ class SettingsPage(tk.Frame):
         
         # 保存提示
         save_hint = tk.Label(
-            left_panel,
+            center_frame,
             text="设置将自动保存",
             font=(self.font_config['normal'][0], 10, 'italic'),
             bg="#f0f0f0",
