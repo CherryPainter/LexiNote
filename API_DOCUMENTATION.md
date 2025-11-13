@@ -46,7 +46,7 @@ class WordImporter:
         """
         初始化WordImporter
         """
-        
+    
     def import_from_json_file(self, json_file_path: str, set_id: int = None) -> Tuple[bool, Dict]:
         """
         从JSON文件导入单词到数据库
@@ -64,18 +64,28 @@ class WordImporter:
                 - skipped: 整数，跳过的单词数量（包括重复和无效单词）
                 - errors: 列表，包含错误信息（如果有）
         """
-        
-    def import_words_from_json(json_file_path: str, set_id: int = None) -> Dict:
-        """
-        便捷函数：从JSON文件批量导入单词
-        
-        参数:
-            json_file_path: JSON文件路径
-            set_id: 词库ID，默认为默认词库
-        
-        返回:
-            Dict: 导入结果统计信息
-        """
+```
+
+### 便捷函数
+
+```python
+def import_words_from_json(json_file_path: str, set_id: int = None) -> Dict:
+    """
+    便捷函数：从JSON文件批量导入单词
+    
+    参数:
+        json_file_path: JSON文件路径
+        set_id: 词库ID，默认为默认词库
+    
+    返回:
+        Dict: 导入结果统计信息，包含以下字段：
+            - success: 布尔值，表示导入是否成功
+            - total: 整数，文件中总单词数量
+            - imported: 整数，成功导入的单词数量
+            - skipped: 整数，跳过的单词数量（包括重复和无效单词）
+            - errors: 列表，包含错误信息（如果有）
+    """
+
 
 ## WordManager API
 
@@ -106,9 +116,10 @@ def batch_import_words(self, json_file_path: str, set_id: int = None) -> Dict:
 
 ```python
 def __init__(self, logger=None):
-    """初始化WordManager
-
-    Args:
+    """
+    初始化WordManager
+    
+    参数:
         logger: 日志记录器实例，可选
     """
 ```
@@ -119,9 +130,10 @@ def __init__(self, logger=None):
 
 ```python
 def get_random_word(self):
-    """获取一个随机单词进行练习
-
-    Returns:
+    """
+    获取一个随机单词进行练习
+    
+    返回:
         dict: 包含单词信息的字典
         {"word": str, "translation": str, "weight": float, "mastery": float}
     """
@@ -131,13 +143,14 @@ def get_random_word(self):
 
 ```python
 def add_word(self, word, translation):
-    """添加新单词到单词库
-
-    Args:
+    """
+    添加新单词到单词库
+    
+    参数:
         word (str): 英文单词
         translation (str): 中文翻译
-
-    Returns:
+    
+    返回:
         bool: 添加成功返回True，失败返回False
     """
 ```
@@ -146,13 +159,14 @@ def add_word(self, word, translation):
 
 ```python
 def update_word(self, word, translation):
-    """更新单词翻译
-
-    Args:
+    """
+    更新单词翻译
+    
+    参数:
         word (str): 要更新的单词
         translation (str): 新的翻译
-
-    Returns:
+    
+    返回:
         bool: 更新成功返回True，失败返回False
     """
 ```
@@ -161,12 +175,13 @@ def update_word(self, word, translation):
 
 ```python
 def delete_word(self, word):
-    """删除单词
-
-    Args:
+    """
+    删除单词
+    
+    参数:
         word (str): 要删除的单词
-
-    Returns:
+    
+    返回:
         bool: 删除成功返回True，失败返回False
     """
 ```
@@ -177,9 +192,10 @@ def delete_word(self, word):
 
 ```python
 def get_all_word_sets(self):
-    """获取所有词库列表
-
-    Returns:
+    """
+    获取所有词库列表
+    
+    返回:
         list: 词库字典列表，每个字典包含id, name, description, word_count等信息
     """
 ```
@@ -188,12 +204,13 @@ def get_all_word_sets(self):
 
 ```python
 def get_word_set_by_id(self, set_id):
-    """根据ID获取词库信息
-
-    Args:
+    """
+    根据ID获取词库信息
+    
+    参数:
         set_id (int): 词库ID
-
-    Returns:
+    
+    返回:
         dict or None: 词库信息字典，不存在时返回None
     """
 ```
@@ -202,12 +219,13 @@ def get_word_set_by_id(self, set_id):
 
 ```python
 def get_word_set_by_name(self, name):
-    """根据名称获取词库信息
-
-    Args:
+    """
+    根据名称获取词库信息
+    
+    参数:
         name (str): 词库名称
-
-    Returns:
+    
+    返回:
         dict or None: 词库信息字典，不存在时返回None
     """
 ```
@@ -216,9 +234,10 @@ def get_word_set_by_name(self, name):
 
 ```python
 def get_active_word_set(self):
-    """获取当前激活的词库
-
-    Returns:
+    """
+    获取当前激活的词库
+    
+    返回:
         dict or None: 当前激活的词库信息，无激活词库时返回None
     """
 ```
@@ -227,12 +246,13 @@ def get_active_word_set(self):
 
 ```python
 def set_active_word_set(self, set_id):
-    """设置当前激活的词库
-
-    Args:
+    """
+    设置当前激活的词库
+    
+    参数:
         set_id (int): 词库ID
-
-    Returns:
+    
+    返回:
         bool: 设置成功返回True，失败返回False
     """
 ```
@@ -241,13 +261,14 @@ def set_active_word_set(self, set_id):
 
 ```python
 def create_word_set(self, name, description=''):
-    """创建新的词库
-
-    Args:
+    """
+    创建新的词库
+    
+    参数:
         name (str): 词库名称
         description (str): 词库描述
-
-    Returns:
+    
+    返回:
         dict or None: 新创建的词库信息，失败返回None
     """
 ```
@@ -256,12 +277,13 @@ def create_word_set(self, name, description=''):
 
 ```python
 def delete_word_set(self, set_id):
-    """删除词库（默认词库不可删除）
-
-    Args:
+    """
+    删除词库（默认词库不可删除）
+    
+    参数:
         set_id (int): 词库ID
-
-    Returns:
+    
+    返回:
         bool: 删除成功返回True，失败返回False
     """
 ```
@@ -272,14 +294,15 @@ def delete_word_set(self, set_id):
 
 ```python
 def get_words_from_active_set(self, keyword=None, limit=None, offset=None):
-    """从当前激活的词库获取单词列表
-
-    Args:
+    """
+    从当前激活的词库获取单词列表
+    
+    参数:
         keyword (str, optional): 搜索关键词
         limit (int, optional): 返回结果数量限制
         offset (int, optional): 分页偏移量
-
-    Returns:
+    
+    返回:
         list: 单词字典列表
     """
 ```
@@ -288,15 +311,16 @@ def get_words_from_active_set(self, keyword=None, limit=None, offset=None):
 
 ```python
 def get_words_by_set_id(self, set_id, keyword=None, limit=None, offset=None):
-    """根据词库ID获取单词列表
-
-    Args:
+    """
+    根据词库ID获取单词列表
+    
+    参数:
         set_id (int): 词库ID
         keyword (str, optional): 搜索关键词
         limit (int, optional): 返回结果数量限制
         offset (int, optional): 分页偏移量
-
-    Returns:
+    
+    返回:
         list: 单词字典列表
     """
 ```
@@ -305,17 +329,18 @@ def get_words_by_set_id(self, set_id, keyword=None, limit=None, offset=None):
 
 ```python
 def add_word_to_active_set(self, word, translation, phonetic='', example='', meaning_en='', tag=''):
-    """向当前激活的词库添加单词
-
-    Args:
+    """
+    向当前激活的词库添加单词
+    
+    参数:
         word (str): 英文单词
         translation (str): 中文翻译
         phonetic (str, optional): 音标
         example (str, optional): 例句
         meaning_en (str, optional): 英文释义
         tag (str, optional): 标签
-
-    Returns:
+    
+    返回:
         dict or None: 新添加的单词信息，失败返回None
     """
 ```
@@ -324,13 +349,14 @@ def add_word_to_active_set(self, word, translation, phonetic='', example='', mea
 
 ```python
 def update_word(self, word_id, **kwargs):
-    """更新单词信息
-
-    Args:
+    """
+    更新单词信息
+    
+    参数:
         word_id (int): 单词ID
         **kwargs: 要更新的字段，如translation, phonetic等
-
-    Returns:
+    
+    返回:
         bool: 更新成功返回True，失败返回False
     """
 ```
@@ -339,12 +365,13 @@ def update_word(self, word_id, **kwargs):
 
 ```python
 def delete_word(self, word_id):
-    """删除单词
-
-    Args:
+    """
+    删除单词
+    
+    参数:
         word_id (int): 单词ID
-
-    Returns:
+    
+    返回:
         bool: 删除成功返回True，失败返回False
     """
 ```
@@ -355,12 +382,13 @@ def delete_word(self, word_id):
 
 ```python
 def import_word_set_from_json(self, json_file_path):
-    """从JSON文件导入词库数据
-
-    Args:
+    """
+    从JSON文件导入词库数据
+    
+    参数:
         json_file_path (str): JSON文件路径
-
-    Returns:
+    
+    返回:
         dict: 导入结果，包含success, message, word_count等字段
     """
 ```
@@ -369,13 +397,14 @@ def import_word_set_from_json(self, json_file_path):
 
 ```python
 def export_word_set_to_json(self, set_id, output_file_path):
-    """导出词库到JSON文件
-
-    Args:
+    """
+    导出词库到JSON文件
+    
+    参数:
         set_id (int): 词库ID
         output_file_path (str): 输出文件路径
-
-    Returns:
+    
+    返回:
         dict: 导出结果，包含success, message, word_count等字段
     """
 ```
@@ -383,14 +412,16 @@ def export_word_set_to_json(self, set_id, output_file_path):
 #### batch_import_words
 
 ```python
-def batch_import_words(self, file_path):
-    """批量导入单词到当前激活的词库
-
-    Args:
+def batch_import_words(self, file_path, set_id=None):
+    """
+    批量导入单词到当前激活的词库
+    
+    参数:
         file_path (str): JSON文件路径
-
-    Returns:
-        dict: 导入统计信息，包含total, imported, failed等字段
+        set_id (int, optional): 词库ID，若为None则使用当前激活词库
+    
+    返回:
+        dict: 导入统计信息，包含total, imported, failed, errors等字段
     """
 ```
 
@@ -400,14 +431,15 @@ def batch_import_words(self, file_path):
 
 ```python
 def check_translation(self, expected, user_input, is_english_to_chinese=True):
-    """使用AI检查翻译是否正确
-
-    Args:
+    """
+    使用AI检查翻译是否正确
+    
+    参数:
         expected (str): 期望的翻译
         user_input (str): 用户输入的翻译
         is_english_to_chinese (bool): 是否为英译中方向
-
-    Returns:
+    
+    返回:
         tuple: (bool, str) - (是否正确, AI参考翻译)
     """
 ```
@@ -416,13 +448,14 @@ def check_translation(self, expected, user_input, is_english_to_chinese=True):
 
 ```python
 def translate_text(self, text, mode="en2zh"):
-    """翻译文本
-
-    Args:
+    """
+    翻译文本
+    
+    参数:
         text (str): 要翻译的文本
         mode (str): 翻译模式，"en2zh"(英→中)或"zh2en"(中→英)
-
-    Returns:
+    
+    返回:
         str: 翻译后的文本
     """
 ```
@@ -431,9 +464,10 @@ def translate_text(self, text, mode="en2zh"):
 
 ```python
 def update_word_progress(self, word, is_correct):
-    """更新单词学习进度
-
-    Args:
+    """
+    更新单词学习进度
+    
+    参数:
         word (str): 单词
         is_correct (bool): 用户回答是否正确
     """
@@ -443,12 +477,13 @@ def update_word_progress(self, word, is_correct):
 
 ```python
 def get_error_words(self, limit=None):
-    """获取用户错误率较高的单词
-
-    Args:
+    """
+    获取用户错误率较高的单词
+    
+    参数:
         limit (int): 返回数量限制
-
-    Returns:
+    
+    返回:
         list: 错误单词列表
     """
 ```
@@ -459,9 +494,10 @@ def get_error_words(self, limit=None):
 
 ```python
 def save_progress(self):
-    """保存学习进度到文件
-
-    Returns:
+    """
+    保存学习进度到文件
+    
+    返回:
         bool: 保存成功返回True，失败返回False
     """
 ```
