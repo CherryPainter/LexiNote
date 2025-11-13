@@ -413,10 +413,11 @@ class WordManager:
             self._set_default_word_set()
             
         # 查询当前词库中缺少例句、音标、词性或英语释义的单词
+        # 同时检查NULL值和空字符串
         sql = """
         SELECT * FROM words 
         WHERE set_id = ? 
-        AND (example = '' OR phonetic = '' OR tag = '' OR meaning_en = '')
+        AND (example IS NULL OR example = '' OR phonetic IS NULL OR phonetic = '' OR tag IS NULL OR tag = '' OR meaning_en IS NULL OR meaning_en = '')
         ORDER BY word
         LIMIT ?
         """
