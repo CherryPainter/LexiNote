@@ -1,11 +1,9 @@
 """单词管理器，负责单词的增删改查、权重计算和练习功能"""
 import os
 import random
-import functools
 import threading
 import sqlite3
 import time
-import traceback
 from typing import Dict, List, Optional, Union
 from datetime import datetime
 from collections import deque

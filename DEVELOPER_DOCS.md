@@ -84,61 +84,198 @@ LexiNote 是一个个人英语学习工具，帮助用户管理单词库、学�
 
 ```
 LexiNote/
-├── core/                  # 核心业务逻辑
-│   ├── __init__.py
-│   ├── learning.py        # 学习模块（重构后）
-│   ├── word_manager.py    # 单词管理器
-│   └── settings.py        # 设置管理器
-├── ui/                    # 用户界面
-│   ├── __init__.py
-│   ├── main_window.py     # 主窗口
-│   ├── learning_page.py   # 学习模式页面
-│   ├── test_page.py       # 测试模式页面
+├── main.py              # 程序入口
+├── word_manager.py      # 单词管理核心逻辑
+├── audio_player.py      # 音频播放模块
+├── audio_cache.py       # 音频缓存管理
+├── logger.py            # 日志记录模块
+├── statistics.py        # 统计功能模块
+├── core/                # 核心功能模块
+│   ├── ai_interface.py  # AI接口管理
+│   ├── database_manager.py # 数据库管理
+│   ├── learning.py      # 学习逻辑模块
+│   ├── cache_manager.py # 缓存管理
+│   ├── settings_manager.py # 设置管理
+│   └── dictation.py     # 听写核心逻辑
+├── modules/             # 功能模块
+│   ├── ai_service.py    # AI服务
+│   ├── cloze_test.py    # 完形填空模块
+│   ├── database.py      # 数据库操作
+│   ├── portal_manager.py # 题库门户管理
+│   ├── reading_comprehension.py # 阅读理解模块
+│   ├── utils.py         # 工具函数
+│   └── word_importer.py # 单词导入工具
+├── ui/                  # 用户界面
+│   ├── main_window.py   # 主窗口
+│   ├── dictation_page.py # 听写练习页面
+│   ├── translation_page.py # 翻译练习页面
+│   ├── review_page.py   # 单词复习页面
+│   ├── learning_page.py # 学习模式页面
+│   ├── settings_page.py # 设置页面
+│   ├── ai_assistant_page.py # AI英语助手页面
 │   ├── statistics_page.py # 学习统计页面
-│   └── components/        # UI组件
-├── data/                  # 数据存储
-├── utils/                 # 工具函数
-│   ├── __init__.py
-│   ├── audio_player.py    # 音频播放
-│   └── logger.py          # 日志记录
-├── main.py                # 程序入口
-├── requirements.txt       # 依赖项
-└── DEVELOPER_DOCS.md      # 开发者文档
+│   ├── cloze_test_page.py # 完形填空页面
+│   ├── reading_comprehension_page.py # 阅读理解页面
+│   └── components/      # UI组件
+├── data/                # 数据文件目录
+│   └── lexinote.db      # SQLite数据库文件
+├── cache/               # 缓存目录
+│   ├── ai_text/         # AI文本缓存
+│   ├── ai_tts/          # AI语音缓存
+│   └── audio/           # 音频缓存
+├── requirements.txt     # 依赖列表
+├── README.md            # 项目说明
+├── API_DOCUMENTATION.md # API文档
+├── CHANGELOG.md         # 更新日志
+├── CONTRIBUTING.md      # 贡献指南
+├── DEVELOPER_DOCS.md    # 开发者文档
+├── SETTINGS.md          # 设置说明
+└── TESTS.md             # 测试说明
 ```
 
 ## 4. 核心模块说明
 
-### 4.1 学习模块 (core/learning.py)
+### 4.1 单词管理模块 (word_manager.py)
 
-#### 组件结构
-- **ForgettingCurve**：计算单词的遗忘曲线和复习时间
-- **WordSelector**：从单词库中选择合适的单词生成学习批次
-- **LearningProgress**：管理学习进度、统计信息和保存/加载功能
-- **LearningScheduler**：处理学习计划和调度
-- **LearningManager**：整合所有组件，提供统一的学习接口
+单词管理是系统的核心功能，负责单词的增删改查、分类、学习状态管理等。
 
-#### API 说明
+#### 主要功能
+- 单词的添加、删除、更新和查询
+- 单词分类管理
+- 学习状态跟踪（掌握、需要复习、未学习）
+- 随机单词选择
+- 单词统计信息
+
+#### 核心API
 ```python
 # 初始化
-learning_manager = LearningManager(word_manager, audio_player)
+word_manager = WordManager()
 
-# 获取学习批次
-batch = learning_manager.get_batch(batch_size=10)
+# 单词操作
+word_manager.add_word(word, definition, example, category)
+word_manager.update_word(word_id, definition, example, category)
+word_manager.delete_word(word_id)
+word_manager.get_word(word_id)
 
-# 标记单词掌握度
-learning_manager.mark_mastered(word)
-learning_manager.mark_review(word)
+# 批量操作
+word_manager.get_random_words(batch_size=10)
+word_manager.get_words_by_category(category)
+word_manager.get_all_words()
 
-# 保存和加载进度
-learning_manager.save_progress(finished=True)
-learning_manager.load_daily_progress()
-
-# 获取统计信息
-stats = learning_manager.get_current_stats()
-
-# 调整批次大小
-learning_manager.adjust_batch_size(new_batch_size=15)
+# 学习状态管理
+word_manager.mark_as_mastered(word_id)
+word_manager.mark_as_need_review(word_id)
+word_manager.reset_learning_status(word_id)
 ```
+
+### 4.2 统计模块 (statistics.py)
+
+统计模块负责记录和分析用户的学习数据，提供学习进度和成果的可视化数据。
+
+#### 主要功能
+- 记录每日学习单词数
+- 统计单词掌握率
+- 跟踪学习时长
+- 生成学习趋势图表数据
+- 提供详细的学习统计报告
+
+#### 核心API
+```python
+# 初始化
+statistics_manager = StatisticsManager()
+
+# 记录学习数据
+statistics_manager.record_word_learned(word_id)
+statistics_manager.record_word_mastered(word_id)
+statistics_manager.record_study_session(duration)
+
+# 获取统计数据
+daily_stats = statistics_manager.get_daily_statistics()
+weekly_stats = statistics_manager.get_weekly_statistics()
+monthly_stats = statistics_manager.get_monthly_statistics()
+total_stats = statistics_manager.get_total_statistics()
+
+# 导出统计数据
+statistics_manager.export_statistics()
+```
+
+### 4.3 核心功能模块 (core/)
+
+#### 4.3.1 AI接口模块 (core/ai_interface.py)
+- 管理与AI服务的交互
+- 提供统一的AI接口（翻译、语音合成等）
+- 处理AI请求和响应
+
+#### 4.3.2 数据库管理模块 (core/database_manager.py)
+- 管理数据库连接
+- 提供数据持久化功能
+- 执行数据库查询和操作
+
+#### 4.3.3 学习逻辑模块 (core/learning.py)
+- 实现学习算法（如遗忘曲线）
+- 管理学习进度和计划
+- 生成学习批次
+
+#### 4.3.4 缓存管理模块 (core/cache_manager.py)
+- 管理各种缓存数据
+- 实现缓存的增删查改
+- 处理缓存过期
+
+#### 4.3.5 设置管理模块 (core/settings_manager.py)
+- 管理应用程序设置
+- 提供设置的加载和保存
+- 处理设置变更
+
+#### 4.3.6 听写核心逻辑 (core/dictation.py)
+- 实现听写功能的核心逻辑
+- 管理听写会话
+- 评估听写结果
+
+### 4.4 功能模块 (modules/)
+
+#### 4.4.1 AI服务模块 (modules/ai_service.py)
+- 提供AI翻译、语法分析等服务
+- 实现与外部AI服务的集成
+
+#### 4.4.2 完形填空模块 (modules/cloze_test.py)
+- 生成完形填空练习
+- 评估练习结果
+
+#### 4.4.3 数据库操作模块 (modules/database.py)
+- 实现具体的数据库操作
+- 提供数据访问层
+
+#### 4.4.4 题库门户管理模块 (modules/portal_manager.py)
+- 管理题库资源
+- 提供题库访问接口
+
+#### 4.4.5 阅读理解模块 (modules/reading_comprehension.py)
+- 生成阅读理解练习
+- 评估练习结果
+
+#### 4.4.6 工具函数模块 (modules/utils.py)
+- 提供各种工具函数
+- 实现通用功能
+
+#### 4.4.7 单词导入模块 (modules/word_importer.py)
+- 从各种格式导入单词
+- 实现批量导入功能
+
+### 4.5 音频相关模块
+
+#### 4.5.1 音频播放模块 (audio_player.py)
+- 提供音频播放功能
+- 支持各种音频格式
+
+#### 4.5.2 音频缓存模块 (audio_cache.py)
+- 管理音频缓存
+- 实现缓存的增删查改
+
+### 4.6 日志模块 (logger.py)
+
+- 记录应用程序日志
+- 支持不同级别的日志
+- 提供日志查询和分析功能
 
 ## 5. 开发规范
 

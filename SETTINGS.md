@@ -38,11 +38,38 @@
   - 说明：在复习页面中，例句显示后是否自动跳到下一个单词（与 `auto_mode_review` 配合）。
   - 生效：实时。
 
-## 其它常见设置
+- `auto_next_familiar`: `False`
+  - 说明：熟悉单词自动跳到下一个。
+  - 生效：实时。
+
+- `auto_next_difficult`: `False`
+  - 说明：困难单词自动跳到下一个。
+  - 生效：实时。
+
+## 界面与显示设置
 
 - `example_enabled`: `True` - 是否在练习中显示例句。
 - `voice_enabled`: `True` - 是否启用语音发音功能。
-- `voice_speed`: `1.0` - 发音速度调整。
+- `voice_speed`: `1.0` - 发音速度调整（范围：0.5-3.0）。
+- `dark_mode`: `False` - 是否启用深色模式。
+
+## 语音合成设置
+
+- `tts_provider`: `"gTTS"` - 语音合成提供商（目前仅支持 "gTTS"）。
+- `tts_cache_enabled`: `True` - 是否启用语音缓存。
+- `tts_cache_max_mb`: `500` - 语音缓存最大容量（MB）。
+
+## 功能与性能设置
+
+- `translation_mode`: `"ai_first"` - 翻译判定模式，取值为：
+  - `"ai_first"`: 优先使用AI翻译
+  - `"local_first"`: 优先使用本地翻译
+  - `"local_only"`: 仅使用本地翻译
+
+- `log_level`: `"INFO"` - 日志等级，取值为：
+  - `"DEBUG"`: 调试模式，显示所有日志
+  - `"INFO"`: 信息模式，显示正常信息和错误
+  - `"ERROR"`: 错误模式，仅显示错误信息
 
 ## 通过 SettingsManager 编程修改设置
 

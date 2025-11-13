@@ -5,7 +5,6 @@
 """
 import tkinter as tk
 from tkinter import ttk, messagebox
-from typing import List, Callable, Optional
 import threading
 import sys
 import os
@@ -13,8 +12,7 @@ import os
 # 添加项目根目录到Python路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from logger import log_info, log_wrong_word
-from audio_player import AudioPlayer
+from logger import log_error
 from ui.components.scrollable_frame import create_scrollable_frame
 
 

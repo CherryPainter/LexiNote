@@ -4,10 +4,10 @@ import shutil
 import hashlib
 import threading
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Optional, Dict, Any
 
-from logger import log_info, log_error, log_warning
+from logger import log_info, log_error
 
 
 class CacheManager:

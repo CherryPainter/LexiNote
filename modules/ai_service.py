@@ -1,9 +1,8 @@
 import json
-import re
 import time
 import os
 import requests
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Optional, Tuple
 import threading
 
 from logger import log_info, log_error, log_warning

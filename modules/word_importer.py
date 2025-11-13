@@ -1,7 +1,7 @@
 """单词批量导入模块，负责从JSON文件批量导入单词到数据库"""
 import os
 import json
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Tuple
 
 from logger import log_info, log_error, log_warning
 from core.database_manager import DatabaseManager

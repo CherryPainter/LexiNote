@@ -1,6 +1,5 @@
 import tkinter as tk
 from tkinter import scrolledtext, ttk, messagebox
-import asyncio
 import threading
 import sys
 import os

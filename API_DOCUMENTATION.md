@@ -1224,3 +1224,152 @@ AI助手支持以下8种学习任务类型：
 - 初级：适合英语初学者
 - 中级：适合有一定基础的学习者
 - 高级：适合英语水平较高的学习者
+
+## 统计模块
+
+统计模块提供全面的学习统计功能，包括单词学习统计、练习进度统计、每日学习情况统计和学习趋势分析。
+
+### StatisticsManager 类
+
+`StatisticsManager` 是统计模块的核心类，负责处理所有学习统计相关功能。
+
+#### 初始化
+
+```python
+def __init__(self, db_manager: DatabaseManager):
+    """初始化统计管理器
+    
+    Args:
+        db_manager: 数据库管理器实例
+    """
+```
+
+#### get_total_word_count
+
+```python
+def get_total_word_count(self) -> int:
+    """获取总单词数
+    
+    Returns:
+        int: 总单词数
+    """
+```
+
+#### get_learned_word_count
+
+```python
+def get_learned_word_count(self) -> int:
+    """获取已学习单词数
+    
+    Returns:
+        int: 已学习单词数（熟练度大于0的单词）
+    """
+```
+
+#### get_total_practice_count
+
+```python
+def get_total_practice_count(self) -> int:
+    """获取总练习次数
+    
+    Returns:
+        int: 总练习次数
+    """
+```
+
+#### get_total_correct_count
+
+```python
+def get_total_correct_count(self) -> int:
+    """获取总正确次数
+    
+    Returns:
+        int: 总正确次数
+    """
+```
+
+#### get_overall_accuracy
+
+```python
+def get_overall_accuracy(self) -> float:
+    """获取总体正确率
+    
+    Returns:
+        float: 总体正确率（0.0-1.0）
+    """
+```
+
+#### get_daily_stats
+
+```python
+def get_daily_stats(self, date: Optional[str] = None) -> Dict:
+    """获取每日学习统计
+    
+    Args:
+        date: 指定日期（格式：YYYY-MM-DD），默认获取今日统计
+    
+    Returns:
+        Dict: 每日统计信息
+    """
+```
+
+#### get_weekly_stats
+
+```python
+def get_weekly_stats(self) -> List[Dict]:
+    """获取最近7天的学习统计
+    
+    Returns:
+        List[Dict]: 包含最近7天统计信息的列表
+    """
+```
+
+#### get_proficiency_stats
+
+```python
+def get_proficiency_stats(self) -> Dict[str, int]:
+    """获取熟练度分布统计
+    
+    Returns:
+        Dict: 各熟练度区间的单词数量
+    """
+```
+
+#### get_word_set_stats
+
+```python
+def get_word_set_stats(self, set_id: Optional[int] = None) -> Dict:
+    """获取词库统计信息
+    
+    Args:
+        set_id: 词库ID，默认获取所有词库统计
+    
+    Returns:
+        Dict: 词库统计信息
+    """
+```
+
+#### get_recent_progress
+
+```python
+def get_recent_progress(self, limit: int = 10) -> List[Dict]:
+    """获取最近的学习进度记录
+    
+    Args:
+        limit: 返回记录数限制，默认10条
+    
+    Returns:
+        List[Dict]: 最近的学习进度记录
+    """
+```
+
+#### get_summary_stats
+
+```python
+def get_summary_stats(self) -> Dict:
+    """获取综合统计信息
+    
+    Returns:
+        Dict: 综合统计信息
+    """
+```

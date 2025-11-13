@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import messagebox, ttk, filedialog
 import os
 
-from logger import log_info, log_error
+from logger import log_error
 
 
 class WordSetPage(tk.Frame):

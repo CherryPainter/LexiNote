@@ -1,5 +1,4 @@
 import tkinter as tk
-from tkinter import messagebox, ttk, simpledialog
 import sys
 import os
 
@@ -19,7 +18,6 @@ from ui.statistics_page import StatisticsPage
 from word_manager import WordManager
 from core.learning import LearningManager
 from core.settings_manager import SettingsManager
-from statistics import StatisticsManager
 from audio_player import AudioPlayer
 from logger import log_info
 

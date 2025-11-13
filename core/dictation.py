@@ -3,7 +3,6 @@ import asyncio
 import threading
 import json
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple, Any
 from concurrent.futures import ThreadPoolExecutor
 
 from logger import log_info, log_error, log_warning, log_wrong_word, log_exercise_start

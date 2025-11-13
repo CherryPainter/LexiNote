@@ -130,8 +130,8 @@ class AudioPlayer:
         """检查音频播放功能是否可用"""
         try:
             # 尝试导入必要的库
-            import gtts
-            import playsound
+            import gtts  # noqa
+            import playsound  # noqa
             return True
         except ImportError:
             log_error("音频播放功能不可用：缺少必要的库")

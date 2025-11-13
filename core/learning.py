@@ -4,8 +4,8 @@
 实现用户主动学习单词的功能，包括批次获取、掌握度标记、进度保存等
 采用模块化设计，将不同职责分离到不同类中
 """
-from typing import List, Dict, Optional, Tuple
-from datetime import datetime, timedelta
+from typing import List, Dict, Optional
+from datetime import datetime
 import json
 import os
 import random

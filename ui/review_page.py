@@ -1,14 +1,12 @@
 import tkinter as tk
-from tkinter import messagebox, ttk
+from tkinter import messagebox
 import sys
 import os
 import threading
-import json
 
 # 添加项目根目录到Python路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from audio_player import AudioPlayer
 from logger import log_info, log_error
 
 

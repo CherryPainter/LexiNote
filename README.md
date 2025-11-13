@@ -11,11 +11,12 @@
 - **多种练习模式**：支持单词学习、听写练习、翻译练习和单词复习
 - **AI 辅助学习**：集成 Ollama API，提供智能翻译判断和参考翻译
 - **发音播放**：自动播放单词发音，提升听力学习体验
-- **学习统计**：记录并展示学习进度和正确率
+- **学习统计**：记录并展示学习进度和正确率，包括综合统计、趋势图表和熟练度分布
 - **数据库存储**：使用 SQLite 数据库持久化存储单词和学习数据
 - **AI 英语助手**：智能英语学习辅助，支持单词解释、语法讲解、写作批改等多种功能
 - **单词批量导入**：支持从JSON文件批量导入单词到数据库，快速扩充词库
 - **理解类练习**：包含完形填空和阅读理解模块，提升综合语言能力
+- **学习统计页面**：全新的学习统计页面，展示关键学习指标和可视化图表
 
 ### 🎯 特色亮点
 
@@ -29,6 +30,8 @@
 - **智能学习辅助**：AI驱动的学习内容生成和指导，支持多种学习任务类型和难度级别
 - **高效数据管理**：支持单词批量导入，自动处理重复数据，保证数据一致性
 - **理解能力提升**：通过完形填空和阅读理解练习，全面提升英语理解能力
+- **数据可视化**：直观展示学习趋势、熟练度分布和词库统计信息
+- **模块化设计**：清晰的代码结构，便于扩展和维护
 
 ## 项目架构
 
@@ -38,12 +41,22 @@
 ├── audio_player.py      # 音频播放模块
 ├── audio_cache.py       # 音频缓存管理
 ├── logger.py            # 日志记录模块
+├── statistics.py        # 统计功能模块
 ├── core/                # 核心功能模块
 │   ├── ai_interface.py  # AI接口管理
 │   ├── database_manager.py # 数据库管理
 │   ├── learning.py      # 学习逻辑模块
 │   ├── cache_manager.py # 缓存管理
-│   └── settings_manager.py # 设置管理
+│   ├── settings_manager.py # 设置管理
+│   └── dictation.py     # 听写核心逻辑
+├── modules/             # 功能模块
+│   ├── ai_service.py    # AI服务
+│   ├── cloze_test.py    # 完形填空模块
+│   ├── database.py      # 数据库操作
+│   ├── portal_manager.py # 题库门户管理
+│   ├── reading_comprehension.py # 阅读理解模块
+│   ├── utils.py         # 工具函数
+│   └── word_importer.py # 单词导入工具
 ├── ui/                  # 用户界面
 │   ├── main_window.py   # 主窗口
 │   ├── dictation_page.py # 听写练习页面
@@ -51,7 +64,11 @@
 │   ├── review_page.py   # 单词复习页面
 │   ├── learning_page.py # 学习模式页面
 │   ├── settings_page.py # 设置页面
-│   └── ai_assistant_page.py # AI英语助手页面
+│   ├── ai_assistant_page.py # AI英语助手页面
+│   ├── statistics_page.py # 学习统计页面
+│   ├── cloze_test_page.py # 完形填空页面
+│   ├── reading_comprehension_page.py # 阅读理解页面
+│   └── components/      # UI组件
 ├── data/                # 数据文件目录
 │   └── lexinote.db      # SQLite数据库文件
 ├── cache/               # 缓存目录
@@ -59,7 +76,13 @@
 │   ├── ai_tts/          # AI语音缓存
 │   └── audio/           # 音频缓存
 ├── requirements.txt     # 依赖列表
-└── README.md            # 项目说明
+├── README.md            # 项目说明
+├── API_DOCUMENTATION.md # API文档
+├── CHANGELOG.md         # 更新日志
+├── CONTRIBUTING.md      # 贡献指南
+├── DEVELOPER_DOCS.md    # 开发者文档
+├── SETTINGS.md          # 设置说明
+└── TESTS.md             # 测试说明
 ```
 
 ## 技术栈

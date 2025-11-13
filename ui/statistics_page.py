@@ -5,7 +5,6 @@
 """
 import tkinter as tk
 from tkinter import ttk, messagebox
-from typing import Optional
 import sys
 import os
 import math
@@ -13,7 +12,7 @@ import math
 # 添加项目根目录到Python路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from logger import log_info, log_error
+from logger import log_error
 from ui.components.scrollable_frame import create_scrollable_frame
 
 

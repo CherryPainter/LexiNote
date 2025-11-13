@@ -4,7 +4,7 @@ import hashlib
 import shutil
 from datetime import datetime, timedelta
 from typing import Optional, Dict
-from logger import log_info, log_error
+from logger import log_error
 
 
 class AudioCache:

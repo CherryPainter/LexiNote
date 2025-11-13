@@ -38,6 +38,7 @@ data/*.json
 *.tmp
 *.temp
 .cache/
+cache/
 *.mp3
 *.wav
 *.zip
