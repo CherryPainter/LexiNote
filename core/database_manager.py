@@ -737,23 +737,41 @@ class DatabaseManager:
             immediate: 是否立即执行，不经过队列
             
         Returns:
-            写入操作是否成功
+            如果是立即执行的插入操作，返回插入的行ID；否则返回True表示成功加入队列，False表示失败
         """
         try:
+            # 确保params是元组，避免在处理队列时出现类型错误
+            if params is None:
+                params = ()
+            elif not isinstance(params, tuple):
+                # 如果params不是元组，尝试转换为元组
+                try:
+                    params = tuple(params)
+                except:
+                    log_error(f"参数转换为元组失败: {params}")
+                    return False
+            
             if immediate:
                 conn = sqlite3.connect(self.db_path, timeout=10)
                 cursor = conn.cursor()
-                cursor.execute(query, params or ())
+                cursor.execute(query, params)
                 conn.commit()
+                
+                # 如果是插入操作，返回行ID
+                if query.strip().upper().startswith("INSERT"):
+                    lastrowid = cursor.lastrowid
+                else:
+                    lastrowid = True
+                
                 cursor.close()
                 conn.close()
-                return True
+                return lastrowid
             # 将写操作添加到队列
             with self._write_lock:
                 self._write_queue.append((query, params))
             return True
         except Exception as e:
-            log_error(f"写入操作加入队列失败: {query}")
+            log_error(f"写入操作加入队列失败: {query}, 错误: {str(e)}")
             return False
             
     def execute_write_many(self, query: str, param_list: List[tuple]):
