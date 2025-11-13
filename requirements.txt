@@ -2,12 +2,12 @@
 # tkinter 通常是Python标准库的一部分，不需要单独安装
 
 # 音频相关
-gTTS==2.5.1
-playsound==1.3.0
+gTTS==2.5.4
+playsound==1.2.2
 
 # AI相关
 requests==2.32.3
 
 # 开发工具
-flake8==7.1.1
+flake8==7.3.0
 pytest==8.3.2
