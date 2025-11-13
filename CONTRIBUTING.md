@@ -48,7 +48,7 @@
 
 4. **配置 Ollama**
    - 下载并安装 [Ollama](https://ollama.com/download)
-   - 拉取所需模型：`ollama pull qwen2.5:7b-instruct`
+   - 拉取所需模型：`ollama pull gemma3n:latest`
    - 确保 Ollama 服务在默认端口(11434)运行
 
 ## 代码规范
