@@ -204,7 +204,6 @@ class WordManager:
         except Exception as e:
             log_error(f"保存数据文件失败: {file_path}, 错误: {str(e)}")
     
-    @functools.lru_cache(maxsize=1000)
     # 词库管理相关方法
     def get_all_word_sets(self):
         """获取所有词库"""

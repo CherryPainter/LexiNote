@@ -113,7 +113,7 @@ class WordSetPage(tk.Frame):
         self.set_listbox = tk.Listbox(
             left_frame,
             font=self.font_config['normal'],
-            width=25,
+            width=40,
             height=20,
             selectmode=tk.SINGLE
         )
