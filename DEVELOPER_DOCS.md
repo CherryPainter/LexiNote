@@ -330,7 +330,309 @@ pip install -r requirements.txt
 python -m main
 ```
 
-## 8. 未来计划
+## 8. 数据库设计
+
+LexiNote 使用 SQLite 作为数据存储引擎，所有数据统一保存在 `data/lexinote.db` 文件中。以下是详细的数据库设计说明：
+
+### 8.1 表结构概览
+
+| 表名 | 描述 |
+|------|------|
+| word_sets | 词库信息表 |
+| words | 单词表 |
+| progress | 学习进度表 |
+| settings | 设置表 |
+| ai_cache | AI 缓存表 |
+| cloze_tests | 完形填空表 |
+| reading_comprehensions | 阅读理解表 |
+| delete_logs | 删除日志表 |
+| dictation_sessions | 听写会话表 |
+| exercise_sessions | 练习会话表 |
+
+### 8.2 详细表结构
+
+#### 8.2.1 词库信息表 (word_sets)
+
+```sql
+CREATE TABLE IF NOT EXISTS word_sets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT UNIQUE NOT NULL,
+    description TEXT,
+    source TEXT,
+    create_time TEXT,
+    word_count INTEGER DEFAULT 0
+)
+```
+
+**字段说明：**
+- `id`: 词库 ID，主键自增
+- `name`: 词库名称，唯一
+- `description`: 词库描述
+- `source`: 词库来源
+- `create_time`: 创建时间
+- `word_count`: 词库中单词数量
+
+#### 8.2.2 单词表 (words)
+
+```sql
+CREATE TABLE IF NOT EXISTS words (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    set_id INTEGER,
+    word TEXT NOT NULL,
+    translation TEXT NOT NULL,
+    phonetic TEXT,
+    example TEXT,
+    meaning_en TEXT,
+    tag TEXT,
+    example_translation TEXT,
+    familiarity INTEGER DEFAULT 0,
+    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_practice TIMESTAMP,
+    last_review TIMESTAMP,
+    proficiency FLOAT DEFAULT 0.0,
+    FOREIGN KEY (set_id) REFERENCES word_sets(id)
+)
+```
+
+**字段说明：**
+- `id`: 单词 ID，主键自增
+- `set_id`: 所属词库 ID，外键关联 `word_sets.id`
+- `word`: 英文单词
+- `translation`: 中文翻译
+- `phonetic`: 音标
+- `example`: 例句
+- `meaning_en`: 英文释义
+- `tag`: 标签
+- `example_translation`: 例句翻译
+- `familiarity`: 熟悉度（学习次数）
+- `added_at`: 添加时间
+- `last_practice`: 最后练习时间
+- `last_review`: 最后复习时间
+- `proficiency`: 熟练度（0.0-1.0）
+
+**索引：**
+- `idx_word`: 单词索引
+- `idx_proficiency`: 熟练度索引
+- `idx_set_id`: 词库 ID 索引
+
+#### 8.2.3 学习进度表 (progress)
+
+```sql
+CREATE TABLE IF NOT EXISTS progress (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    word TEXT NOT NULL,
+    practice_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    is_correct INTEGER,
+    proficiency_change FLOAT,
+    FOREIGN KEY (word) REFERENCES words(word)
+)
+```
+
+**字段说明：**
+- `id`: 记录 ID，主键自增
+- `word`: 单词，外键关联 `words.word`
+- `practice_date`: 练习日期
+- `is_correct`: 是否正确（0 或 1）
+- `proficiency_change`: 熟练度变化值
+
+**索引：**
+- `idx_practice_date`: 练习日期索引
+
+#### 8.2.4 设置表 (settings)
+
+```sql
+CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT
+)
+```
+
+**字段说明：**
+- `key`: 设置项键名，主键
+- `value`: 设置项值
+
+#### 8.2.5 AI 缓存表 (ai_cache)
+
+```sql
+CREATE TABLE IF NOT EXISTS ai_cache (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    prompt_hash INTEGER NOT NULL,
+    prompt TEXT,
+    response TEXT,
+    cached_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    usage_count INTEGER DEFAULT 0,
+    UNIQUE(prompt_hash)
+)
+```
+
+**字段说明：**
+- `id`: 缓存 ID，主键自增
+- `prompt_hash`: 提示词哈希值，唯一
+- `prompt`: 提示词内容
+- `response`: AI 响应内容
+- `cached_at`: 缓存时间
+- `usage_count`: 使用次数
+
+**索引：**
+- `idx_prompt_hash`: 提示词哈希值索引
+
+#### 8.2.6 完形填空表 (cloze_tests)
+
+```sql
+CREATE TABLE IF NOT EXISTS cloze_tests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    content TEXT NOT NULL,
+    options TEXT NOT NULL,  -- JSON格式存储选项
+    answer TEXT NOT NULL,
+    explanation TEXT NOT NULL,
+    source TEXT NOT NULL,
+    date_created TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+```
+
+**字段说明：**
+- `id`: 题目 ID，主键自增
+- `title`: 题目标题
+- `content`: 完形填空原文
+- `options`: 选项列表（JSON 格式）
+- `answer`: 正确答案
+- `explanation`: 题目解析
+- `source`: 来源
+- `date_created`: 创建时间
+
+#### 8.2.7 阅读理解表 (reading_comprehensions)
+
+```sql
+CREATE TABLE IF NOT EXISTS reading_comprehensions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    article TEXT NOT NULL,
+    questions TEXT NOT NULL,  -- JSON格式存储题目列表
+    answers TEXT NOT NULL,    -- JSON格式存储答案列表
+    explanations TEXT NOT NULL,  -- JSON格式存储解析列表
+    source TEXT NOT NULL,
+    date_created TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+```
+
+**字段说明：**
+- `id`: 题目 ID，主键自增
+- `article`: 阅读原文
+- `questions`: 题目列表（JSON 格式）
+- `answers`: 答案列表（JSON 格式）
+- `explanations`: 解析列表（JSON 格式）
+- `source`: 来源
+- `date_created`: 创建时间
+
+#### 8.2.8 删除日志表 (delete_logs)
+
+```sql
+CREATE TABLE IF NOT EXISTS delete_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    question_id INTEGER NOT NULL,
+    module_type TEXT NOT NULL,  -- 'cloze' 或 'reading'
+    question_data TEXT NOT NULL,  -- JSON格式存储被删除的数据
+    delete_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+```
+
+**字段说明：**
+- `id`: 日志 ID，主键自增
+- `question_id`: 被删除的题目 ID
+- `module_type`: 模块类型（'cloze' 或 'reading'）
+- `question_data`: 被删除的题目数据（JSON 格式）
+- `delete_time`: 删除时间
+
+#### 8.2.9 听写会话表 (dictation_sessions)
+
+```sql
+-- 由 create_dictation_tables 方法创建
+-- 存储听写会话信息
+```
+
+#### 8.2.10 练习会话表 (exercise_sessions)
+
+```sql
+-- 由 create_exercise_sessions_table 方法创建
+-- 存储练习会话信息
+```
+
+### 8.3 表关系图
+
+```
++----------------+          +---------+
+|   word_sets    |          |  words  |
++----------------+          +---------+
+| id (PK)        |<---------| id (PK) |
+| name           |          | set_id  |
+| description    |          | word    |
+| source         |          | translation|
+| create_time    |          | phonetic|
+| word_count     |          | example |
++----------------+          | meaning_en|
+                            | tag     |
+                            | example_translation|
+                            | familiarity|
+                            | added_at|
+                            | last_practice|
+                            | last_review|
+                            | proficiency|
+                            +---------+
+                                  |
+                                  |
+                                  v
+                            +---------+
+                            | progress|
+                            +---------+
+                            | id (PK) |
+                            | word    |
+                            | practice_date|
+                            | is_correct|
+                            | proficiency_change|
+                            +---------+
+
++----------------+    +------------------+
+| cloze_tests    |    | reading_comprehe|
+|                |    | nsions           |
++----------------+    +------------------+
+| id (PK)        |    | id (PK)          |
+| title          |    | article          |
+| content        |    | questions        |
+| options        |    | answers          |
+| answer         |    | explanations     |
+| explanation    |    | source           |
+| source         |    | date_created     |
+| date_created   |    +------------------+
++----------------+          |
+                            |
+                            v
+                        +---------+
+                        | delete_ |
+                        | logs    |
+                        +---------+
+                        | id (PK) |
+                        | question_id|
+                        | module_type|
+                        | question_data|
+                        | delete_time|
+                        +---------+
+```
+
+### 8.4 数据访问
+
+所有数据库操作都通过以下模块进行：
+
+1. **core/database_manager.py**: 主要的数据库管理器，负责单词管理相关的数据库操作
+2. **modules/database.py**: 理解类练习（完形填空、阅读理解）的数据库操作
+
+### 8.5 版本迁移
+
+系统会自动检测数据库版本并进行必要的迁移，包括：
+- 为旧版本单词表添加 `set_id` 列并关联到默认词库
+- 添加新的字段（如 `phonetic`, `example`, `meaning_en`, `tag`, `example_translation`）
+- 创建必要的索引以提高查询性能
+
+## 9. 未来计划
 
 - 增加更多学习模式（如拼写练习、听力练习）
 - 改进遗忘曲线算法
