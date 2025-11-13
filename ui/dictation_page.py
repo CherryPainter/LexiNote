@@ -240,19 +240,29 @@ class DictationPage(tk.Frame):
         )
         time_entry.pack(side=tk.LEFT, padx=5)
 
-        # 过滤选项
-        filter_frame = tk.Frame(mode_frame, bg='white')
-        filter_frame.pack(fill=tk.X, padx=50, pady=10)
+        # 难度级别选择
+        difficulty_frame = tk.Frame(mode_frame, bg='white')
+        difficulty_frame.pack(fill=tk.X, padx=50, pady=10)
 
-        self.filter_var = tk.BooleanVar(value=False)
-        filter_check = tk.Checkbutton(
-            filter_frame,
-            text="只练习熟词",
-            variable=self.filter_var,
+        difficulty_label = tk.Label(
+            difficulty_frame,
+            text="难度级别:",
             font=self.font_config['normal'],
             bg='white'
         )
-        filter_check.pack(side=tk.LEFT, padx=5)
+        difficulty_label.pack(side=tk.LEFT, padx=5)
+
+        self.difficulty_var = tk.StringVar(value="medium")
+        difficulty_option = ttk.Combobox(
+            difficulty_frame,
+            textvariable=self.difficulty_var,
+            values=["简单", "中等", "困难"],
+            font=self.font_config['normal'],
+            state="readonly",
+            width=10
+        )
+        difficulty_option.pack(side=tk.LEFT, padx=10, pady=5)
+        difficulty_option.current(1)
 
         # 按钮区域
         buttons_frame = tk.Frame(self.main_frame, bg='white')
@@ -329,6 +339,15 @@ class DictationPage(tk.Frame):
         if not self._ensure_source_has_words():
             return
 
+        # 获取难度级别
+        difficulty_text = self.difficulty_var.get()
+        if difficulty_text == "简单":
+            self.current_difficulty = "easy"
+        elif difficulty_text == "中等":
+            self.current_difficulty = "medium"
+        else:
+            self.current_difficulty = "hard"
+
         # 获取队列模式参数
         if self.current_mode == "queue":
             try:
@@ -352,17 +371,19 @@ class DictationPage(tk.Frame):
         # 创建练习界面
         self._create_exercise_ui()
 
+        # 开始会话
+        batch_size = self.batch_size if self.current_mode == "queue" else 1
+        self.dictation_manager.start_session(
+            source=self.current_source, 
+            batch_size=batch_size,
+            difficulty=self.current_difficulty
+        )
+
         # 根据模式开始练习
         if self.current_mode == "single":
             self._next_word()
         else:
             # 构建队列（已在上方检查来源是否可用）
-            filter_familiar = self.filter_var.get()
-            self.dictation_manager.build_queue(
-                source=self.current_source,
-                limit=self.batch_size,
-                filter_familiar=filter_familiar
-            )
             self.dictation_manager.current_mode = "queue"
             self._next_word_in_queue()
 
@@ -632,6 +653,12 @@ class DictationPage(tk.Frame):
             except Exception:
                 pass
         
+        # 结束会话
+        try:
+            self.dictation_manager.end_session()
+        except Exception:
+            pass
+        
         # 重置状态
         self.current_word = None
         self.session_results = []
@@ -641,6 +668,95 @@ class DictationPage(tk.Frame):
         
         # 记录日志
         log_info("用户退出听写练习")
+        
+    def _show_stats(self):
+        """显示统计信息"""
+        # 获取统计信息
+        stats = self.dictation_manager.get_stats(days=7)
+        
+        # 创建统计信息窗口
+        stats_window = tk.Toplevel(self)
+        stats_window.title("听写统计信息")
+        stats_window.geometry("600x400")
+        stats_window.configure(bg='white')
+        
+        # 创建滚动框架
+        from ui.components.scrollable_frame import create_scrollable_frame
+        scroll_frame, content_frame, _, _ = create_scrollable_frame(stats_window)
+        scroll_frame.pack(expand=True, fill=tk.BOTH)
+        
+        # 标题
+        title_label = tk.Label(
+            content_frame,
+            text="听写统计信息",
+            font=self.font_config['header'],
+            bg='white'
+        )
+        title_label.pack(pady=20)
+        
+        # 总练习次数
+        total_label = tk.Label(
+            content_frame,
+            text=f"总练习次数: {stats.get('total_sessions', 0)}次",
+            font=self.font_config['normal'],
+            bg='white'
+        )
+        total_label.pack(pady=5, padx=20, anchor='w')
+        
+        # 总练习单词数
+        words_label = tk.Label(
+            content_frame,
+            text=f"总练习单词数: {stats.get('total_words', 0)}个",
+            font=self.font_config['normal'],
+            bg='white'
+        )
+        words_label.pack(pady=5, padx=20, anchor='w')
+        
+        # 平均正确率
+        avg_accuracy = stats.get('average_accuracy', 0)
+        accuracy_label = tk.Label(
+            content_frame,
+            text=f"平均正确率: {avg_accuracy * 100:.1f}%",
+            font=self.font_config['normal'],
+            bg='white'
+        )
+        accuracy_label.pack(pady=5, padx=20, anchor='w')
+        
+        # 最常错单词
+        if stats.get('most_frequent_mistakes'):
+            mistakes_label = tk.Label(
+                content_frame,
+                text="最常错单词:",
+                font=self.font_config['normal'],
+                bg='white',
+                font=('SimHei', 12, 'bold')
+            )
+            mistakes_label.pack(pady=(15, 5), padx=20, anchor='w')
+            
+            mistakes_text = "、".join(stats['most_frequent_mistakes'][:10])  # 只显示前10个
+            mistakes_words_label = tk.Label(
+                content_frame,
+                text=mistakes_text,
+                font=self.font_config['normal'],
+                bg='white',
+                fg='#f44336',
+                wraplength=550,
+                justify=tk.LEFT
+            )
+            mistakes_words_label.pack(pady=5, padx=20, anchor='w')
+        
+        # 关闭按钮
+        close_button = tk.Button(
+            content_frame,
+            text="关闭",
+            font=self.font_config['button'],
+            width=15,
+            height=2,
+            command=stats_window.destroy,
+            bg='#f44336',
+            fg='white'
+        )
+        close_button.pack(pady=30)
 
     def _play_pronunciation(self):
         """播放单词发音"""
@@ -882,12 +998,27 @@ class DictationPage(tk.Frame):
         )
         title_label.pack(pady=30)
 
+        # 结束会话并获取统计信息
+        session_stats = self.dictation_manager.end_session()
+        
         # 获取总结数据
         summary = self.dictation_manager.summarize()
 
         # 总结信息框架
         summary_frame = tk.Frame(self.main_frame, bg='white')
         summary_frame.pack(pady=20, padx=50, fill=tk.X)
+
+        # 会话基本信息
+        session_info_frame = tk.Frame(summary_frame, bg='white')
+        session_info_frame.pack(fill=tk.X, pady=10)
+        
+        session_label = tk.Label(
+            session_info_frame,
+            text=f"会话信息: {self.current_mode}模式 - {self.current_source}来源 - {self.difficulty_var.get()}难度",
+            font=self.font_config['normal'],
+            bg='white'
+        )
+        session_label.pack(anchor='w')
 
         # 正确率
         accuracy_label = tk.Label(
@@ -897,6 +1028,16 @@ class DictationPage(tk.Frame):
             bg='white'
         )
         accuracy_label.pack(pady=10, anchor='w')
+        
+        # 会话时长
+        if session_stats and 'duration' in session_stats:
+            duration_label = tk.Label(
+                summary_frame,
+                text=f"会话时长: {session_stats['duration']}秒",
+                font=self.font_config['normal'],
+                bg='white'
+            )
+            duration_label.pack(pady=5, anchor='w')
 
         # 错词列表
         if summary['missed']:
@@ -980,6 +1121,18 @@ class DictationPage(tk.Frame):
             fg='white'
         )
         new_button.pack(side=tk.LEFT, padx=10)
+        
+        stats_button = tk.Button(
+            buttons_frame,
+            text="查看统计",
+            font=self.font_config['button'],
+            width=15,
+            height=2,
+            command=self._show_stats,
+            bg='#2196F3',
+            fg='white'
+        )
+        stats_button.pack(side=tk.LEFT, padx=10)
 
     def _review_missed_words(self):
         """复习错词"""

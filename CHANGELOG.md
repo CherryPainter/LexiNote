@@ -1,5 +1,16 @@
 # LexiNote 更新日志
 
+## v1.8.0 - 2025-11-01
+### Changed
+- 重构了听写功能，创建了独立的DictationManager类
+- 优化了听写队列构建逻辑，支持从词库获取单词
+- 改进了听写设置管理，统一使用SettingsManager接口
+### Fixed
+- 修复了'settings_manager.get_value'方法不存在的错误（替换为正确的get_setting方法）
+- 修复了代码缩进问题
+- 解决了词库关联问题，确保测试数据正确加载
+- 修复了数据库表不存在的初始化问题
+
 ## v1.7.1 - 2025-10-31
 ### Fixed
 - 修复单词练习页面例句点击功能无效问题：在main_window.py中为LearningPage实例化添加settings_manager参数

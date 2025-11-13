@@ -1049,8 +1049,16 @@ class DatabaseManager:
                 CREATE TABLE IF NOT EXISTS exercise_sessions (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     exercise_type TEXT NOT NULL,
+                    mode TEXT NOT NULL,
+                    source TEXT NOT NULL,
+                    difficulty TEXT,
+                    batch_size INTEGER,
+                    total_words INTEGER,
                     start_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    end_time TIMESTAMP
+                    end_time TIMESTAMP,
+                    duration INTEGER,
+                    correct_words INTEGER,
+                    accuracy REAL
                 )
             ''')
             
