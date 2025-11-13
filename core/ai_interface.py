@@ -279,10 +279,10 @@ class AIManager:
             包含单词详细属性的JSON字符串
         """
         prompt = f"请提供单词 '{word}' 的详细属性，包括：\n"
-        prompt += "1. 音标（phonetic）\n"
-        prompt += "2. 词性（tag）\n"
-        prompt += "3. 英语释义（meaning_en）\n"
-        prompt += "4. 例句（example）及中文翻译（example_translation）\n"
+        prompt += "1. 音标（phonetic）- 保持英文\n"
+        prompt += "2. 词性（tag）- 保持英文\n"
+        prompt += "3. 英语释义（meaning_en）- 保持英文\n"
+        prompt += "4. 例句（example）- 保持英文，附上中文翻译（example_translation）\n"
         prompt += "请严格按照以下JSON格式返回，不要添加任何额外内容和解释：\n"
         prompt += '{"phonetic": "音标", "tag": "词性", "meaning_en": "英语释义", "example": "例句", "example_translation": "例句翻译"}'
         return await self._ask(prompt, callback)
@@ -417,11 +417,11 @@ class AIManager:
             个性化学习建议
         """
         # 构建更详细的提示词，引导AI关注时间因素
-        prompt = f"你是一名专业的英语学习顾问，请根据以下学习数据生成详细的个性化建议。\n"
+        prompt = f"你是一名专业的英语学习顾问，请根据以下学习数据生成详细的个性化建议，使用中文回答。\n"
         prompt += f"特别关注用户的响应时间数据，分析用户在哪些单词上花费时间较长或较短，并提供针对性的建议。\n"
         prompt += f"如果用户对某些单词反应很快且正确率高，可以建议减少复习频率；如果反应慢或正确率低，建议增加练习。\n"
         prompt += f"数据详情：\n{json.dumps(user_stats, ensure_ascii=False)}\n"
-        prompt += f"请提供3-5点具体建议，包括单词学习策略、练习方法和时间管理建议。"
+        prompt += f"请提供3-5点具体建议，包括单词学习策略、练习方法和时间管理建议。引用部分可以使用英语。"
         
         # 使用同步方式调用_ask方法
         try:
