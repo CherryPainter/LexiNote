@@ -328,17 +328,19 @@ class ReviewPage(tk.Frame):
         
         # 显示当前单词和数据
         word, translation, word_data = self.review_words[self.current_index]
-        self.word_var.set(word)
         
         # 直接从word_data获取例句，优先使用数据库中的example字段
         self.current_example = word_data.get('example', '')
         
+        # 显示单词和音标
+        display_text = word
+        if 'phonetic' in word_data and word_data['phonetic']:
+            display_text += f"\n{word_data['phonetic']}"
+        self.word_var.set(display_text)
+        
         # 根据模式显示翻译和例句
         if self.show_translation:
             display_text = f"翻译: {translation}"
-            # 如果有音标，也显示出来
-            if 'phonetic' in word_data and word_data['phonetic']:
-                display_text += f"\n音标: {word_data['phonetic']}"
             # 如果有英文解释，也显示出来
             if 'meaning_en' in word_data and word_data['meaning_en']:
                 display_text += f"\n英文解释: {word_data['meaning_en']}"

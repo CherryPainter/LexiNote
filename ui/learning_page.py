@@ -282,14 +282,12 @@ class LearningPage(tk.Frame):
         if 0 <= self.current_index < len(self.current_batch):
             self.current_word = self.current_batch[self.current_index]
             
-            # 更新单词标签
-            self.word_label.config(text=self.current_word)
-            
             # 获取并显示释义
             if isinstance(self.current_word, dict):
                 # 如果是字典格式（从数据库获取）
                 word_text = self.current_word['word']
                 definition = self.current_word['translation']
+                phonetic = self.current_word.get('phonetic', '')
             else:
                 # 字符串格式
                 word_text = self.current_word
@@ -297,10 +295,25 @@ class LearningPage(tk.Frame):
                     definition = self.learning_manager.get_word_definition(self.current_word)
                 else:
                     definition = self.word_manager.get_translation(self.current_word)
+                # 尝试从数据库获取音标
+                try:
+                    # 获取当前激活词库ID
+                    if self.word_manager.active_word_set_id:
+                        words = self.word_manager.get_words_from_active_set(keyword=word_text)
+                        phonetic = words[0].get('phonetic', '') if words else ''
+                    else:
+                        phonetic = ''
+                except Exception:
+                    phonetic = ''
             
             # 更新单词标签
             self.word_label.config(text=word_text)
-            self.definition_label.config(text=definition or "无释义")
+            
+            # 显示释义和音标
+            display_text = definition or "无释义"
+            if phonetic:
+                display_text = f"{phonetic}\n{display_text}"
+            self.definition_label.config(text=display_text)
             
             # 重置例句状态
             self.is_example_visible = False

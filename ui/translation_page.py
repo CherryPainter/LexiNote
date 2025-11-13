@@ -342,9 +342,22 @@ class TranslationPage(tk.Frame):
         # 获取对应的翻译
         self.current_translation = self.word_manager.get_translation(self.current_word) or ""
         
-        # 显示要翻译的内容
+        # 获取完整单词信息以显示音标
+        self.current_word_info = {}
         if self.is_english_to_chinese:
-            self.word_var.set(self.current_word)
+            # 英翻中时，获取单词的完整信息
+            try:
+                words = self.word_manager.get_words_from_active_set(keyword=self.current_word)
+                if words and len(words) > 0:
+                    self.current_word_info = words[0]
+            except Exception:
+                pass
+            
+            # 显示要翻译的内容，包含音标
+            display_text = self.current_word
+            if self.current_word_info.get('phonetic'):
+                display_text = f"{self.current_word}\n{self.current_word_info['phonetic']}"
+            self.word_var.set(display_text)
         else:
             self.word_var.set(self.current_translation)
         
