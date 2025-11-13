@@ -738,6 +738,13 @@ class WordSetPage(tk.Frame):
         if word_data.get('example'):
             example_var.insert(tk.END, word_data['example'])
         
+        # 例句翻译
+        tk.Label(form_frame, text="例句翻译:", font=self.font_config['normal']).grid(row=6, column=0, sticky=tk.NW, pady=5)
+        example_translation_var = tk.Text(form_frame, font=self.font_config['normal'], width=30, height=3)
+        example_translation_var.grid(row=6, column=1, sticky=tk.W, pady=5)
+        if word_data.get('example_translation'):
+            example_translation_var.insert(tk.END, word_data['example_translation'])
+        
         # 按钮框架
         btn_frame = tk.Frame(dialog, pady=10)
         btn_frame.pack(fill=tk.X)
@@ -760,7 +767,8 @@ class WordSetPage(tk.Frame):
                         phonetic=phonetic_var.get().strip(),
                         tag=tag_var.get().strip(),
                         meaning_en=meaning_en_var.get(1.0, tk.END).strip(),
-                        example=example_var.get(1.0, tk.END).strip()
+                        example=example_var.get(1.0, tk.END).strip(),
+                        example_translation=example_translation_var.get(1.0, tk.END).strip()
                     )
                 else:
                     # 添加单词
@@ -771,6 +779,7 @@ class WordSetPage(tk.Frame):
                         phonetic=phonetic_var.get().strip(),
                         meaning_en=meaning_en_var.get(1.0, tk.END).strip(),
                         example=example_var.get(1.0, tk.END).strip(),
+                        example_translation=example_translation_var.get(1.0, tk.END).strip(),
                         tag=tag_var.get().strip()
                     )
                 

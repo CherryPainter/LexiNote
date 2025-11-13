@@ -1,5 +1,9 @@
 # LexiNote 更新日志
 
+## v1.7.1 - 2025-10-31
+### Fixed
+- 修复单词练习页面例句点击功能无效问题：在main_window.py中为LearningPage实例化添加settings_manager参数
+
 ## v1.7.0 - 2025-10-31
 ### Changed
 - 根据当前数据库结构重构了单词复习模块

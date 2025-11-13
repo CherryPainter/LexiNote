@@ -396,6 +396,33 @@ class ReviewPage(tk.Frame):
         if not self.review_words:
             return
             
+        if not self.is_example_visible:
+            # 显示例句
+            word, translation, word_data = self.review_words[self.current_index]
+            
+            # 如果当前没有例句，使用WordManager的AI补全功能获取例句
+            if not self.current_example and self.word_manager and self.settings_manager and self.settings_manager.get_setting("example_enabled", True):
+                # 异步获取例句
+                def on_example_ready(example):
+                    try:
+                        # 更新当前例句
+                        self.current_example = example
+                        # 更新显示
+                        self._update_word_display()
+                    except Exception as e:
+                        log_error(f"例句更新失败: {str(e)}")
+                
+                try:
+                    # 调用统一的词库管理AI补全模块获取例句
+                    self.word_manager.get_word_example(
+                        word, 
+                        async_mode=True, 
+                        callback=on_example_ready
+                    )
+                except Exception as e:
+                    log_error(f"获取例句失败: {str(e)}")
+            
+        # 切换显示状态
         self.is_example_visible = not self.is_example_visible
         self._update_word_display()
         
@@ -463,7 +490,7 @@ class ReviewPage(tk.Frame):
         """播放单词发音"""
         if not self.review_words:
             return
-        word, _ = self.review_words[self.current_index]
+        word, _, _ = self.review_words[self.current_index]
 
         # 在后台线程播放，避免阻塞UI
         def _play():

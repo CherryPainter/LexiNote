@@ -502,10 +502,14 @@ class LearningPage(tk.Frame):
         """
         异步获取单词例句
         """
+        log_info(f"_fetch_example_async called, current_word: {self.current_word}, word_manager: {self.word_manager}")
         if self.current_word and self.word_manager:
+            # 确保传递的是单词字符串而不是字典
+            word_str = self.current_word['word'] if isinstance(self.current_word, dict) else self.current_word
+            log_info(f"_fetch_example_async: calling get_word_example with word_str={word_str}")
             # 使用WordManager的异步API获取例句
             self.word_manager.get_word_example(
-                self.current_word, 
+                word_str, 
                 async_mode=True, 
                 callback=self._on_example_fetched
             )
@@ -517,12 +521,16 @@ class LearningPage(tk.Frame):
         Args:
             example: 获取到的例句文本
         """
+        log_info(f"_on_example_fetched called, example: {example}")
         try:
             self.current_example = example
+            log_info(f"_on_example_fetched: current_example updated to {example}, is_example_visible={self.is_example_visible}")
             # 如果用户已经点击显示例句，自动更新UI
             if self.is_example_visible:
+                log_info(f"_on_example_fetched: updating example_label with text={example}")
                 self.master.after(0, lambda: self.example_label.config(text=example))
         except Exception as e:
+            log_error(f"_on_example_fetched error: {str(e)}")
             pass  # 忽略UI更新错误
     
     def toggle_example(self):
@@ -532,18 +540,22 @@ class LearningPage(tk.Frame):
         if not self.current_word:
             return
             
+        # 确保传递的是单词字符串而不是字典
+        word_str = self.current_word['word'] if isinstance(self.current_word, dict) else self.current_word
+            
         if not self.is_example_visible:
             # 显示例句
             if self.current_example:
-                self.example_label.config(text=self.current_example)
+                # 直接显示已缓存的例句
+                self.master.after(0, lambda: self.example_label.config(text=self.current_example))
                 self.is_example_visible = True
-                self.example_button.config(text="📝 隐藏例句")
+                self.master.after(0, lambda: self.example_button.config(text="📝 隐藏例句"))
             elif self.word_manager and self.settings_manager and self.settings_manager.get_setting("example_enabled", True):
-                # 如果还没有例句，异步获取
-                self.example_label.config(text="正在获取例句...")
+                # 如果还没有例句，异步获取（先检查数据库，没有则AI补全）
+                self.master.after(0, lambda: self.example_label.config(text="正在获取例句..."))
                 self.is_example_visible = True
                 
-                # 使用异步方式获取例句
+                # 异步获取例句的回调函数
                 def on_example_ready(example):
                     try:
                         self.current_example = example
@@ -553,19 +565,24 @@ class LearningPage(tk.Frame):
                         self.master.after(0, lambda: self.example_button.config(
                             text="📝 隐藏例句"
                         ))
-                    except Exception as e:
+                    except Exception:
                         pass  # 忽略UI更新错误
                 
-                self.word_manager.get_word_example(
-                    self.current_word, 
-                    async_mode=True, 
-                    callback=on_example_ready
-                )
+                try:
+                    # 调用重构后的get_word_example方法（自动处理数据库检查和AI补全）
+                    self.word_manager.get_word_example(
+                        word_str, 
+                        async_mode=True, 
+                        callback=on_example_ready
+                    )
+                except Exception:
+                    pass  # 忽略获取例句时的错误
         else:
             # 隐藏例句
-            self.example_label.config(text="")
+            log_info(f"toggle_example: hiding example")
+            self.master.after(0, lambda: self.example_label.config(text=""))
             self.is_example_visible = False
-            self.example_button.config(text="📝 显示例句")
+            self.master.after(0, lambda: self.example_button.config(text="📝 显示例句"))
     
     def on_leave(self):
         """

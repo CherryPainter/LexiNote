@@ -572,9 +572,11 @@ class TranslationPage(tk.Frame):
     def _fetch_example_async(self):
         """异步获取单词例句"""
         if self.current_word and hasattr(self.word_manager, 'get_word_example'):
+            # 确保传递的是单词字符串而不是字典
+            word_str = self.current_word['word'] if isinstance(self.current_word, dict) else self.current_word
             # 使用WordManager的异步API获取例句
             self.word_manager.get_word_example(
-                self.current_word, 
+                word_str, 
                 async_mode=True, 
                 callback=self._on_example_fetched
             )
@@ -623,8 +625,10 @@ class TranslationPage(tk.Frame):
                     except Exception as e:
                         pass  # 忽略UI更新错误
                 
+                # 确保传递的是单词字符串而不是字典
+                word_str = self.current_word['word'] if isinstance(self.current_word, dict) else self.current_word
                 self.word_manager.get_word_example(
-                    self.current_word, 
+                    word_str, 
                     async_mode=True, 
                     callback=on_example_ready
                 )

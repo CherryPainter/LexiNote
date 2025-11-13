@@ -1108,7 +1108,7 @@ class DictationManager:
             return json.dumps({"error": str(e)}, ensure_ascii=False)
     
     def get_word_example(self, word):
-        """获取单词的例句（优先从本地数据库读取）
+        """获取单词的例句（使用统一的词库管理接口）
         
         Args:
             word: 单词
@@ -1117,17 +1117,8 @@ class DictationManager:
             例句字符串或None
         """
         try:
-            # 优先从数据库读取
-            result = self.db_manager.execute_read(
-                "SELECT example FROM words WHERE word = ?",
-                (word,)
-            )
-            
-            if result and result[0]['example']:
-                log_info(f"从本地数据库获取例句: {word}")
-                return result[0]['example']
-            
-            return None
+            # 使用统一的WordManager接口获取例句（会自动处理数据库查询和AI补全）
+            return self.word_manager.get_word_example(word, async_mode=False)
             
         except Exception as e:
             log_error(f"获取单词例句失败: {str(e)}")

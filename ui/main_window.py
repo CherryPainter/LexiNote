@@ -308,6 +308,7 @@ class MainWindow:
                 self.content_area,
                 word_manager=self.word_manager,
                 learning_manager=self.learning_manager,
+                settings_manager=self.settings_manager,
                 font_config=self.font_config
             )
         

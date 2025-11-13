@@ -1052,7 +1052,9 @@ class DictationPage(tk.Frame):
 
         # 显示例句（如果有）
         if hasattr(self, 'example_var'):
-            example = self.word_manager.get_word_example(self.current_word)
+            # 确保传递的是单词字符串而不是字典
+            word_str = self.current_word['word'] if isinstance(self.current_word, dict) else self.current_word
+            example = self.word_manager.get_word_example(word_str)
             if example:
                 self.example_var.set(f"例句: {example}")
                 self.example_label.pack(pady=10)

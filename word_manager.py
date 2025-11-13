@@ -5,6 +5,7 @@ import functools
 import threading
 import sqlite3
 import time
+import traceback
 from typing import Dict, List, Optional, Union
 from datetime import datetime
 from collections import deque
@@ -1416,7 +1417,7 @@ class WordManager:
         
         try:
             # 验证属性值
-            valid_attributes = ['phonetic', 'example', 'meaning_en', 'tag']
+            valid_attributes = ['phonetic', 'example', 'example_translation', 'meaning_en', 'tag']
             attributes = [attr for attr in attributes if attr in valid_attributes]
             
             if not attributes:
@@ -1499,7 +1500,14 @@ class WordManager:
                             example = self.ai_manager.example_sync(word)
                             # 注意：example_sync返回的不是JSON格式，而是"英文例句|中文翻译"格式
                             if example and "AI功能暂不可用" not in example and "生成例句失败" not in example:
-                                ai_attributes['example'] = example
+                                # 正确拆分例句和翻译
+                                if "|" in example:
+                                    example_en, example_zh = example.split("|", 1)
+                                    ai_attributes['example'] = example_en.strip()
+                                    ai_attributes['example_translation'] = example_zh.strip()
+                                else:
+                                    # 如果格式不符合预期，仍然保存到example字段
+                                    ai_attributes['example'] = example.strip()
                             else:
                                 log_warning(f"获取例句失败或AI不可用: {example}")
                         except Exception as e:
@@ -1596,7 +1604,8 @@ class WordManager:
         return example_text
             
     def get_word_example(self, word: str, async_mode=False, callback=None) -> str:
-        """获取单词的例句
+        """
+        获取单词的例句（优先从数据库获取，没有则通过AI补全）
 
         Args:
             word: 要获取例句的单词
@@ -1607,23 +1616,40 @@ class WordManager:
             str: 同步模式下返回包含例句和翻译的文本，如果获取失败返回默认例句
                  异步模式下返回None，结果通过callback返回
         """
-        # 使用通用的属性获取方法
+        log_info(f"获取单词例句: {word}, 异步模式: {async_mode}")
+        
+        # 使用通用的属性获取方法（自动处理数据库检查和AI补全）
         def example_callback(attributes):
             if callback:
-                raw_example = attributes.get('example', self._get_default_example(word))
-                # 格式化例句
-                formatted_example = self._format_example(raw_example)
-                callback(formatted_example)
+                try:
+                    example = attributes.get('example', '')
+                    example_translation = attributes.get('example_translation', '')
+                    if example and example_translation:
+                        formatted_example = f"🌍 {example}\n📝 {example_translation}"
+                    elif example:
+                        # 兼容旧格式：如果只有example字段且包含分隔符
+                        formatted_example = self._format_example(example)
+                    else:
+                        formatted_example = self._get_default_example(word)
+                    callback(formatted_example)
+                except Exception as e:
+                    log_error(f"执行例句回调时发生错误: {str(e)}")
         
-        attributes = self.get_and_save_word_attributes(word, ['example'], async_mode, 
+        attributes = self.get_and_save_word_attributes(word, ['example', 'example_translation'], async_mode, 
                                                      callback=example_callback if async_mode else None)
         
         if async_mode:
             return None
         else:
-            raw_example = attributes.get('example', self._get_default_example(word))
-            # 格式化例句
-            return self._format_example(raw_example)
+            example = attributes.get('example', '')
+            example_translation = attributes.get('example_translation', '')
+            if example and example_translation:
+                return f"🌍 {example}\n📝 {example_translation}"
+            elif example:
+                # 兼容旧格式：如果只有example字段且包含分隔符
+                return self._format_example(example)
+            else:
+                return self._get_default_example(word)
     
     def _save_example_to_database(self, word: str, example: str):
         """将例句保存到数据库
