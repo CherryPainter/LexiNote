@@ -484,16 +484,16 @@ class WordManager:
                 update_data = {}
                 
                 # 只更新缺失的属性
-                if word_data['phonetic'] == '' and 'phonetic' in details and details['phonetic']:
+                if (word_data['phonetic'] is None or word_data['phonetic'] == '') and 'phonetic' in details and details['phonetic']:
                     update_data['phonetic'] = details['phonetic']
                 
-                if word_data['tag'] == '' and 'tag' in details and details['tag']:
+                if (word_data['tag'] is None or word_data['tag'] == '') and 'tag' in details and details['tag']:
                     update_data['tag'] = details['tag']
                 
-                if word_data['meaning_en'] == '' and 'meaning_en' in details and details['meaning_en']:
+                if (word_data['meaning_en'] is None or word_data['meaning_en'] == '') and 'meaning_en' in details and details['meaning_en']:
                     update_data['meaning_en'] = details['meaning_en']
                 
-                if word_data['example'] == '' and 'example' in details and details['example']:
+                if (word_data['example'] is None or word_data['example'] == '') and 'example' in details and details['example']:
                     update_data['example'] = details['example']
                 
                 # 如果有例句翻译，也更新
