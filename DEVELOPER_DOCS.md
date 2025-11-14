@@ -116,13 +116,15 @@ LexiNote/
 ├── audio_cache.py       # 音频缓存管理
 ├── logger.py            # 日志记录模块
 ├── statistics.py        # 统计功能模块
+├── app.ico              # 应用程序图标
 ├── core/                # 核心功能模块
 │   ├── ai_interface.py  # AI接口管理
 │   ├── database_manager.py # 数据库管理
 │   ├── learning.py      # 学习逻辑模块
 │   ├── cache_manager.py # 缓存管理
 │   ├── settings_manager.py # 设置管理
-│   └── dictation.py     # 听写核心逻辑
+│   ├── dictation.py     # 听写核心逻辑
+│   └── text_formatter.py # 文本格式化工具
 ├── modules/             # 功能模块
 │   ├── ai_service.py    # AI服务
 │   ├── cloze_test.py    # 完形填空模块
@@ -142,13 +144,13 @@ LexiNote/
 │   ├── statistics_page.py # 学习统计页面
 │   ├── cloze_test_page.py # 完形填空页面
 │   ├── reading_comprehension_page.py # 阅读理解页面
+│   ├── word_set_page.py # 词库管理页面
 │   └── components/      # UI组件
+│       ├── loading_dialog.py # 加载对话框组件
+│       └── scrollable_frame.py # 滚动框架组件
 ├── data/                # 数据文件目录
-│   └── lexinote.db      # SQLite数据库文件
-├── cache/               # 缓存目录
-│   ├── ai_text/         # AI文本缓存
-│   ├── ai_tts/          # AI语音缓存
-│   └── audio/           # 音频缓存
+│   ├── lexinote.db      # SQLite数据库文件
+│   └── logs/            # 日志文件目录
 ├── requirements.txt     # 依赖列表
 ├── README.md            # 项目说明
 ├── API_DOCUMENTATION.md # API文档
