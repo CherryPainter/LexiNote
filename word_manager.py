@@ -50,12 +50,10 @@ class WordManager:
         
         # 当前激活的词库ID
         self.active_word_set_id = None
-        self._load_active_word_set()
         
         # 初始化AI管理器（延迟加载方式）
         self.ai_manager = None
         self.ai_available = False
-        self._init_ai_manager()
         
         # 节流控制相关
         self._throttle_lock = threading.RLock()
@@ -63,10 +61,32 @@ class WordManager:
         self._min_interval_ms = 500  # 最小调用间隔(毫秒)
         self._max_calls_per_minute = 10  # 每分钟最大调用次数
         
-        # 预热缓存
-        self._warmup_cache()
-        # 加载单词熟悉度到内存缓存
-        self._load_word_familiarity()
+        # 初始化状态标记
+        self.is_initialized = False
+        
+        # 将耗时操作放在后台线程执行
+        self._init_thread = threading.Thread(target=self._init_background, daemon=True)
+        self._init_thread.start()
+    
+    def _init_background(self):
+        """在后台线程中执行耗时的初始化操作"""
+        try:
+            # 加载当前激活的词库
+            self._load_active_word_set()
+            
+            # 初始化AI管理器
+            self._init_ai_manager()
+            
+            # 预热缓存
+            self._warmup_cache()
+            
+            # 加载单词熟悉度到内存缓存
+            self._load_word_familiarity()
+            
+            self.is_initialized = True
+            log_info("WordManager初始化完成")
+        except Exception as e:
+            log_error(f"WordManager后台初始化失败: {str(e)}")
     
     def _warmup_cache(self):
         """预热缓存，加载常用数据到内存"""
