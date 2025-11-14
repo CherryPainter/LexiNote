@@ -7,7 +7,7 @@ from tkinter import messagebox
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 # 版本信息
-VERSION = "v1.11.6"
+VERSION = "v1.11.7"
 
 from logger import log_info, log_error
 
@@ -35,8 +35,6 @@ def main():
             root.iconbitmap(icon_path)
         else:
             log_error("图标文件 app.ico 不存在")
-
-        root.iconbitmap("app.ico")
         app = MainWindow(root)
         root.mainloop()
         log_info("程序正常退出")
