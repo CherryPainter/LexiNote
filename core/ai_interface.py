@@ -17,29 +17,44 @@ from .database_manager import DatabaseManager
 class AIManager:
     """优化版AI管理器，加入缓存、异步和请求合并功能"""
     
+    # 单例模式实现
+    _instance = None
+    _initialized = False
+    
+    def __new__(cls, *args, **kwargs):
+        """创建单例实例"""
+        if cls._instance is None:
+            cls._instance = super(AIManager, cls).__new__(cls)
+        return cls._instance
+    
     def __init__(self, model="gemma3n:latest"):
-        """初始化AI管理器
+        """初始化AI管理器（只在第一次创建实例时执行）
         
         Args:
             model: 使用的Ollama模型名称
         """
-        self.model = model
-        self.db_manager = DatabaseManager()
-        self._executor = ThreadPoolExecutor(max_workers=2)
-        self._semaphore = asyncio.Semaphore(2)  # 限制并发请求数
-        self._active_requests = {}  # 正在进行的请求，用于合并重复请求
-        self._request_lock = threading.Lock()
-        
-        # 创建缓存目录
-        self.cache_dir = os.path.join('cache', 'ai_text')
-        os.makedirs(self.cache_dir, exist_ok=True)
-        
-        log_info(f"初始化AIManager，使用模型: {model}")
-        
-        # 验证模型是否可用
-        self.available_models = self._get_available_models()
-        if self.model not in self.available_models:
-            log_warning(f"指定的模型 {model} 可能不可用，可用模型: {', '.join(self.available_models) if self.available_models else '无'}")
+        # 确保初始化只执行一次
+        if not AIManager._initialized:
+            self.model = model
+            self.db_manager = DatabaseManager()
+            self._executor = ThreadPoolExecutor(max_workers=2)
+            self._semaphore = asyncio.Semaphore(2)  # 限制并发请求数
+            self._active_requests = {}  # 正在进行的请求，用于合并重复请求
+            self._request_lock = threading.Lock()
+            
+            # 创建缓存目录
+            self.cache_dir = os.path.join('cache', 'ai_text')
+            os.makedirs(self.cache_dir, exist_ok=True)
+            
+            log_info(f"初始化AIManager，使用模型: {model}")
+            
+            # 验证模型是否可用
+            self.available_models = self._get_available_models()
+            if self.model not in self.available_models:
+                log_warning(f"指定的模型 {model} 可能不可用，可用模型: {', '.join(self.available_models) if self.available_models else '无'}")
+            
+            # 标记为已初始化
+            AIManager._initialized = True
     
     def _get_available_models(self) -> list:
         """获取可用的Ollama模型列表

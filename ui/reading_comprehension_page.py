@@ -42,11 +42,11 @@ class ReadingComprehensionPage(tk.Frame):
     
     def _on_show_page(self):
         """页面显示时执行的操作，延迟初始化模块"""
-        # 延迟初始化模块
+        # 延迟初始化模块，使用控制器提供的WordManager实例
         if self.reading_module is None:
             from modules.reading_comprehension import ReadingComprehensionModule
-            self.reading_module = ReadingComprehensionModule()
-            
+            self.reading_module = ReadingComprehensionModule(word_manager=self.controller.word_manager)
+        
         # 刷新状态信息
         self._update_status()
     

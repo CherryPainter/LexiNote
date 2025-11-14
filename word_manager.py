@@ -83,10 +83,10 @@ class WordManager:
             log_error(f"缓存预热失败: {str(e)}")
 
     def _init_ai_manager(self):
-        """初始化AI管理器（延迟加载）"""
+        """初始化AI管理器（延迟加载，使用单例模式）"""
         try:
             from core.ai_interface import AIManager
-            self.ai_manager = AIManager()
+            self.ai_manager = AIManager()  # 由于AIManager实现了单例模式，这里会返回已有的实例或创建新实例
             # 直接检查AI可用性，不再调用不存在的is_ai_available方法
             self.ai_available = self._test_ai_connection()
         except ImportError:
@@ -103,20 +103,24 @@ class WordManager:
             bool: AI连接是否可用
         """
         try:
-            # 简单测试AI连接，发送一个简短的请求
+            # 简单测试AI连接，只检查Ollama服务是否可用，不实际生成例句
             if self.ai_manager:
                 # 使用try-except捕获可能的错误，避免在初始化过程中抛出异常
                 try:
-                    test_response = self.ai_manager.example_sync("test")
-                    # 检查响应是否包含错误信息
-                    if test_response and "AI功能暂不可用" not in test_response:
+                    import requests
+                    # 只检查Ollama服务的健康状态，不发送实际的生成请求
+                    health_response = requests.get("http://localhost:11434/api/tags", timeout=5)
+                    if health_response.status_code == 200:
                         log_info("AI功能测试成功，服务可用")
                         return True
                     else:
-                        log_info(f"AI功能测试失败: {test_response}")
+                        log_info(f"AI功能测试失败: Ollama服务状态码 {health_response.status_code}")
                         return False
+                except requests.RequestException as e:
+                    log_warning(f"测试AI连接失败: Ollama服务未启动或不可访问 - {str(e)}")
+                    return False
                 except Exception as e:
-                    log_warning(f"测试AI连接失败: {str(e)}")
+                    log_warning(f"测试AI连接时发生未知错误: {str(e)}")
                     return False
         except Exception as e:
             log_warning(f"检查AI可用性时发生错误: {str(e)}")

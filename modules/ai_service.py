@@ -14,10 +14,15 @@ from .utils import extract_json_from_text
 class AIService:
     """AI服务类，负责生成题目和判题"""
     
-    def __init__(self):
-        """初始化AI服务"""
-        self.ai_manager = AIManager()
+    def __init__(self, word_manager=None):
+        """初始化AI服务（使用AIManager单例）
+        
+        Args:
+            word_manager: 可选的WordManager实例，用于共享AI连接检测状态
+        """
+        self.ai_manager = AIManager()  # 由于AIManager实现了单例模式，这里会返回已有的实例或创建新实例
         self.db_manager = ComprehensionDatabase()
+        self.word_manager = word_manager  # 保存传入的WordManager实例
         self._lock = threading.RLock()
         
         # 测试AI连接状态
@@ -52,40 +57,43 @@ class AIService:
             log_warning(f"保存原始AI响应失败: {str(e)}")
     
     def _test_ai_connection(self) -> bool:
-        """测试AI连接是否可用
+        """测试AI连接是否可用（使用轻量级健康检查，避免实际AI调用）
         
         Returns:
             bool: AI连接是否可用
         """
-        try:
-            # 首先检查服务是否运行
-            try:
-                # 使用 /api/tags 作为健康检查端点
-                health_response = requests.get("http://localhost:11434/api/tags", timeout=5)
-                if health_response.status_code != 200:
-                    log_warning(f"Ollama服务运行异常，状态码: {health_response.status_code}")
-                    return False
-            except requests.RequestException as e:
-                log_warning(f"Ollama服务连接失败: {str(e)}")
-                return False
+        # 如果有外部传入的WordManager，优先使用它的AI可用性检测结果
+        if self.word_manager is not None and hasattr(self.word_manager, 'ai_available'):
+            return self.word_manager.ai_available
             
-            # 然后测试模型响应
-            test_prompt = "请回复'OK'"
-            response = self.ai_manager._ask_sync(test_prompt)
-            log_info(f"AI连接测试响应: {response[:50]}...")
-            return "OK" in response
+        try:
+            # 只检查Ollama服务的健康状态，不发送实际的生成请求
+            health_response = requests.get("http://localhost:11434/api/tags", timeout=5)
+            if health_response.status_code == 200:
+                log_info("AI服务连接测试成功")
+                return True
+            else:
+                log_warning(f"Ollama服务运行异常，状态码: {health_response.status_code}")
+                return False
+        except requests.RequestException as e:
+            log_warning(f"Ollama服务连接失败: {str(e)}")
+            return False
         except Exception as e:
             log_warning(f"AI连接测试失败: {str(e)}")
             return False
     
     def is_ai_available(self) -> bool:
-        """检查AI服务是否可用，每次调用都重新测试连接状态
+        """检查AI服务是否可用，优先使用WordManager的AI可用性状态
         
         Returns:
             bool: AI服务是否可用
         """
-        # 每次调用都重新测试，以便检测连接恢复
-        self.ai_available = self._test_ai_connection()
+        # 如果有外部传入的WordManager，优先使用它的AI可用性检测结果
+        if self.word_manager is not None:
+            self.ai_available = self.word_manager.ai_available
+        else:
+            # 否则，重新测试连接状态
+            self.ai_available = self._test_ai_connection()
         return self.ai_available
     
     def generate_cloze_test(self, level: str = "中级", topic: str = "通用") -> Optional[Dict]:

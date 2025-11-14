@@ -8,6 +8,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from modules.ai_service import AIService
+from core.text_formatter import TextFormatter
 from logger import log_info, log_error
 
 
@@ -25,6 +26,9 @@ class AIAssistantPage(tk.Frame):
         self.parent = parent
         self.main_window = main_window
         self.font_config = main_window.font_config
+        
+        # 初始化文本格式化器，用于处理AI返回的富文本格式
+        self.text_formatter = TextFormatter()
         
         # 延迟初始化AI服务，避免在页面加载时阻塞UI
         self.ai_service = None
@@ -370,7 +374,9 @@ class AIAssistantPage(tk.Frame):
     def _stream_response(self, chunk, done):
         """流式处理AI响应的回调函数"""
         if chunk:
-            self.after(0, lambda: self._append_to_result(chunk))
+            # 格式化chunk
+            formatted_chunk = self.text_formatter.format_for_tkinter(chunk)
+            self.after(0, lambda: self._append_to_result(formatted_chunk))
     
     def _append_to_result(self, text):
         """向结果框添加文本"""
@@ -389,9 +395,13 @@ class AIAssistantPage(tk.Frame):
         """页面显示时执行的操作，延迟初始化AI服务"""
         log_info("显示AI助手页面")
         
-        # 延迟初始化AI服务
+        # 延迟初始化AI服务，传入主窗口的WordManager实例
         if self.ai_service is None:
-            self.ai_service = AIService()
+            # 使用主窗口的WordManager实例，避免重复初始化
+            if hasattr(self.main_window, 'word_manager'):
+                self.ai_service = AIService(word_manager=self.main_window.word_manager)
+            else:
+                self.ai_service = AIService()
             
         # 重新检查AI连接状态
         self._check_ai_connection()

@@ -7,25 +7,40 @@ from tkinter import messagebox
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 # 版本信息
-VERSION = "v1.11.1"
+VERSION = "v1.11.2"
 
 from logger import log_info, log_error
+
 
 def main():
     """主程序入口"""
     try:
         log_info(f"程序启动 - LexiNote {VERSION}")
-        
+
         # 导入主窗口类
         from ui.main_window import MainWindow
-        
+
         # 创建并运行应用
         root = tk.Tk()
+        root.title("LexiNote - 英语学习工具")
+        root.config(bg="#FCE9D9")
+
+        if sys.platform.startswith("win"):
+            import ctypes
+            myappid = f"LexiNote.{VERSION}"  # app id，随便写但必须唯一
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+        icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "app.ico")
+
+        if os.path.exists(icon_path):
+            root.iconbitmap(icon_path)
+        else:
+            log_error("图标文件 app.ico 不存在")
+
+        root.iconbitmap("app.ico")
         app = MainWindow(root)
         root.mainloop()
-        
         log_info("程序正常退出")
-        
+
     except ImportError as e:
         error_msg = f"导入模块失败: {str(e)}"
         log_error(error_msg)

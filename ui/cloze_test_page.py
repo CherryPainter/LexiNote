@@ -47,10 +47,10 @@ class ClozeTestPage(tk.Frame):
     
     def _on_show_page(self):
         """页面显示时执行的操作，延迟初始化模块"""
-        # 延迟初始化模块
+        # 延迟初始化模块，使用控制器提供的WordManager实例
         if self.cloze_module is None:
             from modules.cloze_test import ClozeTestModule
-            self.cloze_module = ClozeTestModule()
+            self.cloze_module = ClozeTestModule(word_manager=self.controller.word_manager)
             
         # 刷新状态信息
         self._update_status()

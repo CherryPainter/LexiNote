@@ -14,12 +14,13 @@ class WordImporter:
         """初始化单词导入器"""
         self.db_manager = DatabaseManager()
     
-    def import_from_json_file(self, json_file_path: str) -> Tuple[bool, Dict]:
+    def import_from_json_file(self, json_file_path: str, set_id: int = None) -> Tuple[bool, Dict]:
         """从JSON文件导入单词到数据库
         
         Args:
             json_file_path: JSON文件路径，文件格式应与data/word_dict.json相同
             {"word1": "translation1", "word2": "translation2", ...}
+            set_id: 词库ID，默认为默认词库
         
         Returns:
             Tuple[bool, Dict]: 导入是否成功和统计信息
@@ -55,6 +56,16 @@ class WordImporter:
             result["total"] = len(word_dict)
             log_info(f"读取到 {result['total']} 个单词")
             
+            # 如果没有指定词库ID，使用默认词库
+            if set_id is None:
+                default_set = self.db_manager.get_word_set_by_name('默认词库')
+                if not default_set:
+                    error_msg = "默认词库不存在"
+                    log_error(error_msg)
+                    result["errors"].append(error_msg)
+                    return False, result
+                set_id = default_set['id']
+            
             # 准备批量插入数据
             words_to_import = []
             for word, translation in word_dict.items():
@@ -69,13 +80,13 @@ class WordImporter:
                     result["skipped"] += 1
                     continue
                 
-                words_to_import.append((word.strip(), translation.strip()))
+                words_to_import.append((set_id, word.strip(), translation.strip()))
             
             # 批量导入到数据库
             if words_to_import:
                 log_info(f"准备导入 {len(words_to_import)} 个单词到数据库")
                 success = self.db_manager.execute_write_many(
-                    "INSERT OR IGNORE INTO words (word, translation) VALUES (?, ?)",
+                    "INSERT OR IGNORE INTO words (set_id, word, translation) VALUES (?, ?, ?)",
                     words_to_import
                 )
                 
@@ -114,17 +125,18 @@ class WordImporter:
             return False, result
 
 
-def import_words_from_json(json_file_path: str) -> Dict:
+def import_words_from_json(json_file_path: str, set_id: int = None) -> Dict:
     """便捷函数：从JSON文件批量导入单词
     
     Args:
         json_file_path: JSON文件路径
+        set_id: 词库ID，默认为默认词库
     
     Returns:
         Dict: 导入结果统计信息
     """
     importer = WordImporter()
-    success, stats = importer.import_from_json_file(json_file_path)
+    success, stats = importer.import_from_json_file(json_file_path, set_id)
     stats["success"] = success
     return stats
 
@@ -135,7 +147,14 @@ if __name__ == "__main__":
     
     if len(sys.argv) > 1:
         json_file = sys.argv[1]
-        result = import_words_from_json(json_file)
+        set_id = None
+        if len(sys.argv) > 2:
+            try:
+                set_id = int(sys.argv[2])
+            except ValueError:
+                print("警告: 词库ID必须是整数，将使用默认词库")
+        
+        result = import_words_from_json(json_file, set_id)
         
         print(f"\n导入结果:")
         print(f"  状态: {'成功' if result['success'] else '失败'}")
@@ -148,4 +167,4 @@ if __name__ == "__main__":
             for error in result['errors']:
                 print(f"    - {error}")
     else:
-        print("使用方法: python -m modules.word_importer <json文件路径>")
+        print("使用方法: python -m modules.word_importer <json文件路径> [词库ID]")

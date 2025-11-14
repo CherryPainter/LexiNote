@@ -348,11 +348,12 @@ class MainWindow:
         self.current_page = page
         self.current_page.pack(fill=tk.BOTH, expand=True)
         
+        # 先记录页面切换日志，再执行初始化操作
+        log_info("切换到完形填空页面")
+        
         # 调用页面的on_show方法
         if hasattr(self.current_page, 'on_show'):
             self.current_page.on_show()
-            
-        log_info("切换到完形填空页面")
     
     def _show_reading_comprehension_page(self):
         """显示阅读理解页面"""
@@ -376,11 +377,12 @@ class MainWindow:
         self.current_page = page
         self.current_page.pack(fill=tk.BOTH, expand=True)
         
+        # 先记录页面切换日志，再执行初始化操作
+        log_info("切换到阅读理解页面")
+        
         # 调用页面的on_show方法
         if hasattr(self.current_page, 'on_show'):
             self.current_page.on_show()
-            
-        log_info("切换到阅读理解页面")
         
     def _show_statistics(self):
         """显示学习统计页面"""
@@ -436,11 +438,12 @@ class MainWindow:
         self.current_page = page
         self.current_page.pack(fill=tk.BOTH, expand=True)
         
+        # 先记录页面切换日志，再执行初始化操作
+        log_info("切换到AI助手页面")
+        
         # 调用页面的on_show方法
         if hasattr(self.current_page, 'on_show'):
             self.current_page.on_show()
-            
-        log_info("切换到AI助手页面")
         
     def _show_word_set_page(self):
         """显示词库管理页面"""

@@ -10,13 +10,17 @@ from word_manager import WordManager
 class ClozeTestModule:
     """完形填空模块"""
     
-    def __init__(self):
-        """初始化完形填空模块"""
+    def __init__(self, word_manager: WordManager):
+        """初始化完形填空模块
+        
+        Args:
+            word_manager: 外部传入的WordManager实例，避免重复创建
+        """
         self.db_manager = ComprehensionDatabase()
-        # 使用WordManager来管理AI连接检测
-        self.word_manager = WordManager()
-        # 保留AI服务，但不再使用它进行连接检测
-        self.ai_service = AIService()
+        # 使用外部传入的WordManager实例，避免重复创建
+        self.word_manager = word_manager
+        # 将word_manager传递给AIService，避免重复测试AI连接
+        self.ai_service = AIService(word_manager=word_manager)
         self._lock = threading.RLock()
         
         # 当前练习状态

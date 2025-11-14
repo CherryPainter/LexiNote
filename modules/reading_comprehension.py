@@ -11,12 +11,16 @@ from word_manager import WordManager
 class ReadingComprehensionModule:
     """阅读理解模块"""
     
-    def __init__(self):
-        """初始化阅读理解模块"""
+    def __init__(self, word_manager: WordManager):
+        """初始化阅读理解模块
+        
+        Args:
+            word_manager: 外部传入的WordManager实例，避免重复创建
+        """
         self.db_manager = ComprehensionDatabase()
-        # 保留AI服务，但使用WordManager管理AI连接检测
-        self.ai_service = AIService()
-        self.word_manager = WordManager()
+        # 将word_manager传递给AIService，避免重复测试AI连接
+        self.ai_service = AIService(word_manager=word_manager)
+        self.word_manager = word_manager
         self._lock = threading.RLock()
         
         # 当前练习状态
