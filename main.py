@@ -7,7 +7,7 @@ from tkinter import messagebox
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 # 版本信息
-VERSION = "v1.11.5"
+VERSION = "v1.11.6"
 
 from logger import log_info, log_error
 
@@ -23,7 +23,7 @@ def main():
         # 创建并运行应用
         root = tk.Tk()
         root.title("LexiNote - 英语学习工具")
-        root.config(bg="#FCE9D9")
+        root.config(bg="#FFFFFF")
 
         if sys.platform.startswith("win"):
             import ctypes

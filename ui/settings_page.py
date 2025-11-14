@@ -60,15 +60,15 @@ class SettingsPage(tk.Frame):
         # 配置滚动条
         self.scrollbar.config(command=self.canvas.yview)
         
-        # 创建主框架（大红色外框）
+        # 创建主框架
         main_frame = tk.Frame(self.canvas, bg="#f0f0f0", padx=30, pady=20)
-        self.canvas.create_window((0, 0), window=main_frame, anchor=tk.NW)
+        # 保存canvas窗口ID
+        self.canvas_window = self.canvas.create_window((0, 0), window=main_frame, anchor=tk.NW)
         
         # 更新画布滚动区域
         def _on_canvas_configure(event):
-            # 调整主框架宽度以匹配画布宽度
-            canvas_width = event.width
-            main_frame.configure(width=canvas_width)
+            # 调整canvas窗口宽度以匹配画布宽度
+            self.canvas.itemconfig(self.canvas_window, width=event.width)
             self.canvas.configure(scrollregion=self.canvas.bbox("all"))
         
         def _on_main_frame_configure(event):
@@ -89,11 +89,11 @@ class SettingsPage(tk.Frame):
         
         # 创建居中容器框架
         center_frame = tk.Frame(main_frame, bg="#f0f0f0")
-        center_frame.pack(fill=tk.X, pady=10)
+        center_frame.pack(fill=tk.BOTH, expand=True, pady=10)
         
-        # 创建设置卡片，设置固定宽度并居中
-        settings_card = tk.Frame(center_frame, bg="white", bd=2, relief=tk.RAISED, width=2000)
-        settings_card.pack(fill=tk.X, pady=10)
+        # 创建设置卡片，不再设置固定宽度
+        settings_card = tk.Frame(center_frame, bg="white", bd=2, relief=tk.RAISED)
+        settings_card.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
         
         # 自动切换设置
         auto_next_frame = tk.LabelFrame(
