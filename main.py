@@ -22,19 +22,6 @@ def main():
 
         # 创建并运行应用
         root = tk.Tk()
-        root.title("LexiNote - 英语学习工具")
-        root.config(bg="#FFFFFF")
-
-        if sys.platform.startswith("win"):
-            import ctypes
-            myappid = f"LexiNote.{VERSION}"  # app id，随便写但必须唯一
-            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
-        icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "app.ico")
-
-        if os.path.exists(icon_path):
-            root.iconbitmap(icon_path)
-        else:
-            log_error("图标文件 app.ico 不存在")
         app = MainWindow(root)
         root.mainloop()
         log_info("程序正常退出")

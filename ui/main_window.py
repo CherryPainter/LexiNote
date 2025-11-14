@@ -32,6 +32,21 @@ class MainWindow:
         self.root.geometry("1080x720")
         self.root.minsize(600, 400)
         
+        # 设置窗口图标
+        try:
+            # 用于PyInstaller打包后的环境
+            base_path = sys._MEIPASS
+        except Exception:
+            # 用于开发环境
+            base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        
+        icon_path = os.path.join(base_path, 'app.ico')
+        if os.path.exists(icon_path):
+            self.root.iconbitmap(icon_path)
+            log_info(f"已设置窗口图标: {icon_path}")
+        else:
+            log_info(f"未找到图标文件: {icon_path}")
+        
         # 设置中文字体
         self._set_fonts()
         
