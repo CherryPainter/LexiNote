@@ -579,63 +579,84 @@ CREATE TABLE IF NOT EXISTS delete_logs (
 ### 8.3 表关系图
 
 ```
-+----------------+          +---------+
-|   word_sets    |          |  words  |
-+----------------+          +---------+
-| id (PK)        |<---------| id (PK) |
-| name           |          | set_id  |
-| description    |          | word    |
-| source         |          | translation|
-| create_time    |          | phonetic|
-| word_count     |          | example |
-+----------------+          | meaning_en|
-                            | tag     |
-                            | example_translation|
-                            | familiarity|
-                            | added_at|
-                            | last_practice|
-                            | last_review|
-                            | proficiency|
-                            +---------+
-                                  |
-                                  |
-                                  v
-                            +---------+
-                            | progress|
-                            +---------+
-                            | id (PK) |
-                            | word    |
-                            | practice_date|
-                            | is_correct|
-                            | proficiency_change|
-                            +---------+
+┌─────────────┐        ┌─────────────┐        ┌─────────────┐
+│  word_sets  │        │    words    │        │   progress  │
+├─────────────┤        ├─────────────┤        ├─────────────┤
+│ id (PK)     │<───────┤ id (PK)     │───────>│ id (PK)     │
+│ name        │        │ set_id (FK) │        │ word (FK)   │
+│ description │        │ word        │        │ practice_date│
+│ source      │        │ translation │        │ is_correct  │
+│ create_time │        │ phonetic    │        │ proficiency_change│
+│ word_count  │        │ example     │        └─────────────┘
+└─────────────┘        │ meaning_en  │
+                       │ tag         │
+                       │ example_translation │
+                       │ familiarity │
+                       │ added_at    │
+                       │ last_practice│
+                       │ last_review │
+                       │ proficiency │
+                       ├─────────────┤
+                       │             │
+                       ▼             ▼
+┌─────────────┐    ┌─────────────┐  ┌─────────────┐
+│ cloze_tests │    │ delete_logs │  │ reading_comprehensions │
+├─────────────┤    ├─────────────┤  ├─────────────┤
+│ id (PK)     │<───┤ id (PK)     │  │ id (PK)     │
+│ title       │    │ question_id │  │ article     │
+│ content     │    │ module_type │  │ questions   │
+│ options     │    │ question_data│  │ answers     │
+│ answer      │    │ delete_time │  │ explanations│
+│ explanation │    └─────────────┘  │ source      │
+│ source      │                     │ date_created│
+│ date_created│                     └─────────────┘
+└─────────────┘
 
-+----------------+    +------------------+
-| cloze_tests    |    | reading_comprehe|
-|                |    | nsions           |
-+----------------+    +------------------+
-| id (PK)        |    | id (PK)          |
-| title          |    | article          |
-| content        |    | questions        |
-| options        |    | answers          |
-| answer         |    | explanations     |
-| explanation    |    | source           |
-| source         |    | date_created     |
-| date_created   |    +------------------+
-+----------------+          |
-                            |
-                            v
-                        +---------+
-                        | delete_ |
-                        | logs    |
-                        +---------+
-                        | id (PK) |
-                        | question_id|
-                        | module_type|
-                        | question_data|
-                        | delete_time|
-                        +---------+
+┌─────────────┐        ┌─────────────┐
+│  settings   │        │   ai_cache  │
+├─────────────┤        ├─────────────┤
+│ key (PK)    │        │ id (PK)     │
+│ value       │        │ prompt_hash │
+└─────────────┘        │ prompt      │
+                       │ response    │
+                       │ create_time │
+                       └─────────────┘
 ```
+
+#### 详细关联关系说明：
+
+1. **word_sets 与 words 表关系**：
+   - 关联字段：`word_sets.id` → `words.set_id`
+   - 关系类型：一对多 (One-to-Many)
+   - 描述：一个词库可以包含多个单词，每个单词必须属于一个词库
+
+2. **words 与 progress 表关系**：
+   - 关联字段：`words.id` → `progress.word`
+   - 关系类型：一对多 (One-to-Many)
+   - 描述：一个单词可以有多个学习进度记录，每个进度记录关联到一个具体单词
+
+3. **words 与 cloze_tests 表关系**：
+   - 关联字段：`words.id` → `cloze_tests.id`
+   - 关系类型：一对多 (One-to-Many)
+   - 描述：一个单词可以出现在多个完形填空题中，每个完形填空题关联到一个具体单词
+
+4. **words 与 delete_logs 表关系**：
+   - 关联字段：`words.id` → `delete_logs.question_id`
+   - 关系类型：一对多 (One-to-Many)
+   - 描述：一个单词可以有多个删除记录，每个删除记录关联到一个具体单词或问题
+
+5. **reading_comprehensions 与 delete_logs 表关系**：
+   - 关联字段：`reading_comprehensions.id` → `delete_logs.question_id`
+   - 关系类型：一对多 (One-to-Many)
+   - 描述：一篇阅读理解可以有多个删除记录，每个删除记录关联到一个具体的阅读理解或问题
+
+6. **settings 表**：
+   - 无外键关联，独立存储系统设置
+   - 描述：存储系统的各项配置参数
+
+7. **ai_cache 表**：
+   - 无外键关联，独立存储AI缓存数据
+   - 描述：存储AI请求和响应的缓存，提高性能
 
 ### 8.4 数据访问
 
