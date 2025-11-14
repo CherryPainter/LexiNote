@@ -274,6 +274,9 @@ class StatisticsPage(tk.Frame):
             return
         
         try:
+            # 强制更新UI，确保能获取到正确的画布尺寸
+            self.update_idletasks()
+            
             # 加载综合统计
             self._load_summary_stats()
             
