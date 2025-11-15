@@ -117,7 +117,18 @@ class TranslationPage(tk.Frame):
             bg='#f5f5f5',
             wraplength=600
         )
-        self.word_label.pack(pady=20)
+        self.word_label.pack(pady=(20, 5))
+        
+        self.phonetic_var = tk.StringVar()
+        self.phonetic_label = tk.Label(
+            word_frame,
+            textvariable=self.phonetic_var,
+            font=self.font_config['normal'],
+            bg='#f5f5f5',
+            fg='#999999',  # 灰色
+            wraplength=600
+        )
+        self.phonetic_label.pack(pady=(0, 10))
         
         # 例句框架
         self.example_frame = tk.Frame(self.main_frame, bg="#f9f9f9", bd=1, relief=tk.SUNKEN)
@@ -227,18 +238,6 @@ class TranslationPage(tk.Frame):
             bg='#9C27B0',
             fg='white'
         )
-        
-        self.add_word_button = tk.Button(
-            buttons_frame,
-            text="➕ 添加单词",
-            font=self.font_config['button'],
-            width=15,
-            height=2,
-            command=self._show_add_word_dialog,
-            bg='#4CAF50',
-            fg='white'
-        )
-        self.add_word_button.pack(side=tk.LEFT, padx=10)
         
         # 结果显示区域
         self.result_var = tk.StringVar()
@@ -354,10 +353,13 @@ class TranslationPage(tk.Frame):
                 pass
             
             # 显示要翻译的内容，包含音标
-            display_text = self.current_word
+            self.word_var.set(self.current_word)
             if self.current_word_info.get('phonetic'):
-                display_text = f"{self.current_word}\n{self.current_word_info['phonetic']}"
-            self.word_var.set(display_text)
+                self.phonetic_var.set(self.current_word_info['phonetic'])
+                self.phonetic_label.pack(pady=(0, 10))
+            else:
+                self.phonetic_var.set("")
+                self.phonetic_label.pack_forget()
         else:
             self.word_var.set(self.current_translation)
         
@@ -678,75 +680,6 @@ class TranslationPage(tk.Frame):
                     pass
         except Exception:
             pass
-    
-    def _show_add_word_dialog(self):
-        """显示添加单词对话框"""
-        dialog = tk.Toplevel(self.parent)
-        dialog.title("添加新单词")
-        dialog.geometry("400x300")
-        dialog.resizable(False, False)
-        dialog.transient(self.parent)
-        dialog.grab_set()
-        
-        # 居中显示
-        dialog.update_idletasks()
-        width = dialog.winfo_width()
-        height = dialog.winfo_height()
-        x = (self.parent.winfo_width() // 2) - (width // 2) + self.parent.winfo_x()
-        y = (self.parent.winfo_height() // 2) - (height // 2) + self.parent.winfo_y()
-        dialog.geometry(f"{width}x{height}+{x}+{y}")
-        
-        # 创建输入字段
-        frame = tk.Frame(dialog, padx=20, pady=20)
-        frame.pack(fill=tk.BOTH, expand=True)
-        
-        # 英文输入
-        tk.Label(frame, text="英文单词:", font=self.font_config['normal']).grid(row=0, column=0, sticky='w', pady=10)
-        english_entry = tk.Entry(frame, font=self.font_config['normal'], width=30)
-        english_entry.grid(row=0, column=1, pady=10)
-        
-        # 中文翻译输入
-        tk.Label(frame, text="中文翻译:", font=self.font_config['normal']).grid(row=1, column=0, sticky='w', pady=10)
-        chinese_entry = tk.Text(frame, font=self.font_config['normal'], width=30, height=3, wrap=tk.WORD)
-        chinese_entry.grid(row=1, column=1, pady=10)
-        
-        # 添加按钮
-        def add_word():
-            english = english_entry.get().strip()
-            chinese = chinese_entry.get(1.0, tk.END).strip()
-            
-            if not english or not chinese:
-                messagebox.showwarning("提示", "请填写完整的单词和翻译。")
-                return
-            
-            if self.word_manager.add_word(english, chinese):
-                messagebox.showinfo("成功", f"已添加单词: {english} -> {chinese}")
-                dialog.destroy()
-            else:
-                messagebox.showerror("失败", "添加单词失败。")
-        
-        buttons_frame = tk.Frame(dialog)
-        buttons_frame.pack(pady=20)
-        
-        tk.Button(
-            buttons_frame,
-            text="添加",
-            font=self.font_config['button'],
-            width=15,
-            command=add_word,
-            bg='#4CAF50',
-            fg='white'
-        ).pack(side=tk.LEFT, padx=10)
-        
-        tk.Button(
-            buttons_frame,
-            text="取消",
-            font=self.font_config['button'],
-            width=15,
-            command=dialog.destroy,
-            bg='#f44336',
-            fg='white'
-        ).pack(side=tk.LEFT, padx=10)
     
     def on_show(self):
         """页面显示时的回调"""

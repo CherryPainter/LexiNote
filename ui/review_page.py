@@ -119,7 +119,7 @@ class ReviewPage(tk.Frame):
         self.card_frame = tk.Frame(self.main_frame, bg='#f5f5f5', bd=3, relief=tk.RAISED)
         self.card_frame.pack(pady=30, fill=tk.BOTH, expand=True, padx=50)
         
-        # 单词显示
+        # 单词和音标显示
         self.word_var = tk.StringVar()
         self.word_label = tk.Label(
             self.card_frame,
@@ -128,7 +128,18 @@ class ReviewPage(tk.Frame):
             bg='#f5f5f5',
             wraplength=600
         )
-        self.word_label.pack(pady=40)
+        self.word_label.pack(pady=(40, 5))
+        
+        self.phonetic_var = tk.StringVar()
+        self.phonetic_label = tk.Label(
+            self.card_frame,
+            textvariable=self.phonetic_var,
+            font=self.font_config['normal'],
+            bg='#f5f5f5',
+            fg='#999999',  # 灰色
+            wraplength=600
+        )
+        self.phonetic_label.pack(pady=(0, 10))
         
         # 翻译显示
         self.translation_var = tk.StringVar()
@@ -279,7 +290,8 @@ class ReviewPage(tk.Frame):
             for word_data in words_data:
                 # 确保必要字段存在
                 word = word_data.get('word', '')
-                translation = word_data.get('translation', '')
+                # 通过word_manager获取格式化的翻译
+                translation = self.word_manager.get_translation(word)
                 # 保存完整的单词数据，而不仅仅是单词和翻译
                 self.review_words.append((word, translation, word_data))
             
@@ -315,7 +327,7 @@ class ReviewPage(tk.Frame):
                 self.mark_button.config(state=tk.DISABLED)
             self.example_button.config(state=tk.DISABLED)
             return
-        
+
         # 启用按钮
         self.show_button.config(state=tk.NORMAL)
         self.pronounce_button.config(state=tk.NORMAL)
@@ -323,28 +335,82 @@ class ReviewPage(tk.Frame):
         if hasattr(self, 'mark_button'):
             self.mark_button.config(state=tk.NORMAL)
         self.example_button.config(state=tk.NORMAL)
-        
+
         # 显示当前单词和数据
         word, translation, word_data = self.review_words[self.current_index]
-        
-        # 直接从word_data获取例句，优先使用数据库中的example字段
-        self.current_example = word_data.get('example', '')
-        
+
+        # 直接从word_data获取例句和例句翻译
+        example = word_data.get('example', '')
+        example_translation = word_data.get('example_translation', '')
+        self.current_example = example
+        self.current_example_translation = example_translation
+
         # 显示单词和音标
-        display_text = word
+        self.word_var.set(word)
         if 'phonetic' in word_data and word_data['phonetic']:
-            display_text += f"\n{word_data['phonetic']}"
-        self.word_var.set(display_text)
-        
+            self.phonetic_var.set(word_data['phonetic'])
+            self.phonetic_label.pack(pady=(0, 10))
+        else:
+            self.phonetic_var.set("")
+            self.phonetic_label.pack_forget()
+
         # 根据模式显示翻译和例句
         if self.show_translation:
-            display_text = f"翻译: {translation}"
+            display_text = ""
+            # 处理翻译显示 - 格式化列表或JSON字符串
+            if translation:
+                import json
+                # 处理可能的JSON字符串
+                if isinstance(translation, str) and (translation.startswith('[') or translation.startswith('{')):
+                    try:
+                        parsed = json.loads(translation)
+                        if isinstance(parsed, list) and all(isinstance(item, dict) for item in parsed):
+                            # 处理多词性多义项结构
+                            formatted_parts = []
+                            for item in parsed:
+                                tag = item.get('tag', '')
+                                meanings = item.get('meaning_zh', [])
+                                if meanings:
+                                    if tag:
+                                        formatted_parts.append(f"{tag}：{'；'.join(meanings)}")
+                                    else:
+                                        formatted_parts.append('；'.join(meanings))
+                            translation_text = '\n'.join(formatted_parts)
+                        elif isinstance(parsed, list):
+                            translation_text = "、".join(parsed)
+                        else:
+                            translation_text = str(parsed)
+                    except json.JSONDecodeError:
+                        translation_text = translation
+                elif isinstance(translation, list):
+                    translation_text = "、".join(translation)
+                else:
+                    translation_text = translation
+                display_text += f"翻译: {translation_text}"
+            
             # 如果有英文解释，也显示出来
             if 'meaning_en' in word_data and word_data['meaning_en']:
-                display_text += f"\n英文解释: {word_data['meaning_en']}"
+                meaning_en = word_data['meaning_en']
+                if isinstance(meaning_en, list):
+                    meaning_en_text = "、".join(meaning_en)
+                else:
+                    meaning_en_text = meaning_en
+                display_text += f"\n英文解释: {meaning_en_text}"
+            
             # 显示例句
-            if self.is_example_visible and self.current_example:
-                display_text += f"\n\n📝 例句: {self.current_example}"
+            if self.is_example_visible and example:
+                display_text += "\n\n📝 例句:"
+                if example_translation:
+                    display_text += f"\n🌍 {example}\n📝 {example_translation}"
+                elif '|' in example:  # 处理旧格式
+                    parts = example.split('|', 1)
+                    if len(parts) == 2:
+                        display_text += f"\n🌍 {parts[0].strip()}\n📝 {parts[1].strip()}"
+                    else:
+                        display_text += f"\n🌍 {example}"
+                else:
+                    display_text += f"\n🌍 {example}"
+            
             # 显示熟练度
             if 'proficiency' in word_data:
                 proficiency = word_data['proficiency'] or 0.0
@@ -353,8 +419,17 @@ class ReviewPage(tk.Frame):
             self.translation_var.set(display_text)
             self.show_button.config(text="🙈 隐藏翻译")
         else:
-            if self.is_example_visible and self.current_example:
-                self.translation_var.set(f"📝 例句: {self.current_example}")
+            if self.is_example_visible and example:
+                if example_translation:
+                    self.translation_var.set(f"📝 例句: {example}\n📝 翻译: {example_translation}")
+                elif '|' in example:  # 处理旧格式
+                    parts = example.split('|', 1)
+                    if len(parts) == 2:
+                        self.translation_var.set(f"📝 例句: {parts[0].strip()}\n📝 翻译: {parts[1].strip()}")
+                    else:
+                        self.translation_var.set(f"📝 例句: {example}")
+                else:
+                    self.translation_var.set(f"📝 例句: {example}")
             else:
                 self.translation_var.set("点击显示按钮查看翻译")
             self.show_button.config(text="👁️ 显示翻译")
@@ -767,4 +842,3 @@ class ReviewPage(tk.Frame):
         except Exception as e:
             log_error(f"显示复习总结失败: {str(e)}")
             messagebox.showerror("错误", f"无法显示复习总结: {str(e)}")
-            return

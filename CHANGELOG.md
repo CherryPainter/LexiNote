@@ -205,6 +205,18 @@
 - 修改cloze_test_page.py中选项显示方式，改为水平排列并添加间距
 - 在cloze_test.py和reading_comprehension.py中增强get_mode方法，准确反映当前实际使用的模式
 
+## [v2.1.1] - 2025-10-31
+
+### 修复
+- 修复word_manager.py中_format_translation方法的条件判断顺序问题
+- 改进多词性多义项的格式化显示
+- 将review_page.py的翻译获取方式改为调用word_manager.get_translation()，确保与其他页面保持一致
+
+### 优化改进
+- 将所有页面（review_page.py、translation_page.py、learning_page.py）中的音标颜色改为灰色（#999999）
+- 分离单词和音标显示，创建独立的音标标签
+- 优化布局，使单词和音标之间有合适的间距
+
 ## [v1.6.0] - 2025-10-29
 
 ### 新增功能

@@ -623,6 +623,14 @@ class WordManager:
         """
         import json
         
+        # 处理可能的JSON字符串
+        try:
+            if isinstance(translation, str) and (translation.startswith('[') or translation.startswith('{')):
+                parsed = json.loads(translation)
+                return self._format_translation(parsed)
+        except json.JSONDecodeError:
+            pass
+        
         # 如果已经是字符串，直接返回
         if isinstance(translation, str):
             return translation
@@ -639,14 +647,6 @@ class WordManager:
                     else:
                         formatted_parts.append('；'.join(meanings))
             return '\n'.join(formatted_parts)
-        
-        # 处理可能的JSON字符串
-        try:
-            if isinstance(translation, str) and (translation.startswith('[') or translation.startswith('{')):
-                parsed = json.loads(translation)
-                return self._format_translation(parsed)
-        except json.JSONDecodeError:
-            pass
             
         # 其他情况，返回原始字符串
         return str(translation)

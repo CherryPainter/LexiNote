@@ -130,7 +130,17 @@ class LearningPage(tk.Frame):
             bg="white",
             fg="#333333"
         )
-        self.word_label.pack(pady=(20, 10))
+        self.word_label.pack(pady=(20, 5))
+        
+        # 音标标签
+        self.phonetic_label = tk.Label(
+            card_frame,
+            text="",
+            font=self.font_config.get('normal', ("Arial", 18)),
+            bg="white",
+            fg="#999999",  # 灰色
+        )
+        self.phonetic_label.pack(pady=(0, 15))
         
         # 释义标签
         self.definition_label = tk.Label(
@@ -307,11 +317,16 @@ class LearningPage(tk.Frame):
             # 更新单词标签
             self.word_label.config(text=word_text)
             
-            # 显示释义和音标
-            display_text = definition or "无释义"
+            # 显示音标
             if phonetic:
-                display_text = f"{phonetic}\n{display_text}"
-            self.definition_label.config(text=display_text)
+                self.phonetic_label.config(text=phonetic)
+                self.phonetic_label.pack(pady=(0, 15))
+            else:
+                self.phonetic_label.config(text="")
+                self.phonetic_label.pack_forget()
+            
+            # 显示释义
+            self.definition_label.config(text=definition or "无释义")
             
             # 重置例句状态
             self.is_example_visible = False
