@@ -92,8 +92,8 @@ class ClozeTestPage(tk.Frame):
         level_frame.pack(side=tk.LEFT, padx=10)
         
         tk.Label(level_frame, text="难度:", font=self.font_config['normal']).grid(row=0, column=0, sticky=tk.W)
-        self.level_var = tk.StringVar(value="中级")
-        level_options = ["初级", "中级", "高级"]
+        self.level_var = tk.StringVar(value="高中")
+        level_options = ["初中", "高中", "大学", "专升本", "考研"]
         level_combo = ttk.Combobox(level_frame, textvariable=self.level_var, values=level_options, 
                                   font=self.font_config['normal'], width=8)
         level_combo.grid(row=0, column=1, padx=5)

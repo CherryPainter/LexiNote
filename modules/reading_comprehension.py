@@ -41,8 +41,8 @@ class ReadingComprehensionModule:
         # 否则根据WordManager中的AI可用性判断
         return "online" if self.word_manager.ai_available else "offline"
     
-    def start_new_test(self, mode: str = None, level: str = "中级", 
-                      length: str = "短篇", question_count: int = 5) -> Optional[Dict]:
+    def start_new_test(self, mode: str = None, level: str = "高中", 
+                      length: str = "短篇", question_count: int = 5, topic: str = "通用") -> Optional[Dict]:
         """开始新的阅读理解练习
         
         Args:
@@ -50,6 +50,7 @@ class ReadingComprehensionModule:
             level: 难度级别
             length: 文章长度
             question_count: 题目数量
+            topic: 主题
             
         Returns:
             Dict: 题目信息，None表示失败
@@ -80,7 +81,7 @@ class ReadingComprehensionModule:
                     for attempt in range(max_retries):
                         try:
                             self.current_test = self.ai_service.generate_reading_comprehension(
-                                level, length, question_count
+                                level, length, question_count, topic
                             )
                             
                             # 检查生成的题目是否有效

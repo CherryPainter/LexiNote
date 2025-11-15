@@ -78,8 +78,8 @@ class ReadingComprehensionPage(tk.Frame):
         level_frame.pack(side=tk.LEFT, padx=10)
         
         tk.Label(level_frame, text="难度:", font=self.font_config['normal']).grid(row=0, column=0, sticky=tk.W)
-        self.level_var = tk.StringVar(value="中级")
-        level_options = ["初级", "中级", "高级"]
+        self.level_var = tk.StringVar(value="高中")
+        level_options = ["初中", "高中", "大学", "专升本", "考研"]
         level_combo = ttk.Combobox(level_frame, textvariable=self.level_var, values=level_options, 
                                   font=self.font_config['normal'], width=8)
         level_combo.grid(row=0, column=1, padx=5)
@@ -108,6 +108,15 @@ class ReadingComprehensionPage(tk.Frame):
                                 font=self.font_config['normal'], width=5)
         qty_combo.grid(row=0, column=1, padx=5)
         qty_combo.current(2)
+        
+        # 主题输入
+        topic_frame = tk.Frame(control_frame)
+        topic_frame.pack(side=tk.LEFT, padx=10, fill=tk.X, expand=True)
+        
+        tk.Label(topic_frame, text="主题:", font=self.font_config['normal']).grid(row=0, column=0, sticky=tk.W)
+        self.topic_entry = tk.Entry(topic_frame, font=self.font_config['normal'], width=30)
+        self.topic_entry.grid(row=0, column=1, padx=5, sticky=tk.EW)
+        self.topic_entry.insert(0, "通用")
         
         # 开始按钮
         self.start_button = tk.Button(control_frame, text="开始新练习", command=self._start_new_test,
@@ -261,6 +270,7 @@ class ReadingComprehensionPage(tk.Frame):
             level = self.level_var.get()
             length = self.length_var.get()
             question_count = int(self.qty_var.get())
+            topic = self.topic_entry.get() or "通用"
             
             # 转换模式
             if mode == "auto":
@@ -273,7 +283,7 @@ class ReadingComprehensionPage(tk.Frame):
             def generate_test_task():
                 # 在单独线程中调用AI功能
                 return self.reading_module.start_new_test(
-                    mode=mode, level=level, length=length, question_count=question_count
+                    mode=mode, level=level, length=length, question_count=question_count, topic=topic
                 )
             
             # 创建加载对话框

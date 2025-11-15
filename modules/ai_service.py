@@ -101,11 +101,11 @@ class AIService:
             self.ai_available = self._test_ai_connection()
         return self.ai_available
     
-    def generate_cloze_test(self, level: str = "中级", topic: str = "通用") -> Optional[Dict]:
+    def generate_cloze_test(self, level: str = "高中", topic: str = "通用") -> Optional[Dict]:
         """生成完形填空题目
         
         Args:
-            level: 难度级别（初级/中级/高级）
+            level: 难度级别（初中/高中/大学/专升本/考研）
             topic: 主题
             
         Returns:
@@ -215,15 +215,16 @@ class AIService:
             log_error(f"生成完形填空题目失败: {str(e)}")
             return None
     
-    def generate_reading_comprehension(self, level: str = "中级", 
+    def generate_reading_comprehension(self, level: str = "高中", 
                                      length: str = "短篇", 
-                                     question_count: int = 5) -> Optional[Dict]:
+                                     question_count: int = 5, topic: str = "通用") -> Optional[Dict]:
         """生成阅读理解题目
         
         Args:
-            level: 难度级别（初级/中级/高级）
+            level: 难度级别（初中/高中/大学/专升本/考研）
             length: 文章长度（短篇/长篇）
             question_count: 题目数量
+            topic: 主题
             
         Returns:
             Dict: 包含题目信息的字典
@@ -237,7 +238,7 @@ class AIService:
             word_count = "300-500" if length == "短篇" else "600-800"
             
             prompt = f"""
-请生成一篇{length}（约{word_count}个单词）的{level}难度英语阅读理解文章，并附带{question_count}个问题。
+请生成一篇{length}（约{word_count}个单词）的{level}难度英语阅读理解文章，主题为{topic}，并附带{question_count}个问题。
 
 要求：
 1. 文章内容连贯，主题明确，适合{level}英语水平的学习者

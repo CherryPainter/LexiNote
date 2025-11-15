@@ -40,7 +40,7 @@ class ClozeTestModule:
         # 否则根据WordManager中的AI可用性判断
         return "online" if self.word_manager.ai_available else "offline"
     
-    def start_new_test(self, mode: str = None, level: str = "中级", 
+    def start_new_test(self, mode: str = None, level: str = "高中", 
                       topic: str = "通用") -> Optional[Dict]:
         """开始新的完形填空练习
         
