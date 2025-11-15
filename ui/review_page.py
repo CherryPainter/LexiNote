@@ -428,7 +428,7 @@ class ReviewPage(tk.Frame):
         
         # 模块级别的自动/手动设置控制是否允许自动切换
         try:
-            module_mode = self.settings_manager.get_auto_mode('review') if self.settings_manager else 'manual'
+            module_mode = self.settings_manager.get_setting('auto_mode_review', 'manual') if self.settings_manager else 'manual'
         except Exception:
             module_mode = 'manual'
 
@@ -440,13 +440,7 @@ class ReviewPage(tk.Frame):
             # 延迟一段时间后自动切换到下一个单词
             self.after(self.settings_manager.get_setting("auto_next_delay", 2000), self._next_word)
 
-    def _on_auto_mode_review_change(self, key, value):
-        """当复习模块的自动/手动模式改变时的回调（目前为占位实现）"""
-        try:
-            # 目前无需复杂UI更新，保留接口以便未来扩展
-            pass
-        except Exception:
-            pass
+
 
     def _next_word(self):
         """显示下一个单词（重构版本）"""

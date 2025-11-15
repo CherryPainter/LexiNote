@@ -285,16 +285,17 @@ class SettingsPage(tk.Frame):
         model_label.pack(anchor=tk.W, pady=(0, 5))
         
         # 模型选择下拉框
-        self.ai_model_var = tk.StringVar()
+        self.ai_model_var = tk.StringVar(value="加载中...")
         self.ai_model_combo = ttk.Combobox(
             ai_model_frame,
             textvariable=self.ai_model_var,
-            state="readonly",
+            values=[],
+            state="disabled",
             font=self.font_config['normal']
         )
         
-        # 加载可用模型
-        self._load_ai_models()
+        # 异步加载可用模型，避免UI阻塞
+        self.after(100, self._load_ai_models_async)
         
         # 选择事件处理
         def _on_model_change(event=None):
@@ -341,7 +342,7 @@ class SettingsPage(tk.Frame):
         refresh_models_button = tk.Button(
             model_buttons_frame,
             text="刷新模型列表",
-            command=self._load_ai_models,
+            command=self._refresh_ai_models,
             font=self.font_config['button'],
             bg="#FF9800",
             fg="white",
@@ -452,39 +453,60 @@ class SettingsPage(tk.Frame):
         except Exception:
             messagebox.showwarning("输入错误", "请输入有效的数字")
     
-    def _load_ai_models(self):
-        """加载可用的AI模型列表"""
-        try:
-            # 获取本地Ollama可用模型
-            ollama_models = self.ai_manager._get_available_models()
-            log_info(f"从Ollama获取到的模型: {ollama_models}")
-            
-            # 获取设置中保存的模型列表
-            saved_models = self.settings_manager.get_available_ai_models()
-            log_info(f"设置中保存的模型: {saved_models}")
-            
-            # 合并模型列表，去重
-            all_models = list(set(ollama_models + saved_models))
-            all_models.sort()
-            log_info(f"合并后的模型列表: {all_models}")
-            
-            # 更新下拉框选项
-            self.ai_model_combo['values'] = all_models
-            
-            # 设置当前选中的模型
-            current_model = self.settings_manager.get_ai_model()
-            if current_model and current_model in all_models:
-                self.ai_model_combo.set(current_model)
-            elif all_models:
-                # 如果当前模型不在列表中，选择第一个
-                self.ai_model_combo.set(all_models[0])
-            
-            # 保存可用模型到设置
-            self.settings_manager.set_available_ai_models(all_models)
-            
-        except Exception as e:
-            log_info(f"加载AI模型列表失败: {str(e)}")
-            messagebox.showerror("加载失败", f"无法加载AI模型列表: {str(e)}")
+    def _load_ai_models_async(self):
+        """异步加载可用的AI模型列表，避免阻塞UI"""
+        def load_models():
+            try:
+                # 获取本地Ollama可用模型
+                ollama_models = self.ai_manager._get_available_models()
+                log_info(f"从Ollama获取到的模型: {ollama_models}")
+                
+                # 获取设置中保存的模型列表
+                saved_models = self.settings_manager.get_available_ai_models()
+                log_info(f"设置中保存的模型: {saved_models}")
+                
+                # 合并模型列表，去重
+                all_models = list(set(ollama_models + saved_models))
+                all_models.sort()
+                log_info(f"合并后的模型列表: {all_models}")
+                
+                # 在主线程更新UI
+                self.after(0, lambda: self._update_ai_model_combobox(all_models))
+            except Exception as e:
+                log_info(f"加载AI模型列表失败: {str(e)}")
+                self.after(0, lambda: messagebox.showerror("加载失败", f"无法加载AI模型列表: {str(e)}"))
+        
+        # 在新线程中加载模型
+        threading.Thread(target=load_models, daemon=True).start()
+    
+    def _update_ai_model_combobox(self, all_models):
+        """更新AI模型下拉框"""
+        # 更新下拉框选项
+        self.ai_model_combo['values'] = all_models
+        
+        # 设置当前选中的模型
+        current_model = self.settings_manager.get_ai_model()
+        if current_model and current_model in all_models:
+            self.ai_model_combo.set(current_model)
+        elif all_models:
+            # 如果当前模型不在列表中，选择第一个
+            self.ai_model_combo.set(all_models[0])
+        
+        # 保存可用模型到设置
+        self.settings_manager.set_available_ai_models(all_models)
+        
+        # 启用下拉框
+        if all_models:
+            self.ai_model_combo['state'] = "readonly"
+    
+    def _refresh_ai_models(self):
+        """刷新AI模型列表"""
+        # 禁用下拉框
+        self.ai_model_combo['state'] = "disabled"
+        self.ai_model_var.set("刷新中...")
+        
+        # 异步加载模型
+        self._load_ai_models_async()
     
     def _on_add_model(self):
         """添加新的AI模型"""

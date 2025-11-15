@@ -386,11 +386,22 @@ class TranslationPage(tk.Frame):
             messagebox.showwarning("提示", "请输入翻译后再检查。")
             return
         
+        # 获取翻译判定模式设置
+        translation_mode = self.settings_manager.get_setting('translation_mode', 'ai_first') if self.settings_manager else 'ai_first'
+        
+        # 根据翻译判定模式设置显示文本
+        if translation_mode == 'local_only':
+            ai_judgment_source = "📝 仅本地判断"
+        elif translation_mode == 'local_first':
+            ai_judgment_source = "📝 本地优先"
+        else:  # ai_first
+            ai_judgment_source = "🤖 AI智能判断" if self.word_manager.ai_available else "📝 系统判断"
+        
         # 检查翻译（现在完全由AI或备用逻辑判断）
         if self.is_english_to_chinese:
-            is_correct = self.word_manager.check_translation(self.current_word, user_input, True)
+            is_correct = self.word_manager.check_translation(self.current_word, user_input, True, translation_mode=translation_mode)
         else:
-            is_correct = self.word_manager.check_translation(self.current_translation, user_input, False)
+            is_correct = self.word_manager.check_translation(self.current_translation, user_input, False, translation_mode=translation_mode)
         
         # 更新单词权重
         # 因为这里没有时间统计，使用0作为默认值
@@ -398,7 +409,6 @@ class TranslationPage(tk.Frame):
         
         # 获取AI翻译参考（无论英译中还是中译英都提供）
         ai_reference = ""
-        ai_judgment_source = "🤖 AI智能判断" if self.word_manager.ai_available else "📝 系统判断"
         
         # 针对当前翻译方向获取参考
         try:
@@ -471,7 +481,7 @@ class TranslationPage(tk.Frame):
         # 受模块级别的手动/自动设置控制
         module_mode = 'manual'
         try:
-            module_mode = self.settings_manager.get_auto_mode('translation_practice') if self.settings_manager else 'manual'
+            module_mode = self.settings_manager.get_setting('auto_mode_translation_practice', 'manual') if self.settings_manager else 'manual'
         except Exception:
             module_mode = 'manual'
 

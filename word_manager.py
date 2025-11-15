@@ -1993,7 +1993,7 @@ class WordManager:
             log_error(f"迁移旧翻译格式失败: {str(e)}")
             return 0
     
-    def check_translation(self, word: str, user_translation: str, update_stats: bool = True) -> bool:
+    def check_translation(self, word: str, user_translation: str, update_stats: bool = True, translation_mode: str = 'ai_first') -> bool:
         """检查用户翻译是否正确
         
         Args:
@@ -2079,9 +2079,26 @@ class WordManager:
             if not candidates:
                 candidates = [normalize(str(correct_translation))]
 
-            # If AI is available, prefer AI evaluation (more robust for synonyms/phrases)
-            try:
-                if self.ai_available and self.ai_manager:
+            user_normalized = normalize(user_translation)
+            is_correct = False
+
+            # 根据翻译判定模式选择不同的判断策略
+            if translation_mode == 'local_first' or translation_mode == 'local_only':
+                # 本地优先或仅本地：先尝试本地判断
+                # 精确匹配或包含匹配（用户输入可能是简短形式）
+                for cand in candidates:
+                    if not cand:
+                        continue
+                    if user_normalized == cand:
+                        is_correct = True
+                        break
+                    # 容错：用户输入包含候选或候选包含用户输入（如只输入关键词）
+                    if user_normalized and (user_normalized in cand or cand in user_normalized):
+                        is_correct = True
+                        break
+                
+                # 如果是本地优先且本地判断失败，尝试AI判断
+                if not is_correct and translation_mode == 'local_first' and self.ai_available and self.ai_manager:
                     try:
                         # 使用格式化后的翻译进行AI评估
                         formatted_translation = self._format_translation(correct_translation)
@@ -2091,50 +2108,60 @@ class WordManager:
                             similarity = float(eval_result.get('similarity', 0)) if eval_result.get('similarity') is not None else 0.0
                             # Accept when AI says correct, or similarity is high (>=0.8)
                             if ai_is_correct or similarity >= 0.8:
-                                if update_stats:
-                                    self.update_word_proficiency(word_lower, True)
-                                    self.update_word_weight(word_lower, True, 0)
-                                    log_info(f"AI判断翻译正确: {word} -> {user_translation}, similarity={similarity}")
-                                return True
-                            else:
-                                if update_stats:
-                                    self.update_word_proficiency(word_lower, False)
-                                    self.update_word_weight(word_lower, False, 0)
-                                    log_info(f"AI判断翻译错误: {word} -> 用户输入: {user_translation}, AI_similarity={similarity}")
-                                return False
+                                is_correct = True
                     except Exception as ai_e:
-                        log_warning(f"调用AI评估翻译失败，回退本地判断: {str(ai_e)}")
-
-            except Exception:
-                # 保守处理：若任何AI交互错误，不影响后续本地判断
-                pass
-
-            user_normalized = normalize(user_translation)
-
-            # 精确匹配或包含匹配（用户输入可能是简短形式）
-            is_correct = False
-            for cand in candidates:
-                if not cand:
-                    continue
-                if user_normalized == cand:
-                    is_correct = True
-                    break
-                # 容错：用户输入包含候选或候选包含用户输入（如只输入关键词）
-                if user_normalized and (user_normalized in cand or cand in user_normalized):
-                    is_correct = True
-                    break
+                        log_warning(f"调用AI评估翻译失败: {str(ai_e)}")
+            elif translation_mode == 'ai_first':
+                # AI优先：先尝试AI判断
+                try:
+                    if self.ai_available and self.ai_manager:
+                        try:
+                            # 使用格式化后的翻译进行AI评估
+                            formatted_translation = self._format_translation(correct_translation)
+                            eval_result = self.ai_manager.evaluate_sync(formatted_translation, user_translation)
+                            if isinstance(eval_result, dict):
+                                ai_is_correct = bool(eval_result.get('is_correct'))
+                                similarity = float(eval_result.get('similarity', 0)) if eval_result.get('similarity') is not None else 0.0
+                                # Accept when AI says correct, or similarity is high (>=0.8)
+                                if ai_is_correct or similarity >= 0.8:
+                                    is_correct = True
+                                else:
+                                    is_correct = False
+                        except Exception as ai_e:
+                            log_warning(f"调用AI评估翻译失败，回退本地判断: {str(ai_e)}")
+                            # AI失败，回退到本地判断
+                            is_correct = False
+                    else:
+                        # AI不可用，使用本地判断
+                        is_correct = False
+                except Exception:
+                    # 保守处理：若任何AI交互错误，回退到本地判断
+                    is_correct = False
+                
+                # 如果AI判断失败或不可用，使用本地判断
+                if not is_correct:
+                    for cand in candidates:
+                        if not cand:
+                            continue
+                        if user_normalized == cand:
+                            is_correct = True
+                            break
+                        # 容错：用户输入包含候选或候选包含用户输入（如只输入关键词）
+                        if user_normalized and (user_normalized in cand or cand in user_normalized):
+                            is_correct = True
+                            break
 
             if update_stats:
                 if is_correct:
                     # 翻译正确，更新熟练度
                     self.update_word_proficiency(word_lower, True)
                     self.update_word_weight(word_lower, True, 0)
-                    log_info(f"翻译正确: {word} -> {user_translation}")
+                    log_info(f"翻译正确: {word} -> {user_translation}, mode={translation_mode}")
                 else:
                     # 翻译错误，更新熟练度
                     self.update_word_proficiency(word_lower, False)
                     self.update_word_weight(word_lower, False, 0)
-                    log_info(f"翻译错误: {word} -> 用户输入: {user_translation}, 正确翻译: {correct_translation}")
+                    log_info(f"翻译错误: {word} -> 用户输入: {user_translation}, 正确翻译: {correct_translation}, mode={translation_mode}")
 
             return is_correct
         except Exception as e:
