@@ -445,12 +445,12 @@ class WordManager:
         if not self.active_word_set_id:
             self._set_default_word_set()
             
-        # 查询当前词库中缺少例句、音标、词性或英语释义的单词
+        # 查询当前词库中缺少例句、例句翻译、音标、词性或英语释义的单词
         # 同时检查NULL值和空字符串
         sql = """
         SELECT * FROM words 
         WHERE set_id = ? 
-        AND (example IS NULL OR example = '' OR phonetic IS NULL OR phonetic = '' OR tag IS NULL OR tag = '' OR meaning_en IS NULL OR meaning_en = '')
+        AND (example IS NULL OR example = '' OR example_translation IS NULL OR example_translation = '' OR phonetic IS NULL OR phonetic = '' OR tag IS NULL OR tag = '' OR meaning_en IS NULL OR meaning_en = '')
         ORDER BY word
         LIMIT ?
         """
@@ -529,8 +529,8 @@ class WordManager:
                 if (word_data['example'] is None or word_data['example'] == '') and 'example' in details and details['example']:
                     update_data['example'] = details['example']
                 
-                # 如果有例句翻译，也更新
-                if 'example_translation' in details and details['example_translation']:
+                # 只更新缺失的例句翻译
+                if (word_data['example_translation'] is None or word_data['example_translation'] == '') and 'example_translation' in details and details['example_translation']:
                     update_data['example_translation'] = details['example_translation']
                 
                 # 更新数据库
@@ -1608,6 +1608,51 @@ class WordManager:
         """
         log_info(f"获取单词例句: {word}, 异步模式: {async_mode}")
         
+        # 首先从数据库获取单词信息
+        words = self.get_words_from_active_set(keyword=word)
+        word_obj = None
+        
+        for w in words:
+            if w['word'].lower() == word.lower():
+                word_obj = w
+                break
+        
+        if not word_obj:
+            log_error(f"单词不存在于当前词库: {word}")
+            if async_mode:
+                if callback:
+                    callback(self._get_default_example(word))
+                return None
+            else:
+                return self._get_default_example(word)
+        
+        # 检查数据库中是否已有例句
+        example = word_obj.get('example', '')
+        example_translation = word_obj.get('example_translation', '')
+        
+        # 如果已有例句，直接使用（无论是否有翻译）
+        if example:
+            formatted_example = ""
+            if example and example_translation:
+                formatted_example = f"🌍 {example}\n📝 {example_translation}"
+            elif example:
+                # 如果有例句但没有翻译，或者需要兼容旧格式
+                old_format_example = self._format_example(example)
+                if '|' in example:
+                    # 如果是旧格式（包含|分隔符），使用格式化结果
+                    formatted_example = old_format_example
+                else:
+                    # 否则只显示例句（没有翻译）
+                    formatted_example = f"🌍 {example}"
+            
+            if async_mode:
+                if callback:
+                    callback(formatted_example)
+                return None
+            else:
+                return formatted_example
+        
+        # 如果没有例句，才通过AI获取
         # 使用通用的属性获取方法（自动处理数据库检查和AI补全）
         def example_callback(attributes):
             if callback:
@@ -1617,8 +1662,14 @@ class WordManager:
                     if example and example_translation:
                         formatted_example = f"🌍 {example}\n📝 {example_translation}"
                     elif example:
-                        # 兼容旧格式：如果只有example字段且包含分隔符
-                        formatted_example = self._format_example(example)
+                        # 如果有例句但没有翻译，或者需要兼容旧格式
+                        old_format_example = self._format_example(example)
+                        if '|' in example:
+                            # 如果是旧格式（包含|分隔符），使用格式化结果
+                            formatted_example = old_format_example
+                        else:
+                            # 否则只显示例句（没有翻译）
+                            formatted_example = f"🌍 {example}"
                     else:
                         formatted_example = self._get_default_example(word)
                     callback(formatted_example)
@@ -1636,8 +1687,14 @@ class WordManager:
             if example and example_translation:
                 return f"🌍 {example}\n📝 {example_translation}"
             elif example:
-                # 兼容旧格式：如果只有example字段且包含分隔符
-                return self._format_example(example)
+                # 如果有例句但没有翻译，或者需要兼容旧格式
+                old_format_example = self._format_example(example)
+                if '|' in example:
+                    # 如果是旧格式（包含|分隔符），使用格式化结果
+                    return old_format_example
+                else:
+                    # 否则只显示例句（没有翻译）
+                    return f"🌍 {example}"
             else:
                 return self._get_default_example(word)
     

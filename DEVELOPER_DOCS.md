@@ -42,6 +42,13 @@ LexiNote 是一个个人英语学习工具，帮助用户管理单词库、学�
   - 采用页面缓存机制，提高统计页面切换效率
   - 修复了图表绘制问题，确保数据可视化的准确性
 
+### v1.13.0 - 2025-11-17
+- **词库管理模块AI补全功能改进**:
+  - 修改了`get_words_missing_details`方法，增加了对`example_translation`字段的检查
+  - 优化了`ai_complete_word_details`方法，确保只有当`example_translation`缺失时才会更新该字段
+  - 提高了AI补全功能的准确性和完整性
+  - 修复了之前AI补全功能可能导致的权限问题
+
 ### v1.10.0 - 2025-11-14
 - **全新统计模块**：
   - 创建了 `statistics.py` 文件，实现了 `StatisticsManager` 类

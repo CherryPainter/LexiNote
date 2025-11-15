@@ -571,7 +571,7 @@ class DatabaseManager:
             log_error(f"获取单词信息失败: {str(e)}")
             return None
     
-    def add_word_to_set(self, set_id, word, translation, phonetic='', example='', meaning_en='', tag='', example_translation=''):
+    def add_word_to_set(self, set_id, word, translation, phonetic='', example='', meaning_en='', tag='', example_translation='', **kwargs):
         """向词库添加单词"""
         try:
             # 检查词库是否存在
