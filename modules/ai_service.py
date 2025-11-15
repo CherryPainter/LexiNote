@@ -25,8 +25,13 @@ class AIService:
         self.word_manager = word_manager  # 保存传入的WordManager实例
         self._lock = threading.RLock()
         
-        # 测试AI连接状态
-        self.ai_available = self._test_ai_connection()
+        # 初始化AI可用性状态
+        # 如果有外部传入的WordManager，直接使用它的AI可用性检测结果
+        if self.word_manager is not None and hasattr(self.word_manager, 'ai_available'):
+            self.ai_available = self.word_manager.ai_available
+        else:
+            # 只有在没有WordManager实例时，才进行AI连接测试
+            self.ai_available = self._test_ai_connection()
         
     def _get_available_models(self) -> list:
         """获取可用的Ollama模型列表

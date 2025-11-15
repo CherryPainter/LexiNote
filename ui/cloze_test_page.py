@@ -49,11 +49,20 @@ class ClozeTestPage(tk.Frame):
         """页面显示时执行的操作，延迟初始化模块"""
         # 延迟初始化模块，使用控制器提供的WordManager实例
         if self.cloze_module is None:
-            from modules.cloze_test import ClozeTestModule
-            self.cloze_module = ClozeTestModule(word_manager=self.controller.word_manager)
+            # 在后台线程中初始化ClozeTestModule，避免UI阻塞
+            def init_cloze_module():
+                from modules.cloze_test import ClozeTestModule
+                self.cloze_module = ClozeTestModule(word_manager=self.controller.word_manager)
+                # 初始化完成后，在主线程中更新状态
+                self.after(0, self._update_status)
             
-        # 刷新状态信息
-        self._update_status()
+            # 创建并启动后台线程
+            import threading
+            init_thread = threading.Thread(target=init_cloze_module, daemon=True)
+            init_thread.start()
+        else:
+            # 模块已初始化，直接刷新状态信息
+            self._update_status()
     
     def _create_ui(self):
         """创建用户界面"""
@@ -110,9 +119,9 @@ class ClozeTestPage(tk.Frame):
         status_label = tk.Label(control_frame, textvariable=self.status_var, font=self.font_config['normal'])
         status_label.pack(side=tk.RIGHT, padx=10)
         
-        # 内容区域
-        content_frame = tk.Frame(main_frame)
-        content_frame.pack(fill=tk.BOTH, expand=True)
+        # 内容区域 - 使用通用滚动框架为整个完型填空元素区添加滑动条
+        content_scroll_frame, content_frame, _, _ = create_scrollable_frame(main_frame)
+        content_scroll_frame.pack(fill=tk.BOTH, expand=True)
         
         # 标题显示
         title_frame = tk.Frame(content_frame)
@@ -137,9 +146,13 @@ class ClozeTestPage(tk.Frame):
         from ui.components.scrollable_frame import add_mousewheel_support
         add_mousewheel_support(self.article_text, self.article_text)
         
-        # 选项区域 - 使用通用滚动框架
-        options_scroll_frame, self.options_frame, _, _ = create_scrollable_frame(content_frame)
-        options_scroll_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
+        # 选项区域
+        options_frame = tk.LabelFrame(content_frame, text="选项", font=self.font_config['header'])
+        options_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
+        
+        # 选项内容
+        self.options_frame = tk.Frame(options_frame)
+        self.options_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
         # 答案输入和提交
         answer_frame = tk.Frame(content_frame)
