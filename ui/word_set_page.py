@@ -20,11 +20,11 @@ class WordSetPage(tk.Frame):
         
         # 分页相关
         self.current_page = 1
-        self.items_per_page = 20
-        
+        self.items_per_page = 30  # 将每页显示数量改为30个单词
+
         # 创建UI
         self._create_ui()
-        
+
         # 加载数据
         self._load_word_sets()
     
@@ -109,19 +109,23 @@ class WordSetPage(tk.Frame):
         )
         set_list_label.pack(pady=(0, 10))
         
+        # 词库列表和滚动条的框架
+        listbox_frame = tk.Frame(left_frame)
+        listbox_frame.pack(fill=tk.BOTH, expand=True)
+        
         # 词库列表
         self.set_listbox = tk.Listbox(
-            left_frame,
+            listbox_frame,
             font=self.font_config['normal'],
-            width=40,
-            height=20,
+            width=20,
+            # 移除固定高度限制
             selectmode=tk.SINGLE
         )
-        self.set_listbox.pack(fill=tk.BOTH, expand=True)
+        self.set_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         self.set_listbox.bind('<<ListboxSelect>>', self._on_word_set_select)
         
-        # 滚动条
-        set_scrollbar = tk.Scrollbar(self.set_listbox, orient=tk.VERTICAL, command=self.set_listbox.yview)
+        # 滚动条（修正父组件）
+        set_scrollbar = tk.Scrollbar(listbox_frame, orient=tk.VERTICAL, command=self.set_listbox.yview)
         set_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.set_listbox.config(yscrollcommand=set_scrollbar.set)
         
@@ -239,8 +243,23 @@ class WordSetPage(tk.Frame):
         pagination_frame = tk.Frame(right_frame, bg='white')
         pagination_frame.pack(fill=tk.X, pady=10)
         
+        # 第一行：首页、上一页、页码、下一页、末页
+        page_buttons_frame = tk.Frame(pagination_frame, bg='white')
+        page_buttons_frame.pack(fill=tk.X, pady=5)
+        
+        # 首页按钮
+        self.first_btn = tk.Button(
+            page_buttons_frame,
+            text="首页",
+            font=self.font_config['button'],
+            command=self._first_page,
+            bg='#e0e0e0',
+            relief=tk.RAISED
+        )
+        self.first_btn.pack(side=tk.LEFT, padx=5)
+        
         self.prev_btn = tk.Button(
-            pagination_frame,
+            page_buttons_frame,
             text="上一页",
             font=self.font_config['button'],
             command=self._prev_page,
@@ -250,15 +269,16 @@ class WordSetPage(tk.Frame):
         self.prev_btn.pack(side=tk.LEFT, padx=5)
         
         self.page_label = tk.Label(
-            pagination_frame,
+            page_buttons_frame,
             text="第 1 页",
             font=self.font_config['normal'],
             bg='white'
         )
         self.page_label.pack(side=tk.LEFT, padx=5)
         
+        # 下一页按钮
         self.next_btn = tk.Button(
-            pagination_frame,
+            page_buttons_frame,
             text="下一页",
             font=self.font_config['button'],
             command=self._next_page,
@@ -266,6 +286,43 @@ class WordSetPage(tk.Frame):
             relief=tk.RAISED
         )
         self.next_btn.pack(side=tk.LEFT, padx=5)
+        
+        # 末页按钮
+        self.last_btn = tk.Button(
+            page_buttons_frame,
+            text="末页",
+            font=self.font_config['button'],
+            command=self._last_page,
+            bg='#e0e0e0',
+            relief=tk.RAISED
+        )
+        self.last_btn.pack(side=tk.LEFT, padx=5)
+        
+        # 第二行：跳转功能
+        goto_frame = tk.Frame(pagination_frame, bg='white')
+        goto_frame.pack(fill=tk.X, pady=5)
+        
+        # 居中显示跳转功能
+        goto_label = tk.Label(goto_frame, text="第", font=self.font_config['normal'], bg='white')
+        goto_label.pack(side=tk.LEFT, padx=(5, 0))
+        
+        self.goto_entry = tk.Entry(goto_frame, font=self.font_config['normal'], width=5)
+        self.goto_entry.pack(side=tk.LEFT, padx=5)
+        
+        goto_label2 = tk.Label(goto_frame, text="页", font=self.font_config['normal'], bg='white')
+        goto_label2.pack(side=tk.LEFT)
+        
+        goto_btn = tk.Button(
+            goto_frame,
+            text="跳转",
+            font=self.font_config['button'],
+            command=self._goto_page,
+            bg='#e0e0e0',
+            relief=tk.RAISED
+        )
+        goto_btn.pack(side=tk.LEFT, padx=5)
+    
+    
     
     def _load_word_sets(self):
         """加载词库列表"""
@@ -403,6 +460,68 @@ class WordSetPage(tk.Frame):
         self.current_page += 1
         keyword = self.search_entry.get().strip() or None
         self._load_words(keyword=keyword)
+    
+    def _first_page(self):
+        """首页"""
+        if self.current_page != 1:
+            self.current_page = 1
+            keyword = self.search_entry.get().strip() or None
+            self._load_words(keyword=keyword)
+    
+    def _last_page(self):
+        """末页"""
+        if not self.current_set_id:
+            return
+        
+        # 计算总页数
+        word_set = self.word_manager.get_word_set_by_id(self.current_set_id)
+        if not word_set:
+            return
+        
+        total_words = word_set.get('word_count', 0)
+        total_pages = (total_words + self.items_per_page - 1) // self.items_per_page
+        
+        if self.current_page != total_pages:
+            self.current_page = total_pages
+            keyword = self.search_entry.get().strip() or None
+            self._load_words(keyword=keyword)
+    
+    def _goto_page(self):
+        """跳转页面"""
+        if not self.current_set_id:
+            return
+        
+        # 获取用户输入的页码
+        page_str = self.goto_entry.get().strip()
+        if not page_str:
+            messagebox.showwarning("提示", "请输入页码")
+            return
+        
+        try:
+            target_page = int(page_str)
+            if target_page < 1:
+                messagebox.showwarning("提示", "页码必须大于等于1")
+                return
+            
+            # 计算总页数
+            word_set = self.word_manager.get_word_set_by_id(self.current_set_id)
+            if not word_set:
+                return
+            
+            total_words = word_set.get('word_count', 0)
+            total_pages = (total_words + self.items_per_page - 1) // self.items_per_page
+            
+            if target_page > total_pages:
+                messagebox.showwarning("提示", f"页码不能超过总页数 {total_pages}")
+                return
+            
+            if self.current_page != target_page:
+                self.current_page = target_page
+                keyword = self.search_entry.get().strip() or None
+                self._load_words(keyword=keyword)
+                self.goto_entry.delete(0, tk.END)  # 清空输入框
+        except ValueError:
+            messagebox.showwarning("提示", "请输入有效的页码")
     
     def _import_word_set(self):
         """导入词库"""

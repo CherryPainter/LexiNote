@@ -572,31 +572,45 @@ class DatabaseManager:
             return None
     
     def add_word_to_set(self, set_id, word, translation, phonetic='', example='', meaning_en='', tag='', example_translation='', **kwargs):
-        """向词库添加单词"""
+        """向词库添加单词
+        
+        Args:
+            set_id: 词库ID
+            word: 单词
+            translation: 翻译
+            phonetic: 音标（可选）
+            example: 例句（可选）
+            meaning_en: 英文解释（可选）
+            tag: 标签（可选）
+            example_translation: 例句翻译（可选）
+            **kwargs: 其他参数
+            
+        Returns:
+            tuple: (success, message)
+                success: bool，添加是否成功
+                message: str，成功或失败的消息
+        """
         try:
             # 检查词库是否存在
             if not self.get_word_set_by_id(set_id):
                 return False, "词库不存在"
             
-            # 检查词库中是否已存在该单词
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            cursor.execute("SELECT id FROM words WHERE set_id = ? AND word = ?", (set_id, word))
-            if cursor.fetchone():
-                conn.close()
-                return False, "单词已存在于当前词库"
+            # 检查单词是否已存在于当前词库中
+            existing_words = self.execute_read("SELECT id FROM words WHERE set_id = ? AND word = ?", (set_id, word))
+            if existing_words:
+                return False, "单词已存在于当前词库中"
             
-            # 添加单词
-            cursor.execute(
-                "INSERT INTO words (set_id, word, translation, phonetic, example, meaning_en, tag, example_translation) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (set_id, word, translation, phonetic, example, meaning_en, tag, example_translation)
-            )
+            # 使用execute_write方法添加单词，确保统一的连接管理
+            insert_query = "INSERT INTO words (set_id, word, translation, phonetic, example, meaning_en, tag, example_translation) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+            insert_params = (set_id, word, translation, phonetic, example, meaning_en, tag, example_translation)
+            word_id = self.execute_write(insert_query, insert_params, immediate=True)
+            
+            if not word_id:
+                return False, "添加单词失败"
             
             # 更新词库单词数
-            cursor.execute("UPDATE word_sets SET word_count = word_count + 1 WHERE id = ?", (set_id,))
-            
-            conn.commit()
-            conn.close()
+            update_query = "UPDATE word_sets SET word_count = word_count + 1 WHERE id = ?"
+            self.execute_write(update_query, (set_id,), immediate=True)
             
             log_info(f"添加单词成功: {word} 到词库 {set_id}")
             return True, "添加成功"

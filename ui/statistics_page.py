@@ -382,7 +382,13 @@ class StatisticsPage(tk.Frame):
         """
         加载熟练度分布数据
         """
-        proficiency_stats = self.statistics_manager.get_proficiency_stats()
+        # 获取当前激活的词库ID
+        active_set_id = None
+        if hasattr(self.word_manager, 'active_word_set_id'):
+            active_set_id = self.word_manager.active_word_set_id
+        
+        # 根据当前激活词库获取熟练度分布统计
+        proficiency_stats = self.statistics_manager.get_proficiency_stats(active_set_id)
         
         # 清空画布
         self.proficiency_canvas.delete("all")
@@ -419,7 +425,11 @@ class StatisticsPage(tk.Frame):
         center_y = canvas_height / 2
         radius = min(plot_width, plot_height) / 2
         
-        for label, count in proficiency_stats.items():
+        # 按面积从小到大绘制，确保小部分不会被大部分覆盖：熟练 -> 一般 -> 不熟悉 -> 未学习
+        draw_order = ["熟练", "一般", "不熟悉", "未学习"]
+        
+        for label in draw_order:
+            count = proficiency_stats.get(label, 0)
             if count == 0:
                 continue
                 
@@ -436,20 +446,21 @@ class StatisticsPage(tk.Frame):
                 width=2
             )
             
-            # 绘制标签
-            mid_angle = current_angle + angle / 2
-            # 使用三角函数计算标签位置
-            radians = math.radians(mid_angle)
-            label_x = center_x + (radius * 0.7) * math.cos(radians)
-            label_y = center_y - (radius * 0.7) * math.sin(radians)
-            
-            self.proficiency_canvas.create_text(
-                label_x,
-                label_y,
-                text=f"{count}",
-                font=("Arial", 12, "bold"),
-                fill="white"
-            )
+            # 只对较大的扇形绘制标签，避免标签重叠
+            if angle > 5:  # 大于5度的扇形才显示标签
+                mid_angle = current_angle + angle / 2
+                # 使用三角函数计算标签位置
+                radians = math.radians(mid_angle)
+                label_x = center_x + (radius * 0.7) * math.cos(radians)
+                label_y = center_y - (radius * 0.7) * math.sin(radians)
+                
+                self.proficiency_canvas.create_text(
+                    label_x,
+                    label_y,
+                    text=f"{count}",
+                    font=("Arial", 12, "bold"),
+                    fill="white"
+                )
             
             current_angle += angle
     

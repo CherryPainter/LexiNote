@@ -173,35 +173,50 @@ class StatisticsManager:
             log_error(f"获取每周学习统计失败: {str(e)}")
             return []
 
-    def get_proficiency_stats(self) -> Dict[str, int]:
+    def get_proficiency_stats(self, set_id: Optional[int] = None) -> Dict[str, int]:
         """获取熟练度分布统计
+
+        Args:
+            set_id: 词库ID，默认获取所有词库的统计
 
         Returns:
             Dict: 各熟练度区间的单词数量
         """
         try:
-            # 定义熟练度区间
+            # 定义熟练度区间 - 修复区间边界问题，确保所有值都能被正确分类且无重叠
             intervals = [
                 (0, 0, "未学习"),
-                (0.01, 0.3, "不熟悉"),
-                (0.31, 0.7, "一般"),
-                (0.71, 1.0, "熟练")
+                (0, 0.3, "不熟悉"),     # 0 < proficiency <= 0.3
+                (0.3, 0.7, "一般"),       # 0.3 < proficiency <= 0.7
+                (0.7, 1.0, "熟练")        # 0.7 < proficiency <= 1.0
             ]
 
             stats = {}
             for min_prof, max_prof, label in intervals:
                 if min_prof == max_prof:
                     # 未学习（熟练度为0）
-                    result = self.db_manager.execute_read(
-                        "SELECT COUNT(*) as count FROM words WHERE proficiency = ?",
-                        (min_prof,)
-                    )[0]
+                    if set_id is None:
+                        result = self.db_manager.execute_read(
+                            "SELECT COUNT(*) as count FROM words WHERE proficiency = ?",
+                            (min_prof,)
+                        )[0]
+                    else:
+                        result = self.db_manager.execute_read(
+                            "SELECT COUNT(*) as count FROM words WHERE proficiency = ? AND set_id = ?",
+                            (min_prof, set_id)
+                        )[0]
                 else:
-                    # 其他区间
-                    result = self.db_manager.execute_read(
-                        "SELECT COUNT(*) as count FROM words WHERE proficiency > ? AND proficiency <= ?",
-                        (min_prof, max_prof)
-                    )[0]
+                    # 其他区间 - 使用 > 和 <= 确保边界值被正确分类且与未学习区间不重叠
+                    if set_id is None:
+                        result = self.db_manager.execute_read(
+                            "SELECT COUNT(*) as count FROM words WHERE proficiency > ? AND proficiency <= ?",
+                            (min_prof, max_prof)
+                        )[0]
+                    else:
+                        result = self.db_manager.execute_read(
+                            "SELECT COUNT(*) as count FROM words WHERE proficiency > ? AND proficiency <= ? AND set_id = ?",
+                            (min_prof, max_prof, set_id)
+                        )[0]
                 stats[label] = result['count']
 
             return stats
