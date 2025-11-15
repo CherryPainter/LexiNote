@@ -4,7 +4,7 @@ import random
 import threading
 import sqlite3
 import time
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union, Any
 from datetime import datetime
 from collections import deque
 
@@ -533,6 +533,29 @@ class WordManager:
                 if (word_data['example_translation'] is None or word_data['example_translation'] == '') and 'example_translation' in details and details['example_translation']:
                     update_data['example_translation'] = details['example_translation']
                 
+                # 处理中文释义，更新为新的多词性多义项结构
+                if 'meaning_zh' in details and details['meaning_zh']:
+                    # 创建新的翻译结构
+                    translation_struct = []
+                    
+                    # 处理meaning_zh（可能是字符串或列表）
+                    meanings = details['meaning_zh']
+                    if isinstance(meanings, str):
+                        meanings = [meanings]
+                    elif not isinstance(meanings, list):
+                        meanings = [str(meanings)]
+                    
+                    # 创建词性条目
+                    tag = details.get('tag', '')
+                    translation_struct.append({
+                        'tag': tag,
+                        'meaning_zh': meanings
+                    })
+                    
+                    # 转换为JSON字符串存储
+                    import json
+                    update_data['translation'] = json.dumps(translation_struct, ensure_ascii=False)
+                
                 # 更新数据库
                 if update_data:
                     success, msg = self.update_word(word_id, **update_data)
@@ -554,29 +577,79 @@ class WordManager:
         log_info(f"AI补全单词完成，成功补全 {completed_count}/{total} 个单词")
         return completed_count
     
-    def get_translation(self, word: str) -> Optional[str]:
+    def get_translation(self, word: str, format_output: bool = True) -> Optional[Union[str, List[Dict[str, Any]]]]:
         """获取单词翻译（带缓存）
         
         Args:
             word: 单词
+            format_output: 是否格式化输出（当为True时，将多词性多义项格式转为字符串；为False时返回原始格式）
             
         Returns:
-            翻译结果
+            翻译结果：格式化输出时返回字符串，否则返回原始格式
         """
+        import json
+        
         # 先查内存缓存
         with self._cache_lock:
             if word in self._word_cache:
-                return self._word_cache[word]
+                translation = self._word_cache[word]
+                if not format_output:
+                    return translation
+                return self._format_translation(translation)
         
         # 查数据库
         translation = self.db_manager.get_word_translation(word)
         
-        # 更新缓存
-        if translation:
-            with self._cache_lock:
-                self._word_cache[word] = translation
+        if not translation:
+            return None
         
-        return translation
+        # 更新缓存
+        with self._cache_lock:
+            self._word_cache[word] = translation
+        
+        if not format_output:
+            return translation
+            
+        return self._format_translation(translation)
+    
+    def _format_translation(self, translation: Union[str, List[Dict[str, Any]]]) -> str:
+        """格式化翻译结果为字符串
+        
+        Args:
+            translation: 翻译结果，可以是字符串或多词性多义项结构
+            
+        Returns:
+            格式化后的字符串
+        """
+        import json
+        
+        # 如果已经是字符串，直接返回
+        if isinstance(translation, str):
+            return translation
+            
+        # 如果是列表结构（新格式）
+        if isinstance(translation, list):
+            formatted_parts = []
+            for item in translation:
+                tag = item.get('tag', '')
+                meanings = item.get('meaning_zh', [])
+                if meanings:
+                    if tag:
+                        formatted_parts.append(f"{tag}：{'；'.join(meanings)}")
+                    else:
+                        formatted_parts.append('；'.join(meanings))
+            return '\n'.join(formatted_parts)
+        
+        # 处理可能的JSON字符串
+        try:
+            if isinstance(translation, str) and (translation.startswith('[') or translation.startswith('{')):
+                parsed = json.loads(translation)
+                return self._format_translation(parsed)
+        except json.JSONDecodeError:
+            pass
+            
+        # 其他情况，返回原始字符串
+        return str(translation)
     
     def add_word(self, word: str, translation: str) -> bool:
         """添加单词
@@ -1833,6 +1906,72 @@ class WordManager:
             log_error(f"检查今日学习进度失败: {str(e)}")
             return False
     
+    def migrate_old_translations(self):
+        """迁移旧格式的翻译数据到新的多词性多义项结构
+        
+        Returns:
+            int: 成功迁移的单词数量
+        """
+        try:
+            import json
+            
+            # 获取所有单词
+            all_words = self.db_manager.execute_read("SELECT id, word, translation FROM words")
+            
+            if not all_words:
+                log_info("没有需要迁移的单词")
+                return 0
+            
+            migrated_count = 0
+            
+            for word_data in all_words:
+                word_id = word_data['id']
+                word = word_data['word']
+                translation = word_data['translation']
+                
+                # 跳过已经是新格式的翻译
+                if isinstance(translation, str) and translation.startswith('['):
+                    try:
+                        parsed = json.loads(translation)
+                        if isinstance(parsed, list) and all(isinstance(item, dict) for item in parsed):
+                            continue
+                    except json.JSONDecodeError:
+                        pass
+                
+                # 为旧格式翻译创建新结构
+                new_translation = []
+                
+                # 如果是字符串，拆分为多个含义
+                if isinstance(translation, str):
+                    import re
+                    meanings = re.split(r"[;,；、/|]", translation)
+                    meanings = [m.strip() for m in meanings if m.strip()]
+                    
+                    if meanings:
+                        # 如果有词性信息，使用现有词性，否则为空
+                        tag = word_data.get('tag', '')
+                        new_translation.append({
+                            'tag': tag,
+                            'meaning_zh': meanings
+                        })
+                
+                if new_translation:
+                    # 更新数据库
+                    new_translation_json = json.dumps(new_translation, ensure_ascii=False)
+                    success, msg = self.update_word(word_id, translation=new_translation_json)
+                    if success:
+                        migrated_count += 1
+                        log_info(f"迁移单词 '{word}' 的翻译格式成功")
+                    else:
+                        log_error(f"迁移单词 '{word}' 的翻译格式失败: {msg}")
+                
+            log_info(f"翻译格式迁移完成，共迁移 {migrated_count} 个单词")
+            return migrated_count
+            
+        except Exception as e:
+            log_error(f"迁移旧翻译格式失败: {str(e)}")
+            return 0
+    
     def check_translation(self, word: str, user_translation: str, update_stats: bool = True) -> bool:
         """检查用户翻译是否正确
         
@@ -1870,12 +2009,62 @@ class WordManager:
             if not correct_translation:
                 log_warning(f"无法检查翻译: 单词 '{word}' 没有对应的翻译")
                 return False
+            
+            # 提取所有可能的候选翻译
+            candidates = []
+            
+            # 处理新格式（多词性多义项结构）
+            if isinstance(correct_translation, list):
+                for item in correct_translation:
+                    if isinstance(item, dict) and 'meaning_zh' in item:
+                        meanings = item['meaning_zh']
+                        if isinstance(meanings, list):
+                            candidates.extend([normalize(m) for m in meanings if m and m.strip()])
+                        elif isinstance(meanings, str):
+                            candidates.append(normalize(meanings))
+            # 处理旧格式（字符串）
+            elif isinstance(correct_translation, str):
+                # 先尝试作为JSON解析（处理可能存储为字符串的新格式）
+                try:
+                    import json
+                    if correct_translation.startswith('['):
+                        parsed = json.loads(correct_translation)
+                        if isinstance(parsed, list):
+                            for item in parsed:
+                                if isinstance(item, dict) and 'meaning_zh' in item:
+                                    meanings = item['meaning_zh']
+                                    if isinstance(meanings, list):
+                                        candidates.extend([normalize(m) for m in meanings if m and m.strip()])
+                                    elif isinstance(meanings, str):
+                                        candidates.append(normalize(meanings))
+                            # 如果成功解析为新格式，不再处理为字符串
+                            if candidates:
+                                pass
+                            else:
+                                # 如果解析为列表但没有提取到候选，继续按字符串处理
+                                raise json.JSONDecodeError("Invalid format", correct_translation, 0)
+                        else:
+                            # 解析结果不是列表，继续按字符串处理
+                            raise json.JSONDecodeError("Not a list", correct_translation, 0)
+                    else:
+                        # 不是JSON格式，按字符串处理
+                        raise json.JSONDecodeError("Not JSON", correct_translation, 0)
+                except json.JSONDecodeError:
+                    # 按旧格式字符串处理
+                    candidates_raw = re.split(r"[;,；、/|]", correct_translation)
+                    candidates = [normalize(c) for c in candidates_raw if c and c.strip()]
+
+            # 如果没有分拆出候选，则把整个翻译作为单候选
+            if not candidates:
+                candidates = [normalize(str(correct_translation))]
 
             # If AI is available, prefer AI evaluation (more robust for synonyms/phrases)
             try:
                 if self.ai_available and self.ai_manager:
                     try:
-                        eval_result = self.ai_manager.evaluate_sync(correct_translation, user_translation)
+                        # 使用格式化后的翻译进行AI评估
+                        formatted_translation = self._format_translation(correct_translation)
+                        eval_result = self.ai_manager.evaluate_sync(formatted_translation, user_translation)
                         if isinstance(eval_result, dict):
                             ai_is_correct = bool(eval_result.get('is_correct'))
                             similarity = float(eval_result.get('similarity', 0)) if eval_result.get('similarity') is not None else 0.0
@@ -1900,14 +2089,6 @@ class WordManager:
                 pass
 
             user_normalized = normalize(user_translation)
-
-            # 将正确翻译按常见分隔符拆分为多个候选
-            candidates_raw = re.split(r"[;,；、/|]", correct_translation)
-            candidates = [normalize(c) for c in candidates_raw if c and c.strip()]
-
-            # 如果没有分拆出候选，则把整个翻译作为单候选
-            if not candidates:
-                candidates = [normalize(correct_translation)]
 
             # 精确匹配或包含匹配（用户输入可能是简短形式）
             is_correct = False

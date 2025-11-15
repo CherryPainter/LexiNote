@@ -2,7 +2,7 @@ import sqlite3
 import os
 import threading
 from datetime import datetime
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Union
 
 from logger import log_info, log_error
 
@@ -826,15 +826,38 @@ class DatabaseManager:
             log_error(f"添加单词失败: {str(e)}")
             return False
     
-    def get_word_translation(self, word: str) -> Optional[str]:
-        """获取单词翻译"""
+    def get_word_translation(self, word: str) -> Optional[Union[str, List[Dict[str, Any]]]]:
+        """获取单词翻译
+        
+        Returns:
+            翻译结果：可能是字符串（旧格式）或多词性多义项结构（新格式）
+        """
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             cursor.execute("SELECT translation FROM words WHERE word = ?", (word,))
             result = cursor.fetchone()
             conn.close()
-            return result[0] if result else None
+            
+            if not result:
+                return None
+            
+            translation = result[0]
+            
+            # 尝试解析JSON格式
+            try:
+                if translation.startswith('['):
+                    import json
+                    parsed = json.loads(translation)
+                    # 验证是否为正确的多词性多义项结构
+                    if isinstance(parsed, list) and all(isinstance(item, dict) for item in parsed):
+                        return parsed
+            except json.JSONDecodeError:
+                pass
+            
+            # 如果不是JSON格式或解析失败，返回原始字符串
+            return translation
+            
         except Exception as e:
             log_error(f"获取单词翻译失败: {str(e)}")
             return None

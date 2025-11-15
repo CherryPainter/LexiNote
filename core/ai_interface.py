@@ -284,7 +284,7 @@ class AIManager:
             return loop.run_until_complete(self.example(word, callback))
     
     async def get_word_details(self, word: str, callback=None) -> str:
-        """异步获取单词的详细属性（音标、词性、英语释义、例句）
+        """异步获取单词的详细属性（音标、词性、英语释义、中文释义、例句）
         
         Args:
             word: 要获取详细属性的单词
@@ -297,9 +297,10 @@ class AIManager:
         prompt += "1. 音标（phonetic）- 保持英文\n"
         prompt += "2. 词性（tag）- 保持英文\n"
         prompt += "3. 英语释义（meaning_en）- 保持英文\n"
-        prompt += "4. 例句（example）- 保持英文，附上中文翻译（example_translation）\n"
+        prompt += "4. 中文释义（meaning_zh）- 保持中文，如果有多个含义，请返回数组形式\n"
+        prompt += "5. 例句（example）- 保持英文，附上中文翻译（example_translation）\n"
         prompt += "请严格按照以下JSON格式返回，不要添加任何额外内容和解释：\n"
-        prompt += '{"phonetic": "音标", "tag": "词性", "meaning_en": "英语释义", "example": "例句", "example_translation": "例句翻译"}'
+        prompt += '{"phonetic": "音标", "tag": "词性", "meaning_en": "英语释义", "meaning_zh": ["中文释义1", "中文释义2"], "example": "例句", "example_translation": "例句翻译"}'
         return await self._ask(prompt, callback)
     
     def get_word_details_sync(self, word: str, callback=None) -> str:
