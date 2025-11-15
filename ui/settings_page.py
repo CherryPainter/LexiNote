@@ -1,12 +1,14 @@
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, simpledialog
 import sys
 import os
+import threading
 
 # 添加项目根目录到Python路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from logger import log_info
+from core.ai_interface import AIManager
 
 
 class SettingsPage(tk.Frame):
@@ -259,6 +261,95 @@ class SettingsPage(tk.Frame):
         self.translation_mode_combo.bind('<<ComboboxSelected>>', _on_translation_mode_change)
         self.translation_mode_combo.pack(fill=tk.X, pady=5)
         
+        # AI模型设置
+        ai_model_frame = tk.LabelFrame(
+            settings_card,
+            text="AI模型设置",
+            font=self.font_config['normal'],
+            bg="white",
+            padx=20,
+            pady=15
+        )
+        ai_model_frame.pack(fill=tk.X, padx=20, pady=15)
+        
+        # 初始化AI管理器
+        self.ai_manager = AIManager()
+        
+        # 当前模型选择
+        model_label = tk.Label(
+            ai_model_frame,
+            text="当前使用模型:",
+            font=self.font_config['normal'],
+            bg="white"
+        )
+        model_label.pack(anchor=tk.W, pady=(0, 5))
+        
+        # 模型选择下拉框
+        self.ai_model_var = tk.StringVar()
+        self.ai_model_combo = ttk.Combobox(
+            ai_model_frame,
+            textvariable=self.ai_model_var,
+            state="readonly",
+            font=self.font_config['normal']
+        )
+        
+        # 加载可用模型
+        self._load_ai_models()
+        
+        # 选择事件处理
+        def _on_model_change(event=None):
+            selected_model = self.ai_model_var.get()
+            if selected_model:
+                self.settings_manager.set_ai_model(selected_model)
+                log_info(f"AI模型已切换为: {selected_model}")
+                messagebox.showinfo("切换成功", f"已成功切换到模型: {selected_model}\n应用重启后生效")
+        
+        self.ai_model_combo.bind('<<ComboboxSelected>>', _on_model_change)
+        self.ai_model_combo.pack(fill=tk.X, pady=5)
+        
+        # 模型管理按钮框架
+        model_buttons_frame = tk.Frame(ai_model_frame, bg="white")
+        model_buttons_frame.pack(fill=tk.X, pady=10)
+        
+        # 添加模型按钮
+        add_model_button = tk.Button(
+            model_buttons_frame,
+            text="添加模型",
+            command=self._on_add_model,
+            font=self.font_config['button'],
+            bg="#4CAF50",
+            fg="white",
+            padx=10,
+            pady=5
+        )
+        add_model_button.pack(side=tk.LEFT, padx=5)
+        
+        # 测试模型按钮
+        test_model_button = tk.Button(
+            model_buttons_frame,
+            text="测试模型",
+            command=self._on_test_model,
+            font=self.font_config['button'],
+            bg="#2196F3",
+            fg="white",
+            padx=10,
+            pady=5
+        )
+        test_model_button.pack(side=tk.LEFT, padx=5)
+        
+        # 刷新模型列表按钮
+        refresh_models_button = tk.Button(
+            model_buttons_frame,
+            text="刷新模型列表",
+            command=self._load_ai_models,
+            font=self.font_config['button'],
+            bg="#FF9800",
+            fg="white",
+            padx=10,
+            pady=5
+        )
+        refresh_models_button.pack(side=tk.LEFT, padx=5)
+        
         # 重置设置按钮，居中显示
         button_frame = tk.Frame(center_frame, bg="#f0f0f0")
         button_frame.pack(pady=20)
@@ -360,3 +451,197 @@ class SettingsPage(tk.Frame):
             log_info(f"TTS 缓存上限已更新为: {val} MB")
         except Exception:
             messagebox.showwarning("输入错误", "请输入有效的数字")
+    
+    def _load_ai_models(self):
+        """加载可用的AI模型列表"""
+        try:
+            # 获取本地Ollama可用模型
+            ollama_models = self.ai_manager._get_available_models()
+            log_info(f"从Ollama获取到的模型: {ollama_models}")
+            
+            # 获取设置中保存的模型列表
+            saved_models = self.settings_manager.get_available_ai_models()
+            log_info(f"设置中保存的模型: {saved_models}")
+            
+            # 合并模型列表，去重
+            all_models = list(set(ollama_models + saved_models))
+            all_models.sort()
+            log_info(f"合并后的模型列表: {all_models}")
+            
+            # 更新下拉框选项
+            self.ai_model_combo['values'] = all_models
+            
+            # 设置当前选中的模型
+            current_model = self.settings_manager.get_ai_model()
+            if current_model and current_model in all_models:
+                self.ai_model_combo.set(current_model)
+            elif all_models:
+                # 如果当前模型不在列表中，选择第一个
+                self.ai_model_combo.set(all_models[0])
+            
+            # 保存可用模型到设置
+            self.settings_manager.set_available_ai_models(all_models)
+            
+        except Exception as e:
+            log_info(f"加载AI模型列表失败: {str(e)}")
+            messagebox.showerror("加载失败", f"无法加载AI模型列表: {str(e)}")
+    
+    def _on_add_model(self):
+        """添加新的AI模型"""
+        try:
+            # 弹出输入框让用户输入模型名称
+            model_name = simpledialog.askstring(
+                "添加模型", 
+                "请输入Ollama模型名称（如：gemma3n:latest）:",
+                parent=self
+            )
+            
+            if model_name and model_name.strip():
+                model_name = model_name.strip()
+                
+                # 测试模型是否可用
+                def test_and_add():
+                    try:
+                        # 显示加载提示
+                        loading_window = tk.Toplevel(self)
+                        loading_window.title("测试模型")
+                        loading_window.geometry("300x100")
+                        loading_window.resizable(False, False)
+                        
+                        # 居中显示
+                        loading_window.update_idletasks()
+                        x = (self.winfo_screenwidth() // 2) - (300 // 2)
+                        y = (self.winfo_screenheight() // 2) - (100 // 2)
+                        loading_window.geometry(f"300x100+{x}+{y}")
+                        
+                        loading_label = tk.Label(
+                            loading_window,
+                            text="正在测试模型...",
+                            font=self.font_config['normal']
+                        )
+                        loading_label.pack(expand=True)
+                        
+                        # 强制更新UI
+                        loading_window.update()
+                        
+                        # 测试模型
+                        is_available = self.ai_manager._is_model_available(model_name)
+                        
+                        # 关闭加载窗口
+                        loading_window.destroy()
+                        
+                        if is_available:
+                            # 添加模型到设置
+                            available_models = self.settings_manager.get_available_ai_models()
+                            if model_name not in available_models:
+                                available_models.append(model_name)
+                                self.settings_manager.set_available_ai_models(available_models)
+                            
+                            # 更新模型列表
+                            self._load_ai_models()
+                            
+                            log_info(f"成功添加AI模型: {model_name}")
+                            messagebox.showinfo("添加成功", f"已成功添加并测试模型: {model_name}")
+                        else:
+                            messagebox.showerror("测试失败", f"模型 {model_name} 不可用，请检查模型名称和Ollama服务是否正常运行")
+                    except Exception as e:
+                        loading_window.destroy()
+                        log_info(f"测试模型时出错: {str(e)}")
+                        messagebox.showerror("测试失败", f"测试模型时出错: {str(e)}")
+                
+                # 在后台线程中测试模型，避免UI冻结
+                threading.Thread(target=test_and_add, daemon=True).start()
+        except Exception as e:
+            log_info(f"添加模型时出错: {str(e)}")
+            messagebox.showerror("添加失败", f"添加模型时出错: {str(e)}")
+    
+    def _on_test_model(self):
+        """测试当前选中的模型是否可用"""
+        try:
+            selected_model = self.ai_model_var.get()
+            if not selected_model:
+                messagebox.showwarning("提示", "请先选择一个模型")
+                return
+            
+            # 显示加载提示
+            loading_window = tk.Toplevel(self)
+            loading_window.title("测试模型")
+            loading_window.geometry("300x100")
+            loading_window.resizable(False, False)
+            
+            # 居中显示
+            loading_window.update_idletasks()
+            x = (self.winfo_screenwidth() // 2) - (300 // 2)
+            y = (self.winfo_screenheight() // 2) - (100 // 2)
+            loading_window.geometry(f"300x100+{x}+{y}")
+            
+            loading_label = tk.Label(
+                loading_window,
+                text="正在测试模型...",
+                font=self.font_config['normal']
+            )
+            loading_label.pack(expand=True)
+            
+            # 强制更新UI
+            loading_window.update()
+            
+            # 在后台线程中测试模型
+            def test_model():
+                try:
+                    # 测试模型
+                    is_available = self.ai_manager._is_model_available(selected_model)
+                    
+                    # 关闭加载窗口
+                    loading_window.destroy()
+                    
+                    if is_available:
+                        log_info(f"模型 {selected_model} 测试通过")
+                        messagebox.showinfo("测试成功", f"模型 {selected_model} 可用")
+                    else:
+                        messagebox.showerror("测试失败", f"模型 {selected_model} 不可用")
+                except Exception as e:
+                    loading_window.destroy()
+                    log_info(f"测试模型 {selected_model} 时出错: {str(e)}")
+                    messagebox.showerror("测试失败", f"测试模型时出错: {str(e)}")
+            
+            threading.Thread(target=test_model, daemon=True).start()
+        except Exception as e:
+            log_info(f"测试模型时出错: {str(e)}")
+            messagebox.showerror("测试失败", f"测试模型时出错: {str(e)}")
+    
+    def _on_reset_settings(self):
+        """重置设置为默认值"""
+        if messagebox.askyesno("确认重置", "确定要将所有设置重置为默认值吗？"):
+            # 使用 SettingsManager API 重置为默认
+            try:
+                self.settings_manager.reset_to_default()
+                # 更新UI（使用 hasattr 以避免某些路径下未创建控件时报错）
+                self.auto_next_correct_var.set(self.settings_manager.get_setting("auto_next_correct", False))
+                self.auto_next_wrong_var.set(self.settings_manager.get_setting("auto_next_wrong", False))
+                self.example_enabled_var.set(self.settings_manager.get_setting("example_enabled", True))
+                self.voice_enabled_var.set(self.settings_manager.get_setting("voice_enabled", True))
+                if hasattr(self, 'tts_provider_var'):
+                    self.tts_provider_var.set(self.settings_manager.get_setting("tts_provider", "gTTS"))
+                if hasattr(self, 'tts_cache_enabled_var'):
+                    self.tts_cache_enabled_var.set(self.settings_manager.get_setting("tts_cache_enabled", True))
+                if hasattr(self, 'tts_cache_max_var'):
+                    self.tts_cache_max_var.set(self.settings_manager.get_setting("tts_cache_max_mb", 500))
+                if hasattr(self, 'translation_mode_combo'):
+                    # 把内部值映射回显示值
+                    display_map = {"ai_first": "AI 优先", "local_first": "本地优先", "local_only": "仅本地"}
+                    current = self.settings_manager.get_setting("translation_mode", "ai_first")
+                    self.translation_mode_combo.set(display_map.get(current, current))
+                if hasattr(self, 'auto_word_learning_combo'):
+                    self.auto_word_learning_combo.set('自动' if self.settings_manager.get_setting('auto_mode_word_learning','manual')=='auto' else '手动')
+                if hasattr(self, 'auto_translation_combo'):
+                    self.auto_translation_combo.set('自动' if self.settings_manager.get_setting('auto_mode_translation_practice','manual')=='auto' else '手动')
+                if hasattr(self, 'auto_review_combo'):
+                    self.auto_review_combo.set('自动' if self.settings_manager.get_setting('auto_mode_review','manual')=='auto' else '手动')
+                # 更新AI模型相关UI
+                if hasattr(self, 'ai_model_combo'):
+                    self._load_ai_models()
+                log_info("设置已重置为默认值")
+                messagebox.showinfo("重置成功", "设置已成功重置为默认值")
+            except Exception as e:
+                log_info(f"重置设置失败: {str(e)}")
+                messagebox.showerror("重置失败", f"重置设置时出错: {str(e)}")

@@ -84,7 +84,10 @@ class SettingsManager:
             # 自动切换模式（manual/auto），分别控制单词学习模块、翻译练习模块与复习模块
             "auto_mode_word_learning": "manual",
             "auto_mode_translation_practice": "manual",
-            "auto_mode_review": "manual"
+            "auto_mode_review": "manual",
+            # AI模型设置
+            "ai_model": "gemma3n:latest",
+            "available_ai_models": []
         }
         
         with self._cache_lock:
@@ -281,7 +284,10 @@ class SettingsManager:
                 "tts_provider": "gTTS",
                 "tts_cache_enabled": True,
                 "tts_cache_max_mb": 500,
-                "log_level": "INFO"
+                "log_level": "INFO",
+                # AI模型设置
+                "ai_model": "gemma3n:latest",
+                "available_ai_models": []
             }
             
             # 更新数据库
@@ -298,3 +304,41 @@ class SettingsManager:
         except Exception as e:
             log_error(f"重置设置失败: {str(e)}")
             return False
+    
+    def get_ai_model(self) -> str:
+        """获取当前使用的AI模型
+        
+        Returns:
+            当前AI模型名称
+        """
+        return self.get_setting("ai_model", "gemma3n:latest")
+    
+    def set_ai_model(self, model: str) -> bool:
+        """设置当前使用的AI模型
+        
+        Args:
+            model: AI模型名称
+        
+        Returns:
+            是否设置成功
+        """
+        return self.set_setting("ai_model", model)
+    
+    def get_available_ai_models(self) -> list:
+        """获取可用的AI模型列表
+        
+        Returns:
+            可用AI模型名称列表
+        """
+        return self.get_setting("available_ai_models", [])
+    
+    def set_available_ai_models(self, models: list) -> bool:
+        """设置可用的AI模型列表
+        
+        Args:
+            models: AI模型名称列表
+        
+        Returns:
+            是否设置成功
+        """
+        return self.set_setting("available_ai_models", models)

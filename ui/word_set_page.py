@@ -371,10 +371,13 @@ class WordSetPage(tk.Frame):
             
             # 添加单词到表格
             for word in words:
+                # 获取格式化的翻译（自动处理新的结构化格式）
+                translation = self.word_manager.get_translation(word['word'])
+                
                 self.word_tree.insert("", tk.END, values=(
                     word['id'],
                     word['word'],
-                    word['translation'],
+                    translation or '',
                     word.get('phonetic', ''),
                     word.get('tag', '')
                 ))
@@ -850,7 +853,8 @@ class WordSetPage(tk.Frame):
         
         # 翻译
         tk.Label(detail_frame, text="中文释义:", font=self.font_config['normal'], fg='#333').pack(anchor=tk.W, pady=5)
-        tk.Label(detail_frame, text=word['translation'], font=self.font_config['normal']).pack(anchor=tk.W, pady=5)
+        translation = self.word_manager.get_translation(word['word'])
+        tk.Label(detail_frame, text=translation, font=self.font_config['normal']).pack(anchor=tk.W, pady=5)
         
         # 英文释义
         if word.get('meaning_en'):

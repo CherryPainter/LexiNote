@@ -284,7 +284,7 @@ class LearningPage(tk.Frame):
             if isinstance(self.current_word, dict):
                 # 如果是字典格式（从数据库获取）
                 word_text = self.current_word['word']
-                definition = self.current_word['translation']
+                definition = self.word_manager.get_translation(word_text)
                 phonetic = self.current_word.get('phonetic', '')
             else:
                 # 字符串格式

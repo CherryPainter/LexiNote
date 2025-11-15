@@ -12,6 +12,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from logger import log_info, log_error, log_warning
 from .database_manager import DatabaseManager
+from .settings_manager import SettingsManager
 
 
 class AIManager:
@@ -27,14 +28,19 @@ class AIManager:
             cls._instance = super(AIManager, cls).__new__(cls)
         return cls._instance
     
-    def __init__(self, model="gemma3n:latest"):
+    def __init__(self, model=None):
         """初始化AI管理器（只在第一次创建实例时执行）
         
         Args:
-            model: 使用的Ollama模型名称
+            model: 使用的Ollama模型名称，如果为None则从设置中获取
         """
         # 确保初始化只执行一次
         if not AIManager._initialized:
+            # 从设置中获取模型，如果没有则使用默认值
+            self.settings_manager = SettingsManager()
+            if model is None:
+                model = self.settings_manager.get_ai_model()
+            
             self.model = model
             self.db_manager = DatabaseManager()
             self._executor = ThreadPoolExecutor(max_workers=2)
@@ -417,6 +423,54 @@ class AIManager:
                 "used_cache_count": 0,
                 "hit_rate": 0
             }
+    
+    def set_model(self, model_name):
+        """动态切换AI模型
+        
+        Args:
+            model_name: 新的模型名称
+        
+        Returns:
+            bool: 切换是否成功
+        """
+        try:
+            # 验证模型是否可用
+            if self._is_model_available(model_name):
+                # 更新当前模型
+                self.model = model_name
+                log_info(f"AI模型已切换为: {model_name}")
+                return True
+            else:
+                log_error(f"无法切换到模型 {model_name}: 模型不可用")
+                return False
+        except Exception as e:
+            log_error(f"切换模型时出错: {str(e)}")
+            return False
+    
+    def _is_model_available(self, model_name):
+        """检查模型是否可用
+        
+        Args:
+            model_name: 要检查的模型名称
+        
+        Returns:
+            bool: 模型是否可用
+        """
+        try:
+            # 尝试向Ollama API发送一个简单请求来测试模型
+            response = requests.post(
+                "http://localhost:11434/api/generate",
+                json={
+                    "model": model_name,
+                    "prompt": "test",
+                    "stream": False
+                },
+                timeout=10
+            )
+            return response.status_code == 200
+        except Exception as e:
+            log_warning(f"检查模型 {model_name} 可用性失败: {str(e)}")
+            return False
     
     def cleanup(self):
         """清理资源"""

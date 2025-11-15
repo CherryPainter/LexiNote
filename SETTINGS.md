@@ -71,6 +71,16 @@
   - `"INFO"`: 信息模式，显示正常信息和错误
   - `"ERROR"`: 错误模式，仅显示错误信息
 
+## AI 模型设置
+
+- `ai_model`: `"gemma3n:latest"` - 当前使用的AI模型名称（默认使用gemma3n:latest）。
+  - 说明：指定应用使用的Ollama模型
+  - 生效：实时生效，模型切换后立即应用
+
+- `available_ai_models`: `[]` - 可用的AI模型列表。
+  - 说明：存储用户手动添加的可用Ollama模型
+  - 生效：实时生效，用于设置页面的模型选择下拉框
+
 ## 通过 SettingsManager 编程修改设置
 
 示例：

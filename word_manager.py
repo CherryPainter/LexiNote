@@ -1087,7 +1087,18 @@ class WordManager:
             str: 随机单词，如果没有可用单词返回None
         """
         try:
-            all_words = self.get_all_words()
+            # 检查是否有激活的词库，如果没有则设置默认词库
+            if not self.active_word_set_id:
+                self._set_default_word_set()
+                
+            # 获取当前激活词库中的所有单词
+            words = self.db_manager.execute_read(
+                "SELECT word FROM words WHERE set_id = ? ORDER BY word",
+                (self.active_word_set_id,)
+            )
+            
+            all_words = [word['word'] for word in words]
+            
             if exclude_words:
                 available_words = [word for word in all_words if word not in exclude_words]
             else:
@@ -1112,9 +1123,14 @@ class WordManager:
             str: 随机单词，如果没有可用单词返回None
         """
         try:
-            # 使用数据库中的熟练度作为权重
+            # 检查是否有激活的词库，如果没有则设置默认词库
+            if not self.active_word_set_id:
+                self._set_default_word_set()
+                
+            # 使用数据库中的熟练度作为权重，仅从当前激活词库获取
             words = self.db_manager.execute_read(
-                "SELECT word, proficiency FROM words ORDER BY proficiency ASC"
+                "SELECT word, proficiency FROM words WHERE set_id = ? ORDER BY proficiency ASC",
+                (self.active_word_set_id,)
             )
             
             # 过滤排除的单词
@@ -1246,9 +1262,14 @@ class WordManager:
             选中的单词，如果没有单词则返回None
         """
         try:
-            # 查询熟练度较低的单词
+            # 检查是否有激活的词库，如果没有则设置默认词库
+            if not self.active_word_set_id:
+                self._set_default_word_set()
+                
+            # 查询当前激活词库中熟练度较低的单词
             words = self.db_manager.execute_read(
-                "SELECT word, proficiency FROM words ORDER BY proficiency ASC LIMIT 20"
+                "SELECT word, proficiency FROM words WHERE set_id = ? ORDER BY proficiency ASC LIMIT 20",
+                (self.active_word_set_id,)
             )
             
             if not words:
