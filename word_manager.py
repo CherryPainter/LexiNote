@@ -417,12 +417,12 @@ class WordManager:
             set_id, keyword, limit, offset
         )
     
-    def add_word_to_active_set(self, word, translation, phonetic='', example='', meaning_en='', tag=''):
+    def add_word_to_active_set(self, word, translation, phonetic='', example='', meaning_en='', tag='', example_translation=''):
         """向当前激活的词库添加单词"""
         if not self.active_word_set_id:
             self._set_default_word_set()
         return self.db_manager.add_word_to_set(
-            self.active_word_set_id, word, translation, phonetic, example, meaning_en, tag
+            self.active_word_set_id, word, translation, phonetic, example, meaning_en, tag, example_translation
         )
     
     def update_word(self, word_id, **kwargs):

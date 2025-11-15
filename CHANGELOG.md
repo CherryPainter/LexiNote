@@ -1,5 +1,11 @@
 # LexiNote 更新日志
 
+## v1.12.0 - 2025-10-25
+### 修复
+- 修复了添加单词时的错误：DatabaseManager.add_word_to_set() 收到了意外的关键字参数'example_translation'
+- 向add_word_to_set方法添加了example_translation参数支持
+- 更新了word_manager.py中的add_word_to_active_set方法，使其也支持example_translation参数
+
 ## v1.11.9 - 2025-10-25
 
 - 添加数据库初始化脚本init_word_dict.py，用于导入默认词库数据
