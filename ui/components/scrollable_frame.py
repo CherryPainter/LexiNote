@@ -55,6 +55,22 @@ def create_scrollable_frame(parent, *args, **kwargs):
     inner_frame.bind("<Configure>", on_inner_configure)
     canvas.bind("<Configure>", on_canvas_configure)
     
+    # 自动添加鼠标滚轮支持 - 同时绑定到内部框架和Canvas
+    # 这样无论鼠标在内容区域还是Canvas上都能滚动
+    add_mousewheel_support(inner_frame, canvas)
+    add_mousewheel_support(canvas, canvas)
+    
+    # 注意：Tkinter标准库不支持ChildAdded和ChildRemoved事件
+    # 以下代码被注释掉，因为会导致运行时错误
+    # 如果需要动态组件支持，可以考虑使用其他方法，如定时检查或手动调用重新绑定函数
+    # def on_inner_frame_change(event):
+    #     """当内部框架的子组件发生变化时，重新绑定鼠标滚轮事件"""
+    #     # 为新添加的组件重新绑定鼠标滚轮事件
+    #     add_mousewheel_support(inner_frame, canvas)
+    
+    # inner_frame.bind("<ChildAdded>", on_inner_frame_change)
+    # inner_frame.bind("<ChildRemoved>", on_inner_frame_change)
+    
     return scroll_frame, inner_frame, on_inner_configure, on_canvas_configure
 
 
@@ -70,8 +86,24 @@ def add_mousewheel_support(widget, canvas):
         # 根据系统调整滚动方向
         delta = -1 * int(event.delta / 120)
         canvas.yview_scroll(delta, "units")
+        # 返回"break"以防止事件继续传播
+        return "break"
     
-    # 绑定鼠标滚轮事件
+    # 绑定鼠标滚轮事件到指定部件
     widget.bind("<MouseWheel>", on_mousewheel)  # Windows
     widget.bind("<Button-4>", lambda e: canvas.yview_scroll(-1, "units"))  # Linux
     widget.bind("<Button-5>", lambda e: canvas.yview_scroll(1, "units"))  # Linux
+    
+    # 递归为所有子组件添加鼠标滚轮支持
+    # 这样无论鼠标在哪个子组件上滚动，都会触发Canvas滚动
+    def bind_to_children(parent):
+        for child in parent.winfo_children():
+            # 绑定到当前子组件
+            child.bind("<MouseWheel>", on_mousewheel)
+            child.bind("<Button-4>", lambda e: canvas.yview_scroll(-1, "units"))
+            child.bind("<Button-5>", lambda e: canvas.yview_scroll(1, "units"))
+            # 递归绑定到子组件的子组件
+            bind_to_children(child)
+    
+    # 绑定到所有子组件
+    bind_to_children(widget)

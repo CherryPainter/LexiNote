@@ -133,6 +133,10 @@ class ClozeTestPage(tk.Frame):
                                                      height=15, bg="#f5f5f5", state=tk.DISABLED)
         self.article_text.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
         
+        # 为文章内容添加鼠标滚轮支持
+        from ui.components.scrollable_frame import add_mousewheel_support
+        add_mousewheel_support(self.article_text, self.article_text)
+        
         # 选项区域 - 使用通用滚动框架
         options_scroll_frame, self.options_frame, _, _ = create_scrollable_frame(content_frame)
         options_scroll_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))

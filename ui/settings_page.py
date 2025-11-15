@@ -9,6 +9,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from logger import log_info
 from core.ai_interface import AIManager
+from ui.components.scrollable_frame import create_scrollable_frame
 
 
 class SettingsPage(tk.Frame):
@@ -52,32 +53,9 @@ class SettingsPage(tk.Frame):
         # 设置页面背景
         self.configure(bg="#f0f0f0")
         
-        # 创建滚动条和画布
-        self.scrollbar = tk.Scrollbar(self, orient=tk.VERTICAL)
-        self.scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        
-        self.canvas = tk.Canvas(self, bg="#f0f0f0", yscrollcommand=self.scrollbar.set)
-        self.canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        
-        # 配置滚动条
-        self.scrollbar.config(command=self.canvas.yview)
-        
-        # 创建主框架
-        main_frame = tk.Frame(self.canvas, bg="#f0f0f0", padx=30, pady=20)
-        # 保存canvas窗口ID
-        self.canvas_window = self.canvas.create_window((0, 0), window=main_frame, anchor=tk.NW)
-        
-        # 更新画布滚动区域
-        def _on_canvas_configure(event):
-            # 调整canvas窗口宽度以匹配画布宽度
-            self.canvas.itemconfig(self.canvas_window, width=event.width)
-            self.canvas.configure(scrollregion=self.canvas.bbox("all"))
-        
-        def _on_main_frame_configure(event):
-            self.canvas.configure(scrollregion=self.canvas.bbox("all"))
-        
-        main_frame.bind("<Configure>", _on_main_frame_configure)
-        self.canvas.bind("<Configure>", _on_canvas_configure)
+        # 使用统一的滚动框架实现
+        scroll_frame, main_frame, _, _ = create_scrollable_frame(self, padx=30, pady=20)
+        scroll_frame.pack(fill=tk.BOTH, expand=True)
         
         # 标题
         title_label = tk.Label(
@@ -560,7 +538,7 @@ class SettingsPage(tk.Frame):
                                 self.settings_manager.set_available_ai_models(available_models)
                             
                             # 更新模型列表
-                            self._load_ai_models()
+                            self._load_ai_models_async()
                             
                             log_info(f"成功添加AI模型: {model_name}")
                             messagebox.showinfo("添加成功", f"已成功添加并测试模型: {model_name}")
@@ -661,7 +639,7 @@ class SettingsPage(tk.Frame):
                     self.auto_review_combo.set('自动' if self.settings_manager.get_setting('auto_mode_review','manual')=='auto' else '手动')
                 # 更新AI模型相关UI
                 if hasattr(self, 'ai_model_combo'):
-                    self._load_ai_models()
+                    self._load_ai_models_async()
                 log_info("设置已重置为默认值")
                 messagebox.showinfo("重置成功", "设置已成功重置为默认值")
             except Exception as e:
