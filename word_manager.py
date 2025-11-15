@@ -546,9 +546,10 @@ class WordManager:
                         meanings = [str(meanings)]
                     
                     # 创建词性条目
-                    tag = details.get('tag', '')
+                    # 使用pos字段作为权威词性来源，保留与旧模块的兼容性
+                    pos = details.get('tag', '')
                     translation_struct.append({
-                        'tag': tag,
+                        'pos': pos,
                         'meaning_zh': meanings
                     })
                     
@@ -639,13 +640,13 @@ class WordManager:
         if isinstance(translation, list):
             formatted_parts = []
             for item in translation:
-                tag = item.get('tag', '')
-                meanings = item.get('meaning_zh', [])
+                # 同时支持'pos'和'tag'字段，pos优先，确保与旧模块兼容
+                tag = item.get('pos', item.get('tag', ''))
+                # 同时支持'meanings'和'meaning_zh'键，确保兼容性
+                meanings = item.get('meanings', item.get('meaning_zh', []))
                 if meanings:
-                    if tag:
-                        formatted_parts.append(f"{tag}：{'；'.join(meanings)}")
-                    else:
-                        formatted_parts.append('；'.join(meanings))
+                    # 不显示词性，只显示含义
+                    formatted_parts.append('；'.join(meanings))
             return '\n'.join(formatted_parts)
             
         # 其他情况，返回原始字符串

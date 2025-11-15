@@ -687,7 +687,7 @@ class WordSetPage(tk.Frame):
         # 创建对话框
         dialog = tk.Toplevel(self)
         dialog.title("编辑单词" if word_id else "添加单词")
-        dialog.geometry("500x400")
+        dialog.geometry("500x550")
         dialog.resizable(False, False)
         dialog.transient(self)
         dialog.grab_set()
@@ -701,7 +701,7 @@ class WordSetPage(tk.Frame):
         
         # 创建表单
         form_frame = tk.Frame(dialog, padx=20, pady=20)
-        form_frame.pack(fill=tk.BOTH, expand=True)
+        form_frame.pack(fill=tk.X)
         
         # 单词
         tk.Label(form_frame, text="单词:", font=self.font_config['normal']).grid(row=0, column=0, sticky=tk.W, pady=5)
@@ -710,10 +710,13 @@ class WordSetPage(tk.Frame):
         word_entry.grid(row=0, column=1, sticky=tk.W, pady=5)
         
         # 翻译
-        tk.Label(form_frame, text="翻译:", font=self.font_config['normal']).grid(row=1, column=0, sticky=tk.W, pady=5)
-        translation_var = tk.StringVar(value=word_data.get('translation', ''))
-        translation_entry = tk.Entry(form_frame, textvariable=translation_var, font=self.font_config['normal'], width=30)
-        translation_entry.grid(row=1, column=1, sticky=tk.W, pady=5)
+        tk.Label(form_frame, text="翻译:", font=self.font_config['normal']).grid(row=1, column=0, sticky=tk.NW, pady=5)
+        # 使用新的翻译编辑器组件
+        from .components.translation_editor import TranslationEditor
+        translation_editor = TranslationEditor(form_frame, self.font_config, height=150)
+        translation_editor.grid(row=1, column=1, columnspan=2, sticky="EW", pady=5)
+        # 设置初始翻译数据
+        translation_editor.set_translation(word_data.get('translation', ''))
         
         # 音标
         tk.Label(form_frame, text="音标:", font=self.font_config['normal']).grid(row=2, column=0, sticky=tk.W, pady=5)
@@ -754,13 +757,19 @@ class WordSetPage(tk.Frame):
         
         def save_word():
             word = word_var.get().strip()
-            translation = translation_var.get().strip()
             
-            if not word or not translation:
-                messagebox.showwarning("提示", "单词和翻译不能为空")
+            if not word:
+                messagebox.showwarning("提示", "单词不能为空")
                 return
             
             try:
+                # 获取翻译数据
+                translation = translation_editor.get_translation()
+                
+                if not translation:
+                    messagebox.showwarning("提示", "翻译不能为空")
+                    return
+                
                 if word_id:
                     # 更新单词
                     success, msg = self.word_manager.update_word(
@@ -834,7 +843,8 @@ class WordSetPage(tk.Frame):
         # 创建详情对话框
         dialog = tk.Toplevel(self)
         dialog.title(f"单词详情: {word['word']}")
-        dialog.geometry("500x400")
+        dialog.geometry("500x450")  # 增加高度以容纳更多内容
+        dialog.resizable(True, True)  # 允许调整窗口大小
         dialog.transient(self)
         
         # 详情内容
@@ -853,8 +863,45 @@ class WordSetPage(tk.Frame):
         
         # 翻译
         tk.Label(detail_frame, text="中文释义:", font=self.font_config['normal'], fg='#333').pack(anchor=tk.W, pady=5)
-        translation = self.word_manager.get_translation(word['word'])
-        tk.Label(detail_frame, text=translation, font=self.font_config['normal']).pack(anchor=tk.W, pady=5)
+        # 获取原始翻译数据以展示词性
+        raw_translation = self.word_manager.get_translation(word['word'], format_output=False)
+        import json
+        import os
+        
+        # 解析原始翻译数据
+        if raw_translation:
+            # 如果是字符串格式，尝试解析为JSON
+            if isinstance(raw_translation, str):
+                try:
+                    if raw_translation.startswith('[') or raw_translation.startswith('{'):
+                        raw_translation = json.loads(raw_translation)
+                except json.JSONDecodeError:
+                    pass
+            
+            # 构建带词性的翻译文本
+            if isinstance(raw_translation, list):
+                formatted_translations = []
+                for item in raw_translation:
+                    # 同时支持'pos'和'tag'字段
+                    tag = item.get('pos', item.get('tag', ''))
+                    # 同时支持'meanings'和'meaning_zh'字段
+                    meanings = item.get('meanings', item.get('meaning_zh', []))
+                    if meanings:
+                        if tag:
+                            formatted_translations.append(f"{tag}：{'；'.join(meanings)}")
+                        else:
+                            formatted_translations.append('；'.join(meanings))
+                translation_text = '\n'.join(formatted_translations)
+            else:
+                # 旧格式或其他格式，直接使用
+                translation_text = str(raw_translation)
+        else:
+            translation_text = ""
+        
+        # 创建可换行的标签
+        translation_label = tk.Label(detail_frame, text=translation_text, font=self.font_config['normal'], 
+                                    justify=tk.LEFT, wraplength=450)
+        translation_label.pack(anchor=tk.W, pady=5)
         
         # 英文释义
         if word.get('meaning_en'):
@@ -874,13 +921,15 @@ class WordSetPage(tk.Frame):
         tk.Label(detail_frame, text=f"熟悉度: {familiarity}/5", font=self.font_config['normal'], fg='#333').pack(anchor=tk.W, pady=10)
         
         # 关闭按钮
+        close_frame = tk.Frame(detail_frame)
+        close_frame.pack(fill=tk.X, pady=20)
         tk.Button(
-            detail_frame,
+            close_frame,
             text="关闭",
             font=self.font_config['button'],
             command=dialog.destroy,
             width=10
-        ).pack(side=tk.BOTTOM, pady=20)
+        ).pack(side=tk.BOTTOM)
     
     def _refresh(self):
         """刷新数据"""

@@ -623,6 +623,38 @@ class DatabaseManager:
             values = []
             valid_fields = ['word', 'translation', 'phonetic', 'example', 'meaning_en', 'tag', 'familiarity', 'proficiency', 'example_translation']
             
+            # 处理translation字段，从中提取词性
+            translation = kwargs.get('translation')
+            if translation and 'translation' in valid_fields and 'translation' in existing_columns:
+                # 解析translation提取词性
+                tag_value = kwargs.get('tag', '')
+                try:
+                    import json
+                    translation_data = json.loads(translation)
+                    if isinstance(translation_data, list):
+                        # 从translation数组的每个元素中提取pos字段（优先）或tag字段
+                        pos_list = []
+                        for item in translation_data:
+                            # 优先使用pos字段，兼容旧的tag字段
+                            pos = item.get('pos', item.get('tag', ''))
+                            if pos:
+                                pos_list.append(pos)
+                        # 去重并拼接词性
+                        if pos_list:
+                            # 去重保留顺序
+                            seen = set()
+                            unique_pos = []
+                            for pos in pos_list:
+                                if pos not in seen:
+                                    seen.add(pos)
+                                    unique_pos.append(pos)
+                            tag_value = ', '.join(unique_pos)
+                            # 将提取的tag值加入更新字段
+                            kwargs['tag'] = tag_value
+                except (json.JSONDecodeError, Exception) as e:
+                    # 如果解析失败，tag保持为传入的值或空
+                    log_info(f"解析translation提取词性失败: {str(e)}")
+            
             for key, value in kwargs.items():
                 if key in valid_fields and key in existing_columns:
                     fields.append(f"{key} = ?")
@@ -1058,9 +1090,38 @@ class DatabaseManager:
             是否更新成功
         """
         try:
+            # 解析translation提取词性
+            tag_value = ""
+            try:
+                import json
+                translation_data = json.loads(translation)
+                if isinstance(translation_data, list):
+                    # 从translation数组的每个元素中提取pos字段（优先）或tag字段
+                    pos_list = []
+                    for item in translation_data:
+                        # 优先使用pos字段，兼容旧的tag字段
+                        pos = item.get('pos', item.get('tag', ''))
+                        if pos:
+                            pos_list.append(pos)
+                    # 去重并拼接词性
+                    if pos_list:
+                        # 去重保留顺序
+                        seen = set()
+                        unique_pos = []
+                        for pos in pos_list:
+                            if pos not in seen:
+                                seen.add(pos)
+                                unique_pos.append(pos)
+                        tag_value = ', '.join(unique_pos)
+            except (json.JSONDecodeError, Exception) as e:
+                # 如果解析失败，tag保持为空
+                log_info(f"解析translation提取词性失败: {str(e)}")
+            
+            # 更新数据库，同时更新translation和tag字段（立即执行）
             self.execute_write(
-                "UPDATE words SET translation = ? WHERE word = ?",
-                (translation, word)
+                "UPDATE words SET translation = ?, tag = ? WHERE word = ?",
+                (translation, tag_value, word),
+                immediate=True
             )
             
             # 检查是否有行被更新
@@ -1070,7 +1131,7 @@ class DatabaseManager:
             )
             
             if results and results[0]['count'] > 0:
-                log_info(f"更新单词成功: {word} -> {translation}")
+                log_info(f"更新单词成功: {word} -> translation={translation}, tag={tag_value}")
                 return True
             else:
                 log_info(f"单词不存在: {word}")
