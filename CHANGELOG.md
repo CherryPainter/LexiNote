@@ -1,5 +1,10 @@
 # LexiNote 更新日志
 
+## v1.12.1 - 2025-10-25
+### 修复
+- 修复了学习页面中的NameError错误：在_fetch_example_async方法中缺少log_info导入
+- 更新了ui/learning_page.py的导入语句，添加了log_info函数
+
 ## v1.12.0 - 2025-10-25
 ### 修复
 - 修复了添加单词时的错误：DatabaseManager.add_word_to_set() 收到了意外的关键字参数'example_translation'
