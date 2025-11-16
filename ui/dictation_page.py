@@ -992,23 +992,32 @@ class DictationPage(tk.Frame):
         self.summary_data = None
         self.session_stats = session_stats
         
+        # 检查是否启用了AI总结功能
+        ai_summary_enabled = True
+        if hasattr(self.dictation_manager, 'settings_manager') and self.dictation_manager.settings_manager:
+            ai_summary_enabled = self.dictation_manager.settings_manager.get_setting("ai_summary_enabled", True)
+        
         # 清除之前的suggestion_text引用
         if hasattr(self, 'suggestion_text'):
             del self.suggestion_text
         
-        # 创建学习建议区域的占位符，显示"正在获取建议..."
-        self._create_suggestion_placeholder()
-        
-        # 创建一个线程来获取总结，避免阻塞UI
-        def get_summary_thread():
-            # 获取总结数据
-            summary = self.dictation_manager.summarize(callback=self._update_suggestion_stream)
-            self.summary_data = summary
-        
-        # 启动线程
-        thread = threading.Thread(target=get_summary_thread)
-        thread.daemon = True
-        thread.start()
+        if ai_summary_enabled:
+            # 创建学习建议区域的占位符，显示"正在获取建议..."
+            self._create_suggestion_placeholder()
+            
+            # 创建一个线程来获取总结，避免阻塞UI
+            def get_summary_thread():
+                # 获取总结数据
+                summary = self.dictation_manager.summarize(callback=self._update_suggestion_stream)
+                self.summary_data = summary
+            
+            # 启动线程
+            thread = threading.Thread(target=get_summary_thread)
+            thread.daemon = True
+            thread.start()
+        else:
+            # 如果未启用AI总结功能，显示提示信息
+            self._create_suggestion_disabled_message()
     
     def _create_summary_frame(self, session_stats):
         """创建总结框架和基本信息"""
@@ -1157,6 +1166,33 @@ class DictationPage(tk.Frame):
         
         # 显示"正在获取建议..."
         self.suggestion_text.insert(tk.END, "正在获取建议...")
+        self.suggestion_text.config(state=tk.DISABLED)  # 设置为只读
+        
+    def _create_suggestion_disabled_message(self):
+        """创建学习建议功能被禁用的提示信息"""
+        # AI建议标签
+        suggestion_label = tk.Label(
+            self.summary_frame,
+            text="学习建议:",
+            font=self.font_config['normal'],
+            bg='white',
+            anchor='w'
+        )
+        suggestion_label.pack(pady=(15, 5), anchor='w', padx=5)
+        
+        # 创建ScrolledText组件显示禁用信息
+        from tkinter import scrolledtext
+        self.suggestion_text = scrolledtext.ScrolledText(
+            self.summary_frame,
+            height=20,
+            wrap=tk.WORD,
+            font=self.font_config['normal']
+        )
+        self.suggestion_text.pack(fill=tk.BOTH, expand=True, pady=(0, 10), padx=5)
+        
+        # 显示提示信息
+        disabled_message = "学习建议功能已关闭。您可以在设置中启用此功能，以获取基于您学习情况的个性化建议。"
+        self.suggestion_text.insert(tk.END, disabled_message)
         self.suggestion_text.config(state=tk.DISABLED)  # 设置为只读
     
     def _show_summary_buttons(self):

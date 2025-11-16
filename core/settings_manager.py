@@ -87,7 +87,9 @@ class SettingsManager:
             "auto_mode_review": "manual",
             # AI模型设置
             "ai_model": "gemma3n:latest",
-            "available_ai_models": []
+            "available_ai_models": [],
+            # 听写AI总结功能设置
+            "ai_summary_enabled": True
         }
         
         with self._cache_lock:
