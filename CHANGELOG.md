@@ -1,3 +1,12 @@
+### v2.5.7 (2025-11-16)
+
+### 性能优化
+- **页面切换节流逻辑实现**：修复了页面切换不节流的问题，当用户点击相同页面的导航按钮时，不再重复加载页面，减少不必要的资源消耗和日志记录
+- **所有页面统一节流**：为_settings_page、_dictation_page、_translation_page、_review_page、_learning_page、_cloze_test_page、_reading_comprehension_page、_statistics、_ai_assistant_page、_word_set_page和_show_welcome_page等所有页面切换方法添加了节流检查
+
+### 版本更新
+- 升级版本号到 v2.5.7
+
 ### v2.5.6 (2025-11-16)
 
 ### 统计功能修复

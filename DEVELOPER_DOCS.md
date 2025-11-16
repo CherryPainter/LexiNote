@@ -6,6 +6,29 @@ LexiNote 是一个个人英语学习工具，帮助用户管理单词表、学�
 
 ## 2. 版本历史
 
+### v2.5.7 - 2025-11-16
+
+### 性能优化
+- **页面切换节流逻辑实现**：解决了页面切换不节流的问题，当用户点击相同页面的导航按钮时，不再重复加载页面，减少不必要的资源消耗和日志记录
+- **所有页面统一节流**：为`ui/main_window.py`中的以下页面切换方法添加了节流检查：
+  - `_show_settings_page`
+  - `_show_dictation_page`
+  - `_show_translation_page`
+  - `_show_review_page`
+  - `_show_learning_page`
+  - `_show_cloze_test_page`
+  - `_show_reading_comprehension_page`
+  - `_show_statistics`
+  - `_show_ai_assistant_page`
+  - `_show_word_set_page`
+  - `_show_welcome_page`
+- **节流实现方式**：
+  - 对于使用懒加载的页面（通过`_pages`字典管理），通过比较页面实例来判断是否需要切换
+  - 对于欢迎页面（直接创建Frame），通过检查页面结构和内容来判断是否需要重新创建
+
+### 版本控制
+- **版本号更新**：将`main.py`中的版本号从v2.5.6更新为v2.5.7
+
 ### v2.5.6 - 2025-11-16
 
 ### 统计功能修复

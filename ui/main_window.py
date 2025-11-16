@@ -175,6 +175,10 @@ class MainWindow:
         # 先获取页面实例
         page = self._pages[page_key]
         
+        # 节流检查：如果当前页面已经是要显示的页面，则不执行任何操作
+        if hasattr(self, 'current_page') and self.current_page == page:
+            return
+        
         # 清空内容区域
         self._clear_content_area()
         
@@ -186,10 +190,22 @@ class MainWindow:
     
     def _show_welcome_page(self):
         """显示欢迎页面"""
+        # 节流检查：如果当前页面已经是欢迎页面，则不执行任何操作
+        if hasattr(self, 'current_page'):
+            # 检查当前页面是否是欢迎页面的Frame
+            if hasattr(self.current_page, 'master') and self.current_page.master == self.content_area:
+                # 检查当前页面的第一个子组件是否是欢迎标题
+                children = list(self.current_page.winfo_children())
+                if children and hasattr(children[0], 'cget') and children[0].cget('text') == "欢迎使用 LexiNote":
+                    return
+        
         self._clear_content_area()
         
         welcome_frame = tk.Frame(self.content_area, bg='white')
         welcome_frame.pack(expand=True, fill=tk.BOTH)
+        
+        # 设置当前页面为欢迎页面的Frame
+        self.current_page = welcome_frame
         
         title_label = tk.Label(
             welcome_frame, 
@@ -254,6 +270,10 @@ class MainWindow:
         # 先获取页面实例
         page = self._pages[page_key]
         
+        # 节流检查：如果当前页面已经是要显示的页面，则不执行任何操作
+        if hasattr(self, 'current_page') and self.current_page == page:
+            return
+        
         # 清空内容区域
         self._clear_content_area()
         
@@ -279,6 +299,10 @@ class MainWindow:
         
         # 先获取页面实例
         page = self._pages[page_key]
+        
+        # 节流检查：如果当前页面已经是要显示的页面，则不执行任何操作
+        if hasattr(self, 'current_page') and self.current_page == page:
+            return
         
         # 清空内容区域
         self._clear_content_area()
@@ -306,6 +330,10 @@ class MainWindow:
         
         # 先获取页面实例
         page = self._pages[page_key]
+        
+        # 节流检查：如果当前页面已经是要显示的页面，则不执行任何操作
+        if hasattr(self, 'current_page') and self.current_page == page:
+            return
         
         # 清空内容区域
         self._clear_content_area()
@@ -340,6 +368,10 @@ class MainWindow:
         # 先获取页面实例
         page = self._pages[page_key]
         
+        # 节流检查：如果当前页面已经是要显示的页面，则不执行任何操作
+        if hasattr(self, 'current_page') and self.current_page == page:
+            return
+        
         # 清空内容区域
         self._clear_content_area()
         
@@ -363,6 +395,10 @@ class MainWindow:
         
         # 先获取页面实例
         page = self._pages[page_key]
+        
+        # 节流检查：如果当前页面已经是要显示的页面，则不执行任何操作
+        if hasattr(self, 'current_page') and self.current_page == page:
+            return
         
         # 清空内容区域
         self._clear_content_area()
@@ -392,6 +428,10 @@ class MainWindow:
         
         # 先获取页面实例
         page = self._pages[page_key]
+        
+        # 节流检查：如果当前页面已经是要显示的页面，则不执行任何操作
+        if hasattr(self, 'current_page') and self.current_page == page:
+            return
         
         # 清空内容区域
         self._clear_content_area()
@@ -424,6 +464,10 @@ class MainWindow:
         # 先获取页面实例
         page = self._pages[page_key]
         
+        # 节流检查：如果当前页面已经是要显示的页面，则不执行任何操作
+        if hasattr(self, 'current_page') and self.current_page == page:
+            return
+        
         # 清空内容区域
         self._clear_content_area()
         
@@ -454,6 +498,10 @@ class MainWindow:
         # 先获取页面实例
         page = self._pages[page_key]
         
+        # 节流检查：如果当前页面已经是要显示的页面，则不执行任何操作
+        if hasattr(self, 'current_page') and self.current_page == page:
+            return
+        
         # 清空内容区域
         self._clear_content_area()
         
@@ -483,6 +531,10 @@ class MainWindow:
         
         # 先获取页面实例
         page = self._pages[page_key]
+        
+        # 节流检查：如果当前页面已经是要显示的页面，则不执行任何操作
+        if hasattr(self, 'current_page') and self.current_page == page:
+            return
         
         # 清空内容区域
         self._clear_content_area()
