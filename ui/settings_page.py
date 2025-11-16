@@ -191,6 +191,21 @@ class SettingsPage(tk.Frame):
         )
         voice_enabled_checkbox.pack(fill=tk.X, pady=5)
 
+        # AI总结功能
+        self.ai_summary_enabled_var = tk.BooleanVar(
+            value=self.settings_manager.get_setting("ai_summary_enabled", True)
+        )
+        ai_summary_enabled_checkbox = tk.Checkbutton(
+            features_frame,
+            text="启用听写AI总结功能",
+            variable=self.ai_summary_enabled_var,
+            command=self._on_ai_summary_enabled_change,
+            font=self.font_config['normal'],
+            bg="white",
+            anchor=tk.W
+        )
+        ai_summary_enabled_checkbox.pack(fill=tk.X, pady=5)
+
         # 翻译判定模式设置
         translation_frame = tk.LabelFrame(
             settings_card,
@@ -379,6 +394,12 @@ class SettingsPage(tk.Frame):
         self.settings_manager.set_setting("voice_enabled", value)
         log_info(f"发音功能设置已更新为: {value}")
     
+    def _on_ai_summary_enabled_change(self):
+        """处理AI总结功能设置变更"""
+        value = self.ai_summary_enabled_var.get()
+        self.settings_manager.set_setting("ai_summary_enabled", value)
+        log_info(f"AI总结功能设置已更新为: {value}")
+    
     def _on_reset_settings(self):
         """重置设置为默认值"""
         if messagebox.askyesno("确认重置", "确定要将所有设置重置为默认值吗？"):
@@ -390,6 +411,8 @@ class SettingsPage(tk.Frame):
                 self.auto_next_wrong_var.set(self.settings_manager.get_setting("auto_next_wrong", False))
                 self.example_enabled_var.set(self.settings_manager.get_setting("example_enabled", True))
                 self.voice_enabled_var.set(self.settings_manager.get_setting("voice_enabled", True))
+                if hasattr(self, 'ai_summary_enabled_var'):
+                    self.ai_summary_enabled_var.set(self.settings_manager.get_setting("ai_summary_enabled", True))
                 if hasattr(self, 'tts_provider_var'):
                     self.tts_provider_var.set(self.settings_manager.get_setting("tts_provider", "gTTS"))
                 if hasattr(self, 'tts_cache_enabled_var'):

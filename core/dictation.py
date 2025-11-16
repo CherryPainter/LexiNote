@@ -1235,6 +1235,15 @@ class DictationManager:
                 'timestamp': datetime.now().isoformat()
             })
             
+            # 同时更新session_results列表，用于end_session计算统计信息
+            self.session_results.append({
+                'word': word,
+                'user_input': user_input,
+                'is_correct': is_correct,
+                'similarity': similarity,
+                'timestamp': datetime.now().isoformat()
+            })
+            
         except Exception as e:
             log_error(f"处理听写结果失败: {str(e)}")
     
@@ -1458,11 +1467,12 @@ class DictationManager:
         self.current_words.clear()
         log_info("听写管理器资源清理完成")
     
-    def summarize(self, queue=None):
+    def summarize(self, queue=None, callback=None):
         """生成听写总结报告
         
         Args:
             queue: 要总结的队列，如果为None则总结当前队列
+            callback: 用于处理流式输出的回调函数，接收参数：(suggestion_chunk: str, done: bool)
             
         Returns:
             包含总结信息的字典
@@ -1538,7 +1548,12 @@ class DictationManager:
         # 尝试获取AI建议
         suggestion = "继续保持练习！"
         try:
-            if hasattr(self.word_manager, 'ai_available') and self.word_manager.ai_available:
+            # 检查是否启用了AI总结功能
+            ai_summary_enabled = True
+            if hasattr(self, 'settings_manager') and self.settings_manager:
+                ai_summary_enabled = self.settings_manager.get_setting("ai_summary_enabled", True)
+            
+            if ai_summary_enabled and hasattr(self.word_manager, 'ai_available') and self.word_manager.ai_available:
                 # 计算平均响应时间（这里使用默认值，因为数据库可能没有记录）
                 avg_response_time = 0
                 if queue_records:
@@ -1560,7 +1575,23 @@ class DictationManager:
                                         for r in queue_records]
                 }
                 if hasattr(self.word_manager, 'ai_manager') and hasattr(self.word_manager.ai_manager, 'advise'):
-                    suggestion = self.word_manager.ai_manager.advise(user_stats)
+                    if hasattr(self.word_manager.ai_manager, 'advise_stream') and callback:
+                        # 使用真正的流式输出API
+                        suggestion = ""
+                        for chunk in self.word_manager.ai_manager.advise_stream(user_stats):
+                            callback(chunk, False)
+                            suggestion += chunk
+                        callback("", True)  # 发送空字符串和done=True表示结束
+                    elif callback:
+                        # 如果没有真正的流式API，但有回调函数，使用逐字输出模拟流式效果
+                        full_suggestion = self.word_manager.ai_manager.advise(user_stats)
+                        # 逐字发送建议，实现真正的流式显示效果
+                        for i, char in enumerate(full_suggestion):
+                            callback(char, i == len(full_suggestion) - 1)
+                        suggestion = full_suggestion
+                    else:
+                        # 正常获取AI建议
+                        suggestion = self.word_manager.ai_manager.advise(user_stats)
         except Exception as e:
             log_error(f"获取AI建议失败: {str(e)}")
         

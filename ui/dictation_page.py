@@ -985,58 +985,129 @@ class DictationPage(tk.Frame):
         # 结束会话并获取统计信息
         session_stats = self.dictation_manager.end_session()
         
-        # 获取总结数据
-        summary = self.dictation_manager.summarize()
-
-        # 总结信息框架
-        summary_frame = tk.Frame(self.main_frame, bg='white')
-        summary_frame.pack(pady=20, padx=50, fill=tk.X)
-
-        # 会话基本信息
-        session_info_frame = tk.Frame(summary_frame, bg='white')
-        session_info_frame.pack(fill=tk.X, pady=10)
+        # 直接创建总结框架和基本信息
+        self._create_summary_frame(session_stats)
+        
+        # 用于存储总结数据的变量
+        self.summary_data = None
+        self.session_stats = session_stats
+        
+        # 清除之前的suggestion_text引用
+        if hasattr(self, 'suggestion_text'):
+            del self.suggestion_text
+        
+        # 创建学习建议区域的占位符，显示"正在获取建议..."
+        self._create_suggestion_placeholder()
+        
+        # 创建一个线程来获取总结，避免阻塞UI
+        def get_summary_thread():
+            # 获取总结数据
+            summary = self.dictation_manager.summarize(callback=self._update_suggestion_stream)
+            self.summary_data = summary
+        
+        # 启动线程
+        thread = threading.Thread(target=get_summary_thread)
+        thread.daemon = True
+        thread.start()
+    
+    def _create_summary_frame(self, session_stats):
+        """创建总结框架和基本信息"""
+        # 创建总结信息框架
+        self.summary_frame = tk.Frame(self.main_frame, bg='white')
+        self.summary_frame.pack(pady=20, padx=50, fill=tk.X)
+        
+        # 会话基本信息卡片
+        session_card = tk.LabelFrame(self.summary_frame, text="会话信息", font=self.font_config['normal'], bg='white')
+        session_card.pack(fill=tk.X, pady=10, padx=5)
         
         session_label = tk.Label(
-            session_info_frame,
-            text=f"会话信息: {self.current_mode}模式 - {self.current_source}来源 - {self.difficulty_var.get()}难度",
+            session_card,
+            text=f"{self.current_mode}模式 - {self.current_source}来源 - {self.difficulty_var.get()}难度",
             font=self.font_config['normal'],
             bg='white'
         )
-        session_label.pack(anchor='w')
-
-        # 正确率
+        session_label.pack(anchor='w', pady=5, padx=5)
+        
+        # 统计信息卡片
+        stats_card = tk.LabelFrame(self.summary_frame, text="统计数据", font=self.font_config['normal'], bg='white')
+        stats_card.pack(fill=tk.X, pady=10, padx=5)
+        
+        # 正确率 - 使用session_stats中的数据，因为此时summary_data可能还没准备好
+        accuracy = 0
+        total = 0
+        correct = 0
+        if session_stats:
+            accuracy = session_stats.get('accuracy', 0)
+            total = session_stats.get('total_words', 0)
+            correct = session_stats.get('correct_words', 0)
         accuracy_label = tk.Label(
-            summary_frame,
-            text=f"正确率: {summary['accuracy'] * 100:.1f}% ({summary['correct']}/{summary['total']})",
+            stats_card,
+            text=f"正确率: {accuracy * 100:.1f}% ({correct}/{total})",
             font=self.font_config['normal'],
             bg='white'
         )
-        accuracy_label.pack(pady=10, anchor='w')
+        accuracy_label.pack(pady=5, anchor='w', padx=5)
         
         # 会话时长
         if session_stats and 'duration' in session_stats:
             duration_label = tk.Label(
-                summary_frame,
+                stats_card,
                 text=f"会话时长: {session_stats['duration']}秒",
                 font=self.font_config['normal'],
                 bg='white'
             )
-            duration_label.pack(pady=5, anchor='w')
-
+            duration_label.pack(pady=5, anchor='w', padx=5)
+        
+        # 错词列表和恭喜信息将在_summary_data准备好后更新
+        # AI建议区域将在收到第一个chunk时创建
+    
+    def _update_suggestion_stream(self, chunk, done):
+        """处理流式输出的回调函数"""
+        # 在主线程中更新UI
+        self.after(0, lambda c=chunk, d=done: self._display_suggestion_chunk(c, d))
+    
+    def _display_suggestion_chunk(self, chunk, done):
+        """显示建议的一部分"""
+        # 确保错词列表或恭喜信息已显示
+        if hasattr(self, 'summary_data') and self.summary_data and not hasattr(self, 'missed_words_displayed'):
+            self._display_missed_words()
+            self.missed_words_displayed = True
+        
+        # 临时设置为可编辑状态
+        self.suggestion_text.config(state=tk.NORMAL)
+        
+        # 检查是否是第一个chunk，如果是则清除占位符文本
+        if self.suggestion_text.get(1.0, tk.END).strip() == "正在获取建议...":
+            self.suggestion_text.delete(1.0, tk.END)
+        
+        # 使用TextFormatter格式化chunk
+        formatted_chunk = self.text_formatter.format_for_tkinter(chunk)
+        self.suggestion_text.insert(tk.END, formatted_chunk)
+        
+        # 滚动到最新内容
+        self.suggestion_text.see(tk.END)
+        
+        # 立即恢复为只读状态，防止用户编辑
+        self.suggestion_text.config(state=tk.DISABLED)
+        
+        if done:
+            self._show_summary_buttons()
+    
+    def _display_missed_words(self):
+        """显示错过的单词或恭喜信息"""
+        if not hasattr(self, 'summary_data') or not self.summary_data:
+            return
+            
         # 错词列表
-        if summary['missed']:
-            missed_label = tk.Label(
-                summary_frame,
-                text="需要复习的单词:",
-                font=self.font_config['normal'],
-                bg='white',
-                anchor='w'
-            )
-            missed_label.pack(pady=(15, 5), anchor='w')
-
-            missed_text = "、".join(summary['missed'])
+        missed_words = self.summary_data['missed']
+        
+        if missed_words:
+            missed_card = tk.LabelFrame(self.summary_frame, text="需要复习的单词", font=self.font_config['normal'], bg='white')
+            missed_card.pack(fill=tk.X, pady=10, padx=5)
+            
+            missed_text = "、".join(missed_words)
             missed_words_label = tk.Label(
-                summary_frame,
+                missed_card,
                 text=missed_text,
                 font=self.font_config['normal'],
                 bg='white',
@@ -1044,39 +1115,52 @@ class DictationPage(tk.Frame):
                 wraplength=600,
                 justify=tk.LEFT
             )
-            missed_words_label.pack(pady=5, anchor='w')
+            missed_words_label.pack(pady=5, anchor='w', padx=5)
         else:
+            perfect_card = tk.LabelFrame(self.summary_frame, text="恭喜", font=self.font_config['normal'], bg='white')
+            perfect_card.pack(fill=tk.X, pady=10, padx=5)
+            
             perfect_label = tk.Label(
-                summary_frame,
+                perfect_card,
                 text="太棒了！全部正确！",
                 font=self.font_config['normal'],
                 bg='white',
                 fg='#4CAF50'
             )
-            perfect_label.pack(pady=10, anchor='w')
-
-        # AI建议
-        if summary['suggestion']:
-            suggestion_label = tk.Label(
-                summary_frame,
-                text="学习建议:",
-                font=self.font_config['normal'],
-                bg='white',
-                anchor='w'
-            )
-            suggestion_label.pack(pady=(15, 5), anchor='w')
-
-            suggestion_text_label = tk.Label(
-                summary_frame,
-                text=summary['suggestion'],
-                font=self.font_config['normal'],
-                bg='white',
-                fg='#2196F3',
-                wraplength=600,
-                justify=tk.LEFT
-            )
-            suggestion_text_label.pack(pady=5, anchor='w')
-
+            perfect_label.pack(pady=10, anchor='w', padx=5)
+    
+    def _create_suggestion_placeholder(self):
+        """创建学习建议区域的占位符，显示"正在获取建议..."""
+        # 导入TextFormatter
+        from core.text_formatter import TextFormatter
+        self.text_formatter = TextFormatter()
+        
+        # AI建议标签
+        suggestion_label = tk.Label(
+            self.summary_frame,
+            text="学习建议:",
+            font=self.font_config['normal'],
+            bg='white',
+            anchor='w'
+        )
+        suggestion_label.pack(pady=(15, 5), anchor='w', padx=5)
+        
+        # 创建ScrolledText组件作为占位符
+        from tkinter import scrolledtext
+        self.suggestion_text = scrolledtext.ScrolledText(
+            self.summary_frame,
+            height=20,
+            wrap=tk.WORD,
+            font=self.font_config['normal']
+        )
+        self.suggestion_text.pack(fill=tk.BOTH, expand=True, pady=(0, 10), padx=5)
+        
+        # 显示"正在获取建议..."
+        self.suggestion_text.insert(tk.END, "正在获取建议...")
+        self.suggestion_text.config(state=tk.DISABLED)  # 设置为只读
+    
+    def _show_summary_buttons(self):
+        """显示总结页面的按钮"""
         # 按钮区域
         buttons_frame = tk.Frame(self.main_frame, bg='white')
         buttons_frame.pack(pady=40)
@@ -1090,7 +1174,7 @@ class DictationPage(tk.Frame):
             command=self._review_missed_words,
             bg='#FF9800',
             fg='white',
-            state=tk.NORMAL if summary['missed'] else tk.DISABLED
+            state=tk.NORMAL if self.summary_data['missed'] else tk.DISABLED
         )
         review_button.pack(side=tk.LEFT, padx=10)
 
@@ -1105,18 +1189,6 @@ class DictationPage(tk.Frame):
             fg='white'
         )
         new_button.pack(side=tk.LEFT, padx=10)
-        
-        stats_button = tk.Button(
-            buttons_frame,
-            text="查看统计",
-            font=self.font_config['button'],
-            width=15,
-            height=2,
-            command=self._show_stats,
-            bg='#2196F3',
-            fg='white'
-        )
-        stats_button.pack(side=tk.LEFT, padx=10)
 
     def _review_missed_words(self):
         """复习错词"""
