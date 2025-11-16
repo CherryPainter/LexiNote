@@ -835,7 +835,7 @@ class WordManager:
                 (word,)
             )
             
-            current_proficiency = results[0]['proficiency'] if results else 0.0
+            current_proficiency = results[0]['proficiency'] if results and results[0]['proficiency'] is not None else 0.0
             
             # 更新熟练度
             # 正确增加0.1，错误减少0.15
@@ -917,7 +917,7 @@ class WordManager:
         try:
             rows = self.db_manager.execute_read("SELECT word, proficiency FROM words")
             with self._cache_lock:
-                self.word_familiarity = {row['word']: row.get('proficiency', 0.0) for row in rows}
+                self.word_familiarity = {row['word']: (row.get('proficiency') if row.get('proficiency') is not None else 0.0) for row in rows}
             log_info(f"加载单词熟悉度: {len(self.word_familiarity)} 条")
         except Exception as e:
             log_error(f"加载单词熟悉度失败: {str(e)}")
@@ -1217,7 +1217,7 @@ class WordManager:
                 (word,)
             )
             
-            current_proficiency = results[0]['proficiency'] if results else 0.0
+            current_proficiency = results[0]['proficiency'] if results and results[0]['proficiency'] is not None else 0.0
             new_proficiency = max(0.0, min(1.0, current_proficiency + proficiency_change))
             
             # 更新数据库
