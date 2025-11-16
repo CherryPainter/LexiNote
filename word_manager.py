@@ -8,7 +8,7 @@ from typing import Dict, List, Optional, Union, Any
 from datetime import datetime
 from collections import deque
 
-from logger import log_info, log_error, log_warning
+from logger import log_info, log_error, log_warning, log_debug
 from core.database_manager import DatabaseManager
 from statistics import StatisticsManager
 
@@ -63,6 +63,10 @@ class WordManager:
         
         # 初始化状态标记
         self.is_initialized = False
+        
+        # 今日学习单词缓存
+        self._today_learned_words_cache = None
+        self._today_learned_words_cache_time = None
         
         # 将耗时操作放在后台线程执行
         self._init_thread = threading.Thread(target=self._init_background, daemon=True)
@@ -1381,8 +1385,15 @@ class WordManager:
             List[str]: 今日学习的单词列表
         """
         try:
+            # 检查缓存是否有效（缓存有效期为60秒）
+            now = datetime.now()
+            if (self._today_learned_words_cache_time and 
+                (now - self._today_learned_words_cache_time).total_seconds() < 60):
+                log_debug(f"使用缓存的今日学习单词: {len(self._today_learned_words_cache)}个")
+                return self._today_learned_words_cache
+            
             # 从数据库查询今日学习记录
-            today = datetime.now().strftime("%Y-%m-%d")
+            today = now.strftime("%Y-%m-%d")
             results = self.db_manager.execute_read(
                 """
                 SELECT DISTINCT word 
@@ -1393,6 +1404,11 @@ class WordManager:
             )
             
             today_words = [row['word'] for row in results]
+            
+            # 更新缓存
+            self._today_learned_words_cache = today_words
+            self._today_learned_words_cache_time = now
+            
             log_info(f"get_today_learned_words 返回 {len(today_words)} 个单词")
             return today_words
         except Exception as e:

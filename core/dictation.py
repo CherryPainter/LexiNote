@@ -48,6 +48,10 @@ class DictationManager:
         # 线程安全锁
         self._cache_lock = threading.RLock()
         
+        # 缓存
+        self._today_words_cache = {}
+        self._today_words_cache_time = None
+        
         # 迁移数据（如果存在旧的JSON文件）
         self._migrate_old_data()
         
@@ -1098,6 +1102,8 @@ class DictationManager:
         finally:
             executor.shutdown(wait=False)
     
+
+        
     def _get_today_learned_words(self, with_example=False):
         """获取今日学习的单词
         
@@ -1108,7 +1114,18 @@ class DictationManager:
             单词列表
         """
         try:
-            today = datetime.now().strftime('%Y-%m-%d')
+            # 缓存键
+            cache_key = f"today_words_{with_example}"
+            
+            # 检查缓存是否有效（缓存有效期为60秒）
+            now = datetime.now()
+            if (self._today_words_cache_time and 
+                (now - self._today_words_cache_time).total_seconds() < 60 and 
+                cache_key in self._today_words_cache):
+                log_debug(f"使用缓存的今日学习单词: {len(self._today_words_cache[cache_key])}个")
+                return self._today_words_cache[cache_key]
+            
+            today = now.strftime('%Y-%m-%d')
             query = """
             SELECT DISTINCT w.word 
             FROM words w
@@ -1168,6 +1185,12 @@ class DictationManager:
                                 word_list = words
                 except Exception as fallback_error:
                     log_error(f"从word_manager获取单词失败: {str(fallback_error)}")
+            
+            # 更新缓存
+            self._today_words_cache[cache_key] = word_list
+            self._today_words_cache_time = now
+            
+            log_debug(f"更新今日学习单词缓存，键: {cache_key}, 数量: {len(word_list)}")
             
             return word_list
             
