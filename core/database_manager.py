@@ -918,7 +918,7 @@ class DatabaseManager:
     def add_progress_record(self, word: str, is_correct: bool, proficiency_change: float):
         """添加学习进度记录"""
         self.execute_write(
-            "INSERT INTO progress (word, is_correct, proficiency_change) VALUES (?, ?, ?)",
+            "INSERT INTO progress (word, is_correct, proficiency_change, practice_date) VALUES (?, ?, ?, CURRENT_TIMESTAMP)",
             (word, 1 if is_correct else 0, proficiency_change)
         )
     

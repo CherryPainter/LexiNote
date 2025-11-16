@@ -360,8 +360,9 @@ class StatisticsManager:
             # 最后学习时间
             last_session = "未开始"
             try:
+                # 优先从dictation_history表获取，因为该表记录了所有练习历史
                 result = self.db_manager.execute_read(
-                    "SELECT MAX(practice_date) as last_date FROM progress"
+                    "SELECT MAX(practice_date) as last_date FROM dictation_history"
                 )[0]
                 if result['last_date']:
                     last_session = result['last_date']
