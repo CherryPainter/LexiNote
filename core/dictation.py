@@ -466,7 +466,7 @@ class DictationManager:
         try:
             # 优先使用数据库
             if self.db_manager:
-                timestamp = datetime.now().isoformat()
+                timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 is_correct_int = 1 if is_correct else 0
                 
                 # 如果未提供相似度，简单比较计算
@@ -1271,7 +1271,7 @@ class DictationManager:
         try:
             # 优先使用数据库
             if self.db_manager:
-                timestamp = datetime.now().isoformat()
+                timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 is_correct_int = 1 if is_correct else 0
                 
                 # 如果未提供相似度，简单比较计算
