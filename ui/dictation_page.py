@@ -1018,6 +1018,15 @@ class DictationPage(tk.Frame):
         else:
             # 如果未启用AI总结功能，显示提示信息
             self._create_suggestion_disabled_message()
+            
+            # 获取总结数据
+            self.summary_data = self.dictation_manager.summarize()
+            
+            # 显示错词列表或恭喜信息
+            self._display_missed_words()
+            
+            # 显示操作按钮
+            self._show_summary_buttons()
     
     def _create_summary_frame(self, session_stats):
         """创建总结框架和基本信息"""
