@@ -243,20 +243,9 @@ class WordSetPage(tk.Frame):
         pagination_frame = tk.Frame(right_frame, bg='white')
         pagination_frame.pack(fill=tk.X, pady=10)
         
-        # 第一行：首页、上一页、页码、下一页、末页
+        # 第一行：上一页、页码、下一页
         page_buttons_frame = tk.Frame(pagination_frame, bg='white')
         page_buttons_frame.pack(fill=tk.X, pady=5)
-        
-        # 首页按钮
-        self.first_btn = tk.Button(
-            page_buttons_frame,
-            text="首页",
-            font=self.font_config['button'],
-            command=self._first_page,
-            bg='#e0e0e0',
-            relief=tk.RAISED
-        )
-        self.first_btn.pack(side=tk.LEFT, padx=5)
         
         self.prev_btn = tk.Button(
             page_buttons_frame,
@@ -287,20 +276,20 @@ class WordSetPage(tk.Frame):
         )
         self.next_btn.pack(side=tk.LEFT, padx=5)
         
-        # 末页按钮
-        self.last_btn = tk.Button(
-            page_buttons_frame,
-            text="末页",
+        # 第二行：首页、跳转功能、末页
+        goto_frame = tk.Frame(pagination_frame, bg='white')
+        goto_frame.pack(fill=tk.X, pady=5)
+        
+        # 首页按钮
+        self.first_btn = tk.Button(
+            goto_frame,
+            text="首页",
             font=self.font_config['button'],
-            command=self._last_page,
+            command=self._first_page,
             bg='#e0e0e0',
             relief=tk.RAISED
         )
-        self.last_btn.pack(side=tk.LEFT, padx=5)
-        
-        # 第二行：跳转功能
-        goto_frame = tk.Frame(pagination_frame, bg='white')
-        goto_frame.pack(fill=tk.X, pady=5)
+        self.first_btn.pack(side=tk.LEFT, padx=5)
         
         # 居中显示跳转功能
         goto_label = tk.Label(goto_frame, text="第", font=self.font_config['normal'], bg='white')
@@ -321,6 +310,17 @@ class WordSetPage(tk.Frame):
             relief=tk.RAISED
         )
         goto_btn.pack(side=tk.LEFT, padx=5)
+        
+        # 末页按钮
+        self.last_btn = tk.Button(
+            goto_frame,
+            text="末页",
+            font=self.font_config['button'],
+            command=self._last_page,
+            bg='#e0e0e0',
+            relief=tk.RAISED
+        )
+        self.last_btn.pack(side=tk.LEFT, padx=5)
     
     
     

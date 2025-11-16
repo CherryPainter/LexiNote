@@ -545,13 +545,32 @@ class WordManager:
                     elif not isinstance(meanings, list):
                         meanings = [str(meanings)]
                     
-                    # 创建词性条目
-                    # 使用pos字段作为权威词性来源，保留与旧模块的兼容性
-                    pos = details.get('tag', '')
-                    translation_struct.append({
-                        'pos': pos,
-                        'meaning_zh': meanings
-                    })
+                    # 处理词性（可能包含多个词性，用斜杠分隔）
+                    tag = details.get('tag', '')
+                    if tag and '/' in tag:
+                        # 如果有多个词性，为每个词性创建一个条目
+                        pos_list = tag.split('/')
+                        # 为每个词性分配对应的含义（尽量平均分配）
+                        meanings_per_pos = len(meanings) // len(pos_list)
+                        remainder = len(meanings) % len(pos_list)
+                        
+                        start_idx = 0
+                        for i, pos in enumerate(pos_list):
+                            # 计算当前词性应分配的含义数量
+                            count = meanings_per_pos + (1 if i < remainder else 0)
+                            pos_meanings = meanings[start_idx:start_idx + count]
+                            start_idx += count
+                            
+                            translation_struct.append({
+                                'pos': pos.strip(),
+                                'meaning_zh': pos_meanings
+                            })
+                    else:
+                        # 只有一个词性，创建一个条目
+                        translation_struct.append({
+                            'pos': tag.strip(),
+                            'meaning_zh': meanings
+                        })
                     
                     # 转换为JSON字符串存储
                     import json

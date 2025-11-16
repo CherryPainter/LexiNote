@@ -117,17 +117,16 @@ class AIAssistantPage(tk.Frame):
         difficulty_frame.pack(anchor='w')
         
         self.difficulty_var = tk.StringVar(value="中级")
-        difficulties = ["初级", "中级", "高级"]
-        for diff in difficulties:
-            radio = tk.Radiobutton(
-                difficulty_frame,
-                text=diff,
-                variable=self.difficulty_var,
-                value=diff,
-                font=self.font_config['normal'],
-                bg='white'
-            )
-            radio.pack(side=tk.LEFT, padx=5)
+        difficulty_options = ["初级", "中级", "高级"]
+        difficulty_combo = ttk.Combobox(
+            difficulty_frame,
+            textvariable=self.difficulty_var,
+            values=difficulty_options,
+            font=self.font_config['normal'],
+            width=10
+        )
+        difficulty_combo.pack(side=tk.LEFT, padx=5)
+        difficulty_combo.current(1)
         
         # 输入提示
         input_label = tk.Label(

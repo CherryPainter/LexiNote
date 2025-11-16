@@ -34,18 +34,25 @@ class MainWindow:
         
         # 设置窗口图标
         try:
-            # 用于PyInstaller打包后的环境
-            base_path = sys._MEIPASS
-        except Exception:
-            # 用于开发环境
-            base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            # 获取应用程序目录
+            if hasattr(sys, '_MEIPASS'):
+                # PyInstaller打包环境
+                base_path = sys._MEIPASS
+            elif os.path.exists(os.path.join(os.path.dirname(sys.executable), 'app.ico')):
+                # Nuitka打包环境（EXE所在目录）
+                base_path = os.path.dirname(sys.executable)
+            else:
+                # 开发环境
+                base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         
-        icon_path = os.path.join(base_path, 'app.ico')
-        if os.path.exists(icon_path):
-            self.root.iconbitmap(icon_path)
-            log_info(f"已设置窗口图标: {icon_path}")
-        else:
-            log_info(f"未找到图标文件: {icon_path}")
+            icon_path = os.path.join(base_path, 'app.ico')
+            if os.path.exists(icon_path):
+                self.root.iconbitmap(icon_path)
+                log_info(f"已设置窗口图标: {icon_path}")
+            else:
+                log_info(f"未找到图标文件: {icon_path}")
+        except Exception as e:
+            log_info(f"设置窗口图标时出错: {str(e)}")
         
         # 设置中文字体
         self._set_fonts()
