@@ -300,7 +300,8 @@ class MainWindow:
                 self.content_area,
                 word_manager=self.word_manager,
                 settings_manager=self.settings_manager,
-                font_config=self.font_config
+                font_config=self.font_config,
+                audio_player=self.audio_player
             )
         
         # 先获取页面实例

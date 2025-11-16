@@ -1,5 +1,13 @@
 # LexiNote Release Notes
 
+## v2.5.4 (2025-11-16)
+
+### 核心功能修复
+- **单词复习模块发音功能修复**：修复了audio_player为None的错误，确保在main_window.py中正确初始化ReviewPage时传递audio_player参数
+
+### 版本信息
+- 升级版本号到 v2.5.4
+
 ## v2.5.3 (2025-11-16)
 
 ### 界面控件统一化
