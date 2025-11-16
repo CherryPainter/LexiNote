@@ -917,9 +917,12 @@ class DatabaseManager:
     
     def add_progress_record(self, word: str, is_correct: bool, proficiency_change: float):
         """添加学习进度记录"""
+        # 使用Python的datetime.now()生成本地时间戳，与dictation_history表保持一致
+        from datetime import datetime
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         self.execute_write(
-            "INSERT INTO progress (word, is_correct, proficiency_change, practice_date) VALUES (?, ?, ?, CURRENT_TIMESTAMP)",
-            (word, 1 if is_correct else 0, proficiency_change)
+            "INSERT INTO progress (word, is_correct, proficiency_change, practice_date) VALUES (?, ?, ?, ?)",
+            (word, 1 if is_correct else 0, proficiency_change, timestamp)
         )
     
     def get_setting(self, key: str, default: Any = None) -> Any:
