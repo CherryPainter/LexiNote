@@ -7,7 +7,7 @@ from tkinter import messagebox
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 # 版本信息
-VERSION = "v2.5.5"
+VERSION = "v2.5.6"
 
 from logger import log_info, log_error
 

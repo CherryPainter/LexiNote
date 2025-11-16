@@ -300,7 +300,12 @@ class StatisticsPage(tk.Frame):
         """
         加载综合统计数据
         """
-        summary_stats = self.statistics_manager.get_summary_stats()
+        # 获取当前激活的词库ID
+        active_set_id = None
+        if hasattr(self.word_manager, 'active_word_set_id'):
+            active_set_id = self.word_manager.active_word_set_id
+        
+        summary_stats = self.statistics_manager.get_summary_stats(active_set_id)
         
         # 更新UI
         self.total_words_value.config(text=summary_stats['total_words'])

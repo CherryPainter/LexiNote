@@ -6,6 +6,19 @@ LexiNote 是一个个人英语学习工具，帮助用户管理单词表、学�
 
 ## 2. 版本历史
 
+### v2.5.6 - 2025-11-16
+
+### 统计功能修复
+- **词库统计一致性修复**：解决了扇贝词库熟练度分布饼图显示7个未学习单词的问题
+- **词库筛选功能增强**：修改`statistics.py`中的`get_total_word_count`、`get_learned_word_count`和`get_summary_stats`方法，添加了`set_id`参数支持，实现词库级别的统计功能
+- **统计页面数据同步**：修改`ui/statistics_page.py`中的`_load_summary_stats`方法，获取当前激活词库ID并传递给`get_summary_stats`，确保综合统计信息与熟练度分布饼图显示一致
+
+### 代码清理
+- **测试文件删除**：清理了项目中的临时测试和废弃文件，包括`check_proficiency_distribution.py`、`check_scallop_word_set.py`、`check_time.py`、`check_time_consistency.py`、`fix_time_format.py`、`init_word_dict.py`和`verify_fix.py`
+
+### 版本控制
+- **版本号更新**：将`main.py`中的版本号从v2.5.5更新为v2.5.6
+
 ### v2.5.5 - 2025-11-16
 
 ### 学习建议功能优化

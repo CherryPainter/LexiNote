@@ -21,31 +21,49 @@ class StatisticsManager:
         """
         self.db_manager = db_manager
 
-    def get_total_word_count(self) -> int:
+    def get_total_word_count(self, set_id=None) -> int:
         """获取总单词数
 
+        Args:
+            set_id: 词库ID，可选。如果提供，则只统计该词库的单词
+            
         Returns:
             int: 总单词数
         """
         try:
-            result = self.db_manager.execute_read(
-                "SELECT COUNT(*) as count FROM words"
-            )[0]
+            if set_id is not None:
+                result = self.db_manager.execute_read(
+                    "SELECT COUNT(*) as count FROM words WHERE set_id = ?",
+                    (set_id,)
+                )[0]
+            else:
+                result = self.db_manager.execute_read(
+                    "SELECT COUNT(*) as count FROM words"
+                )[0]
             return result['count']
         except Exception as e:
             log_error(f"获取总单词数失败: {str(e)}")
             return 0
 
-    def get_learned_word_count(self) -> int:
+    def get_learned_word_count(self, set_id=None) -> int:
         """获取已学习单词数
 
+        Args:
+            set_id: 词库ID，可选。如果提供，则只统计该词库的单词
+            
         Returns:
             int: 已学习单词数（熟练度大于0的单词）
         """
         try:
-            result = self.db_manager.execute_read(
-                "SELECT COUNT(*) as count FROM words WHERE proficiency > 0"
-            )[0]
+            if set_id is not None:
+                result = self.db_manager.execute_read(
+                    "SELECT COUNT(*) as count FROM words WHERE proficiency > 0 AND set_id = ?",
+                    (set_id,)
+                )[0]
+            else:
+                result = self.db_manager.execute_read(
+                    "SELECT COUNT(*) as count FROM words WHERE proficiency > 0"
+                )[0]
             return result['count']
         except Exception as e:
             log_error(f"获取已学习单词数失败: {str(e)}")
@@ -329,18 +347,21 @@ class StatisticsManager:
             log_error(f"获取最近学习进度记录失败: {str(e)}")
             return []
 
-    def get_summary_stats(self) -> Dict:
+    def get_summary_stats(self, set_id=None) -> Dict:
         """获取综合统计信息
 
+        Args:
+            set_id: 词库ID，可选。如果提供，则只统计该词库的单词
+            
         Returns:
             Dict: 综合统计信息
         """
         try:
             # 总单词数
-            total_words = self.get_total_word_count()
+            total_words = self.get_total_word_count(set_id)
 
             # 已学习单词数
-            learned_words = self.get_learned_word_count()
+            learned_words = self.get_learned_word_count(set_id)
 
             # 总练习次数
             total_practices = self.get_total_practice_count()
@@ -355,7 +376,7 @@ class StatisticsManager:
             today_stats = self.get_daily_stats()
 
             # 熟练度分布
-            proficiency_stats = self.get_proficiency_stats()
+            proficiency_stats = self.get_proficiency_stats(set_id)
 
             # 最后学习时间
             last_session = "未开始"
