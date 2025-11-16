@@ -116,8 +116,8 @@ class AIAssistantPage(tk.Frame):
         difficulty_frame = tk.Frame(config_frame, bg='white')
         difficulty_frame.pack(anchor='w')
         
-        self.difficulty_var = tk.StringVar(value="中级")
-        difficulty_options = ["初级", "中级", "高级"]
+        self.difficulty_var = tk.StringVar(value="高中")
+        difficulty_options = ["初中", "高中", "大学", "专升本", "考研"]
         difficulty_combo = ttk.Combobox(
             difficulty_frame,
             textvariable=self.difficulty_var,
