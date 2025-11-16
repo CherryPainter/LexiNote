@@ -27,7 +27,7 @@ class DictationPage(tk.Frame):
             'SimHei', 12), 'button': ('SimHei', 12, 'bold')}
 
         # 初始化听写管理器
-        self.dictation_manager = DictationManager(word_manager)
+        self.dictation_manager = DictationManager(word_manager, self.settings_manager)
 
         # 初始化音频播放器
         self.audio_player = AudioPlayer()
