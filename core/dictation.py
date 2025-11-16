@@ -494,8 +494,8 @@ class DictationManager:
                 except Exception:
                     # 如果add_progress_record不可用，则回退为直接插入单条记录
                     self.db_manager.execute_write(
-                        "INSERT INTO progress (word, is_correct, proficiency_change, practice_date) VALUES (?, ?, ?, ?)",
-                        (word, is_correct_int, proficiency_change, timestamp)
+                        "INSERT INTO progress (word, is_correct, proficiency_change, practice_date) VALUES (?, ?, ?, CURRENT_TIMESTAMP)",
+                        (word, is_correct_int, proficiency_change)
                     )
                 
                 # 更新单词熟练度
@@ -1315,8 +1315,8 @@ class DictationManager:
                 except Exception:
                     # 如果add_progress_record不可用，则回退为直接插入单条记录
                     self.db_manager.execute_write(
-                        "INSERT INTO progress (word, is_correct, proficiency_change, practice_date) VALUES (?, ?, ?, ?)",
-                        (word, is_correct_int, proficiency_change, timestamp)
+                        "INSERT INTO progress (word, is_correct, proficiency_change, practice_date) VALUES (?, ?, ?, CURRENT_TIMESTAMP)",
+                        (word, is_correct_int, proficiency_change)
                     )
                 
                 # 更新单词熟练度
