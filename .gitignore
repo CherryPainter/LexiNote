@@ -87,6 +87,10 @@ MANIFEST
 *.orig
 *.rej
 
+# Utils directory (not version controlled)
+utils/
+utils/*
+
 # Temporary scripts for version history fixing
 sort_versions.py
 fix_version_history.py
