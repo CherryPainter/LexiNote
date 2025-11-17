@@ -87,6 +87,11 @@ MANIFEST
 *.orig
 *.rej
 
+# Temporary scripts for version history fixing
+sort_versions.py
+fix_version_history.py
+check_version_consistency.py
+
 # Environment variables
 .env
 .env.local
