@@ -21,6 +21,8 @@ v2.7.0
 - **单词批量导入**：支持从JSON文件批量导入单词到数据库，快速扩充词库
 - **理解类练习**：包含完形填空和阅读理解模块，提升综合语言能力
 - **学习统计页面**：全新的学习统计页面，展示关键学习指标和可视化图表
+- **文本格式化**：内置文本格式化工具，提升内容可读性
+- **多级缓存机制**：实现高效的缓存管理，提升应用响应速度
 
 ### 🎯 特色亮点
 
@@ -36,23 +38,35 @@ v2.7.0
 - **理解能力提升**：通过完形填空和阅读理解练习，全面提升英语理解能力
 - **数据可视化**：直观展示学习趋势、熟练度分布和词库统计信息
 - **模块化设计**：清晰的代码结构，便于扩展和维护
+- **单例模式管理**：核心管理器采用单例模式，确保资源高效利用
+- **实时配置更新**：设置变更实时生效，无需重启应用
 
 ## 项目架构
 
 ```
-├── main.py              # 程序入口
-├── word_manager.py      # 单词管理核心逻辑
-├── audio_player.py      # 音频播放模块
+├── .flake8              # Flake8配置文件
+├── .gitignore           # Git忽略文件
+├── API_DOCUMENTATION.md # API文档
+├── CHANGELOG.md         # 更新日志
+├── CONTRIBUTING.md      # 贡献指南
+├── DEVELOPER_DOCS.md    # 开发者文档
+├── README.md            # 项目说明
+├── RELEASE_NOTES.md     # 发布说明
+├── SETTINGS.md          # 设置说明
+├── TESTS.md             # 测试说明
+├── app.ico              # 应用图标
 ├── audio_cache.py       # 音频缓存管理
-├── logger.py            # 日志记录模块
-├── statistics.py        # 统计功能模块
+├── audio_player.py      # 音频播放模块
 ├── core/                # 核心功能模块
 │   ├── ai_interface.py  # AI接口管理
-│   ├── database_manager.py # 数据库管理
-│   ├── learning.py      # 学习逻辑模块
 │   ├── cache_manager.py # 缓存管理
+│   ├── database_manager.py # 数据库管理
+│   ├── dictation.py     # 听写核心逻辑
+│   ├── learning.py      # 学习逻辑模块
 │   ├── settings_manager.py # 设置管理
-│   └── dictation.py     # 听写核心逻辑
+│   └── text_formatter.py # 文本格式化工具
+├── logger.py            # 日志记录模块
+├── main.py              # 程序入口
 ├── modules/             # 功能模块
 │   ├── ai_service.py    # AI服务
 │   ├── cloze_test.py    # 完形填空模块
@@ -61,32 +75,25 @@ v2.7.0
 │   ├── reading_comprehension.py # 阅读理解模块
 │   ├── utils.py         # 工具函数
 │   └── word_importer.py # 单词导入工具
-├── ui/                  # 用户界面
-│   ├── main_window.py   # 主窗口
-│   ├── dictation_page.py # 听写练习页面
-│   ├── translation_page.py # 翻译练习页面
-│   ├── review_page.py   # 单词复习页面
-│   ├── learning_page.py # 学习模式页面
-│   ├── settings_page.py # 设置页面
-│   ├── ai_assistant_page.py # AI英语助手页面
-│   ├── statistics_page.py # 学习统计页面
-│   ├── cloze_test_page.py # 完形填空页面
-│   ├── reading_comprehension_page.py # 阅读理解页面
-│   └── components/      # UI组件
-├── data/                # 数据文件目录
-│   └── lexinote.db      # SQLite数据库文件
-├── cache/               # 缓存目录
-│   ├── ai_text/         # AI文本缓存
-│   ├── ai_tts/          # AI语音缓存
-│   └── audio/           # 音频缓存
 ├── requirements.txt     # 依赖列表
-├── README.md            # 项目说明
-├── API_DOCUMENTATION.md # API文档
-├── CHANGELOG.md         # 更新日志
-├── CONTRIBUTING.md      # 贡献指南
-├── DEVELOPER_DOCS.md    # 开发者文档
-├── SETTINGS.md          # 设置说明
-└── TESTS.md             # 测试说明
+├── statistics.py        # 统计功能模块
+├── ui/                  # 用户界面
+│   ├── ai_assistant_page.py # AI英语助手页面
+│   ├── cloze_test_page.py # 完形填空页面
+│   ├── components/      # UI组件
+│   │   ├── loading_dialog.py # 加载对话框
+│   │   ├── scrollable_frame.py # 可滚动框架
+│   │   └── translation_editor.py # 翻译编辑器
+│   ├── dictation_page.py # 听写练习页面
+│   ├── learning_page.py # 学习模式页面
+│   ├── main_window.py   # 主窗口
+│   ├── reading_comprehension_page.py # 阅读理解页面
+│   ├── review_page.py   # 单词复习页面
+│   ├── settings_page.py # 设置页面
+│   ├── statistics_page.py # 学习统计页面
+│   ├── translation_page.py # 翻译练习页面
+│   └── word_set_page.py # 词库管理页面
+└── word_manager.py      # 单词管理核心逻辑
 ```
 
 ## 技术栈
@@ -98,6 +105,8 @@ v2.7.0
 - **音频处理**：gTTS、playsound
 - **网络请求**：requests
 - **并发处理**：asyncio、threading
+- **代码规范**：PEP8 (使用flake8检查)
+- **版本控制**：Git
 
 ## 安装与配置
 
@@ -141,7 +150,7 @@ python main.py
 词库管理功能允许您创建和组织多个独立的词汇集合，方便分类学习不同主题或难度的单词。
 
 1. **创建新词库**：
-   - 导航至词库管理页面
+   - 从左侧导航菜单选择"📁 词库管理"
    - 点击「创建词库」按钮
    - 输入词库名称和描述
    - 点击「确认」完成创建
@@ -241,6 +250,8 @@ python main.py
 
 ## 配置与设置
 
+应用使用数据库存储设置，支持实时生效和配置监听。
+
 ### 自动模式配置
 
 应用支持对三个核心模块单独设置"手动/自动"模式：
@@ -260,6 +271,7 @@ python main.py
 - **示例设置**：启用/禁用单词示例
 - **翻译模式**：设置翻译判断模式（ai_first / local_first / local_only）
 - **缓存设置**：控制音频缓存大小和行为
+- **AI设置**：配置默认AI模型、API地址等
 
 ## 快捷键
 
@@ -272,20 +284,24 @@ python main.py
 
 ## 开发规范
 
-- 遵循 PEP8 代码规范
+- 遵循 PEP8 代码规范，使用flake8进行代码质量检查
 - 模块化设计，每个文件负责单一功能
 - UI 和逻辑层分离，不允许在 UI 文件中直接调用 AI 逻辑
-- 所有数据统一保存在 data/ 目录下
-- 重要操作记录日志
-- 使用线程安全机制确保数据一致性
+- 所有数据统一保存在数据库中，确保数据一致性
+- 重要操作记录日志，便于调试和问题排查
+- 使用线程安全机制确保多线程环境下的数据安全
+- 核心管理器采用单例模式，避免资源浪费
+- 函数和类命名规范：文件名使用小写+下划线，类名使用PascalCase
 
 ## 故障排除
 
 ### 常见问题
 
 1. **AI 功能不可用**：检查 Ollama 服务是否正常运行，端口是否为 11434
-2. **音频播放失败**：确保网络连接正常，检查音频缓存目录权限
-3. **数据库错误**：尝试删除 data/lexinote.db 文件后重新启动应用（会丢失所有数据）
+2. **音频播放失败**：确保网络连接正常，检查系统音频设备
+3. **数据库错误**：程序会自动创建必要的数据库结构，如遇到问题可重新启动应用
+4. **模块导入失败**：确保已正确安装所有依赖，执行 `pip install -r requirements.txt`
+5. **缓存问题**：如遇到缓存相关问题，可在设置中清理缓存
 
 ## 贡献指南
 

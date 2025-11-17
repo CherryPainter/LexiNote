@@ -94,12 +94,12 @@ WordManager 是项目的核心类，负责单词管理、词库管理、学习�
 ### 批量导入单词
 
 ```python
-def batch_import_words(self, json_file_path: str, set_id: int = None) -> Dict:
+def batch_import_words(self, json_data, set_id: int = None) -> Dict:
     """
-    从JSON文件批量导入单词到数据库
+    批量导入单词到数据库
     
     参数:
-        json_file_path: JSON文件路径，文件格式应为 {"word1": "translation1", "word2": "translation2", ...}
+        json_data: JSON数据，可以是文件路径或字典对象
         set_id: 词库ID，默认为默认词库
     
     返回:
@@ -115,12 +115,11 @@ def batch_import_words(self, json_file_path: str, set_id: int = None) -> Dict:
 ### 初始化
 
 ```python
-def __init__(self, logger=None):
-    """
-    初始化WordManager
-    
-    参数:
-        logger: 日志记录器实例，可选
+def __init__(self, statistics_manager: Optional[StatisticsManager] = None):
+    """初始化WordManager
+
+    Args:
+        statistics_manager: 统计管理器实例，如果为None则自动创建
     """
 ```
 
@@ -129,28 +128,28 @@ def __init__(self, logger=None):
 #### get_random_word
 
 ```python
-def get_random_word(self):
-    """
-    获取一个随机单词进行练习
-    
-    返回:
-        dict: 包含单词信息的字典
-        {"word": str, "translation": str, "weight": float, "mastery": float}
+def get_random_word(self, exclude_words: List[str] = None) -> Optional[str]:
+    """获取随机单词
+
+    Args:
+        exclude_words: 排除的单词列表
+
+    Returns:
+        str: 随机单词，如果没有可用单词返回None
     """
 ```
 
 #### add_word
 
 ```python
-def add_word(self, word, translation):
-    """
-    添加新单词到单词库
-    
-    参数:
-        word (str): 英文单词
-        translation (str): 中文翻译
-    
-    返回:
+def add_word(self, word: str, translation: str) -> bool:
+    """添加单词
+
+    Args:
+        word: 单词
+        translation: 翻译
+
+    Returns:
         bool: 添加成功返回True，失败返回False
     """
 ```
@@ -158,13 +157,13 @@ def add_word(self, word, translation):
 #### update_word
 
 ```python
-def update_word(self, word, translation):
+def update_word(self, word_id, **kwargs):
     """
-    更新单词翻译
+    更新单词信息
     
     参数:
-        word (str): 要更新的单词
-        translation (str): 新的翻译
+        word_id (int): 单词ID
+        **kwargs: 要更新的字段，如translation, phonetic, example, meaning_en, tag等
     
     返回:
         bool: 更新成功返回True，失败返回False
@@ -174,12 +173,12 @@ def update_word(self, word, translation):
 #### delete_word
 
 ```python
-def delete_word(self, word):
+def delete_word(self, word_id):
     """
     删除单词
     
     参数:
-        word (str): 要删除的单词
+        word_id (int): 单词ID
     
     返回:
         bool: 删除成功返回True，失败返回False
@@ -293,7 +292,7 @@ def delete_word_set(self, set_id):
 #### get_words_from_active_set
 
 ```python
-def get_words_from_active_set(self, keyword=None, limit=None, offset=None):
+def get_words_from_active_set(self, keyword=None, limit=None, offset=None, order_by='id', sort_order='asc'):
     """
     从当前激活的词库获取单词列表
     
@@ -301,6 +300,8 @@ def get_words_from_active_set(self, keyword=None, limit=None, offset=None):
         keyword (str, optional): 搜索关键词
         limit (int, optional): 返回结果数量限制
         offset (int, optional): 分页偏移量
+        order_by (str, optional): 排序字段
+        sort_order (str, optional): 排序顺序 ('asc' 或 'desc')
     
     返回:
         list: 单词字典列表
@@ -310,7 +311,7 @@ def get_words_from_active_set(self, keyword=None, limit=None, offset=None):
 #### get_words_by_set_id
 
 ```python
-def get_words_by_set_id(self, set_id, keyword=None, limit=None, offset=None):
+def get_words_by_set_id(self, set_id, keyword=None, limit=None, offset=None, order_by='id', sort_order='asc'):
     """
     根据词库ID获取单词列表
     
@@ -319,6 +320,8 @@ def get_words_by_set_id(self, set_id, keyword=None, limit=None, offset=None):
         keyword (str, optional): 搜索关键词
         limit (int, optional): 返回结果数量限制
         offset (int, optional): 分页偏移量
+        order_by (str, optional): 排序字段
+        sort_order (str, optional): 排序顺序 ('asc' 或 'desc')
     
     返回:
         list: 单词字典列表
@@ -338,7 +341,7 @@ def add_word_to_active_set(self, word, translation, phonetic='', example='', mea
         phonetic (str, optional): 音标
         example (str, optional): 例句
         meaning_en (str, optional): 英文释义
-        tag (str, optional): 标签
+        tag (str, optional): 词性标签
     
     返回:
         dict or None: 新添加的单词信息，失败返回None
@@ -427,32 +430,212 @@ def batch_import_words(self, file_path, set_id=None):
 
 ### 学习功能方法
 
-#### check_translation
+#### get_words_for_review
 
 ```python
-def check_translation(self, expected, user_input, is_english_to_chinese=True):
+def get_words_for_review(self, filter_type='all', limit=20):
     """
-    使用AI检查翻译是否正确
+    获取用于复习的单词列表
     
     参数:
-        expected (str): 期望的翻译
-        user_input (str): 用户输入的翻译
-        is_english_to_chinese (bool): 是否为英译中方向
+        filter_type (str): 过滤类型 ('all', 'unfamiliar', 'familiar', 'difficult')
+        limit (int): 返回结果数量限制
     
     返回:
-        tuple: (bool, str) - (是否正确, AI参考翻译)
+        list: 单词字典列表
     """
 ```
 
-#### translate_text
+#### update_word_familiarity
 
 ```python
-def translate_text(self, text, mode="en2zh"):
+def update_word_familiarity(self, word_id, is_correct):
     """
-    翻译文本
+    更新单词熟悉度
     
     参数:
-        text (str): 要翻译的文本
+        word_id (int): 单词ID
+        is_correct (bool): 用户回答是否正确
+    
+    返回:
+        bool: 更新成功返回True，失败返回False
+    """
+```
+
+#### update_word_proficiency
+
+```python
+def update_word_proficiency(self, word_id, proficiency):
+    """
+    更新单词熟练度
+    
+    参数:
+        word_id (int): 单词ID
+        proficiency (float): 熟练度值 (0.0-1.0)
+    
+    返回:
+        bool: 更新成功返回True，失败返回False
+    """
+```
+
+#### get_word_familiarity
+
+```python
+def get_word_familiarity(self, word_id):
+    """
+    获取单词熟悉度
+    
+    参数:
+        word_id (int): 单词ID
+    
+    返回:
+        float: 熟悉度值 (0.0-1.0)
+    """
+```
+
+#### get_learning_stats
+
+```python
+def get_learning_stats(self):
+    """
+    获取学习统计信息
+    
+    返回:
+        dict: 包含学习统计信息的字典
+    """
+```
+
+#### get_familiar_words
+
+```python
+def get_familiar_words(self, threshold=0.7, limit=None):
+    """
+    获取熟悉的单词列表
+    
+    参数:
+        threshold (float): 熟悉度阈值
+        limit (int): 返回结果数量限制
+    
+    返回:
+        list: 单词字典列表
+    """
+```
+
+#### get_unfamiliar_words
+
+```python
+def get_unfamiliar_words(self, threshold=0.3, limit=None):
+    """
+    获取不熟悉的单词列表
+    
+    参数:
+        threshold (float): 熟悉度阈值
+        limit (int): 返回结果数量限制
+    
+    返回:
+        list: 单词字典列表
+    """
+```
+
+#### get_difficult_words
+
+```python
+def get_difficult_words(self, limit=None):
+    """
+    获取困难单词列表
+    
+    参数:
+        limit (int): 返回结果数量限制
+    
+    返回:
+        list: 单词字典列表
+    """
+```
+
+#### get_today_learned_words
+
+```python
+def get_today_learned_words(self):
+    """
+    获取今日学习的单词列表
+    
+    返回:
+        list: 单词字典列表
+    """
+```
+
+#### add_wrong_word
+
+```python
+def add_wrong_word(self, word_id):
+    """
+    添加错误单词记录
+    
+    参数:
+        word_id (int): 单词ID
+    
+    返回:
+        bool: 添加成功返回True，失败返回False
+    """
+```
+
+#### get_wrong_words
+
+```python
+def get_wrong_words(self, limit=None):
+    """
+    获取错误单词列表
+    
+    参数:
+        limit (int): 返回结果数量限制
+    
+    返回:
+        list: 单词字典列表
+    """
+```
+
+#### get_progress
+
+```python
+def get_progress(self, set_id=None):
+    """
+    获取学习进度
+    
+    参数:
+        set_id (int, optional): 词库ID，默认使用当前激活词库
+    
+    返回:
+        dict: 包含学习进度信息的字典
+    """
+```
+
+#### start_exercise
+
+```python
+def start_exercise(self, exercise_type, set_id=None):
+    """
+    开始练习
+    
+    参数:
+        exercise_type (str): 练习类型
+        set_id (int, optional): 词库ID，默认使用当前激活词库
+    
+    返回:
+        bool: 开始成功返回True，失败返回False
+    """
+```
+
+### AI辅助功能
+
+#### get_translation
+
+```python
+def get_translation(self, word, mode="en2zh"):
+    """
+    获取单词翻译
+    
+    参数:
+        word (str): 要翻译的单词
         mode (str): 翻译模式，"en2zh"(英→中)或"zh2en"(中→英)
     
     返回:
@@ -460,71 +643,188 @@ def translate_text(self, text, mode="en2zh"):
     """
 ```
 
-#### update_word_progress
+#### check_translation
 
 ```python
-def update_word_progress(self, word, is_correct):
+def check_translation(self, word_id, user_translation, mode="local_first"):
     """
-    更新单词学习进度
+    检查翻译是否正确
+    
+    参数:
+        word_id (int): 单词ID
+        user_translation (str): 用户输入的翻译
+        mode (str): 检查模式 ('local_first', 'local_only', 'ai_first')
+    
+    返回:
+        dict: 包含检查结果的字典
+    """
+```
+
+#### ai_complete_word_details
+
+```python
+def ai_complete_word_details(self, word_id):
+    """
+    使用AI补全单词详细属性
+    
+    参数:
+        word_id (int): 单词ID
+    
+    返回:
+        bool: 补全成功返回True，失败返回False
+    """
+```
+
+#### get_words_missing_details
+
+```python
+def get_words_missing_details(self, limit=10):
+    """
+    获取缺少详细属性的单词列表
+    
+    参数:
+        limit (int): 返回结果数量限制
+    
+    返回:
+        list: 单词字典列表
+    """
+```
+
+#### get_word_example
+
+```python
+def get_word_example(self, word_id):
+    """
+    获取单词例句
+    
+    参数:
+        word_id (int): 单词ID
+    
+    返回:
+        str: 单词例句
+    """
+```
+
+#### check_spelling
+
+```python
+def check_spelling(self, word, user_input):
+    """
+    检查拼写是否正确
+    
+    参数:
+        word (str): 正确单词
+        user_input (str): 用户输入
+    
+    返回:
+        dict: 包含拼写检查结果的字典
+    """
+```
+
+#### is_ai_available
+
+```python
+def is_ai_available(self):
+    """
+    检查AI服务是否可用
+    
+    返回:
+        bool: AI服务可用返回True，否则返回False
+    """
+```
+
+### 缓存管理
+
+#### clear_cache
+
+```python
+def clear_cache(self, cache_type=None):
+    """
+    清除缓存
+    
+    参数:
+        cache_type (str, optional): 缓存类型，默认为清除所有缓存
+    
+    返回:
+        bool: 清除成功返回True，失败返回False
+    """
+```
+
+### 其他功能
+
+#### get_word_count
+
+```python
+def get_word_count(self, set_id=None):
+    """
+    获取单词数量
+    
+    参数:
+        set_id (int, optional): 词库ID，默认使用当前激活词库
+    
+    返回:
+        int: 单词数量
+    """
+```
+
+#### get_weighted_random_word
+
+```python
+def get_weighted_random_word(self, set_id=None):
+    """
+    根据权重获取随机单词
+    
+    参数:
+        set_id (int, optional): 词库ID，默认使用当前激活词库
+    
+    返回:
+        dict or None: 单词字典或None
+    """
+```
+
+#### update_word_weight
+
+```python
+def update_word_weight(self, word_id, weight):
+    """
+    更新单词权重
+    
+    参数:
+        word_id (int): 单词ID
+        weight (float): 权重值
+    
+    返回:
+        bool: 更新成功返回True，失败返回False
+    """
+```
+
+#### get_and_save_word_attributes
+
+```python
+def get_and_save_word_attributes(self, word):
+    """
+    获取并保存单词属性
     
     参数:
         word (str): 单词
-        is_correct (bool): 用户回答是否正确
-    """
-```
-
-#### get_error_words
-
-```python
-def get_error_words(self, limit=None):
-    """
-    获取用户错误率较高的单词
-    
-    参数:
-        limit (int): 返回数量限制
     
     返回:
-        list: 错误单词列表
-    """
-```
-
-### 数据存储方法
-
-#### save_progress
-
-```python
-def save_progress(self):
-    """
-    保存学习进度到文件
-    
-    返回:
-        bool: 保存成功返回True，失败返回False
-    """
-```
-
-#### load_progress
-
-```python
-def load_progress(self):
-    """从文件加载学习进度
-
-    Returns:
-        bool: 加载成功返回True，失败返回False
+        dict or None: 包含单词属性的字典或None
     """
 ```
 
 ## AIManager API
 
-AIManager 负责与 Ollama API 交互，提供 AI 相关功能。
+AIManager 负责与 Ollama API 交互，提供 AI 相关功能。位于 `core/ai_interface.py`。
 
 ### 初始化
 
 ```python
-def __init__(self, logger=None):
-    """初始化AIManager
+def __init__(self, model=None):
+    """初始化AIManager（单例模式，只在第一次创建实例时执行）
 
     Args:
-        logger: 日志记录器实例，可选
+        model: 使用的Ollama模型名称，如果为None则从设置中获取
     """
 ```
 
@@ -533,77 +833,125 @@ def __init__(self, logger=None):
 #### translate
 
 ```python
-def translate(self, text, mode="en2zh"):
-    """翻译文本
+async def translate(self, text: str, mode: str = "en2zh", callback=None) -> str:
+    """异步翻译文本
 
     Args:
-        text (str): 要翻译的文本
-        mode (str): 翻译模式，"en2zh"(英→中)或"zh2en"(中→英)
+        text: 要翻译的文本
+        mode: 翻译模式，"en2zh"(英→中)或"zh2en"(中→英)
+        callback: 用于处理流式输出的回调函数，接收参数：(chunk: str, done: bool)
 
     Returns:
         str: 翻译后的文本
     """
 ```
 
-#### generate_text
+#### translate_sync
 
 ```python
-def generate_text(self, prompt):
-    """根据提示词生成文本
+def translate_sync(self, text: str, mode: str = "en2zh", callback=None) -> str:
+    """同步翻译文本（兼容旧接口）
 
     Args:
-        prompt (str): 提示词
+        text: 要翻译的文本
+        mode: 翻译模式
+        callback: 用于处理流式输出的回调函数，接收参数：(chunk: str, done: bool)
 
     Returns:
-        str: 生成的文本
+        str: 翻译后的文本
     """
 ```
 
-#### check_translation
+#### example
 
 ```python
-def check_translation(self, expected, user_input, is_english_to_chinese=True):
-    """判断翻译是否正确
+async def example(self, word: str, callback=None) -> str:
+    """异步为单词生成例句
 
     Args:
-        expected (str): 原始词语
-        user_input (str): 用户翻译
-        is_english_to_chinese (bool): 是否为英译中方向
+        word: 要生成例句的单词
+        callback: 用于处理流式输出的回调函数，接收参数：(chunk: str, done: bool)
 
     Returns:
-        tuple: (bool, str) - (是否正确, AI参考翻译)
+        str: 包含例句和翻译的文本（格式：英文例句|中文翻译）
     """
 ```
 
-#### generate_example
+#### example_sync
 
 ```python
-def generate_example(self, word):
-    """为单词生成例句
+def example_sync(self, word: str, callback=None) -> str:
+    """同步生成例句（兼容旧接口）
 
     Args:
-        word (str): 单词
+        word: 要生成例句的单词
+        callback: 用于处理流式输出的回调函数，接收参数：(chunk: str, done: bool)
 
     Returns:
-        str: 包含单词的例句
+        str: 包含例句和翻译的文本（格式：英文例句|中文翻译）
     """
 ```
 
-#### evaluate_spelling
+#### get_word_details
 
-````python
-def evaluate_spelling(self, word, user_input):
-    """评估拼写准确性
+```python
+async def get_word_details(self, word: str, callback=None) -> str:
+    """异步获取单词的详细属性
 
     Args:
-        word (str): 正确的单词
-        user_input (str): 用户输入
+        word: 要获取详细属性的单词
+        callback: 用于处理流式输出的回调函数，接收参数：(chunk: str, done: bool)
 
     Returns:
-        dict: {"correct": bool, "similarity": float, "feedback": str}
+        str: 包含单词详细属性的JSON字符串
     """
+```
 
-## Modules API (新模块)
+#### get_word_details_sync
+
+```python
+def get_word_details_sync(self, word: str, callback=None) -> str:
+    """同步获取单词的详细属性（兼容旧接口）
+
+    Args:
+        word: 要获取详细属性的单词
+        callback: 用于处理流式输出的回调函数，接收参数：(chunk: str, done: bool)
+
+    Returns:
+        str: 包含单词详细属性的JSON字符串
+    """
+```
+
+#### evaluate
+
+```python
+async def evaluate(self, expected: str, user_input: str, callback=None) -> dict:
+    """异步评估听写结果
+
+    Args:
+        expected: 期望的正确单词
+        user_input: 用户输入的单词
+        callback: 用于处理流式输出的回调函数，接收参数：(chunk: str, done: bool)
+
+    Returns:
+        dict: 评估结果字典，包含是否正确、错误原因等信息
+    """
+```
+
+### 状态检查方法
+
+#### is_available
+
+```python
+def is_available(self):
+    """检查AI服务是否可用
+
+    Returns:
+        bool: 可用返回True，不可用返回False
+    """
+```
+
+## Modules API
 
 ### ClozeTestModule (modules/cloze_test.py)
 
@@ -683,8 +1031,7 @@ class AIService:
         注意：AI 可能返回带说明的文本，模块内部会尝试提取 JSON（is_acceptable/score/feedback），
         若首次解析失败会自动重试一次并要求 AI 仅返回 JSON，若仍失败将返回评估失败并记录原始响应。
         """
-
-````
+```
 
 ### utils.extract_json_from_text
 
@@ -693,7 +1040,118 @@ def extract_json_from_text(text: str) -> Optional[Any]:
     """尝试从自由文本中提取 JSON 对象并解析，若无法解析返回 None。"""
 ```
 
-````
+## LearningManager API
+
+LearningManager 是学习模式的核心协调器，整合各个学习相关模块，提供统一的API接口。位于 `core/learning.py`。
+
+### 初始化
+
+```python
+def __init__(self, word_manager, audio_player):
+    """初始化学习管理器
+
+    Args:
+        word_manager: 单词管理器实例
+        audio_player: 音频播放器实例
+    """
+```
+
+### 学习流程方法
+
+#### get_batch
+
+```python
+def get_batch(self, batch_size: int = 10) -> List[Dict]:
+    """获取学习单词批次
+
+    Args:
+        batch_size: 批次大小，默认10个单词
+
+    Returns:
+        List[Dict]: 单词列表
+    """
+```
+
+#### mark_mastered
+
+```python
+def mark_mastered(self, word: str):
+    """标记单词为已掌握
+
+    Args:
+        word: 单词
+    """
+```
+
+#### mark_review
+
+```python
+def mark_review(self, word: str):
+    """标记单词需要复习
+
+    Args:
+        word: 单词
+    """
+```
+
+### 进度管理方法
+
+#### save_progress
+
+```python
+def save_progress(self, finished=False) -> bool:
+    """保存学习进度
+
+    Args:
+        finished: 是否完成本批次学习
+
+    Returns:
+        bool: 是否保存成功
+    """
+```
+
+## AudioPlayer API
+
+AudioPlayer 提供单词发音功能，支持缓存管理。
+
+### 初始化
+
+```python
+def __init__(self):
+    """初始化音频播放器
+    """
+```
+
+### 发音播放方法
+
+#### play_pronunciation
+
+```python
+def play_pronunciation(self, word: str, lang: str = 'en') -> bool:
+    """播放单词发音
+
+    Args:
+        word: 要播放发音的单词
+        lang: 语言代码，默认为英语('en')
+
+    Returns:
+        bool: 播放是否成功
+    """
+```
+
+#### play_chinese_pronunciation
+
+```python
+def play_chinese_pronunciation(self, text):
+    """播放中文发音
+
+    Args:
+        text: 要播放发音的中文文本
+
+    Returns:
+        bool: 播放是否成功
+    """
+```
 
 ### 状态检查方法
 
@@ -701,118 +1159,39 @@ def extract_json_from_text(text: str) -> Optional[Any]:
 
 ```python
 def is_available(self):
-    """检查AI服务是否可用
+    """检查音频播放功能是否可用
 
     Returns:
-        bool: 可用返回True，不可用返回False
-    """
-````
-
-## LearningManager API
-
-LearningManager 实现学习模式的核心逻辑。
-
-### 初始化
-
-```python
-def __init__(self, word_manager, logger=None):
-    """初始化LearningManager
-
-    Args:
-        word_manager: WordManager实例
-        logger: 日志记录器实例，可选
+        bool: 功能可用返回True
     """
 ```
 
-### 学习流程方法
+### 管理方法
 
-#### get_next_word
+#### install_requirements
 
 ```python
-def get_next_word(self):
-    """获取下一个要学习的单词
+def install_requirements(self):
+    """安装必要的依赖
 
     Returns:
-        dict: 单词信息字典或None
+        bool: 安装是否成功
     """
 ```
 
-#### update_mastery_level
+#### cleanup
 
 ```python
-def update_mastery_level(self, word, rating):
-    """更新单词掌握度
-
-    Args:
-        word (str): 单词
-        rating (int): 用户评分(1-5)
-
-    Returns:
-        bool: 更新成功返回True
+def cleanup(self):
+    """清理临时文件
     """
 ```
 
-#### get_word_definition
+#### cleanup_cache
 
 ```python
-def get_word_definition(self, word):
-    """获取单词释义
-
-    Args:
-        word (str): 单词
-
-    Returns:
-        str: 单词释义
-    """
-```
-
-### 进度管理方法
-
-#### get_word_progress
-
-```python
-def get_word_progress(self):
-    """获取单词学习进度
-
-    Returns:
-        dict: 单词进度数据
-    """
-```
-
-#### save_progress
-
-```python
-def save_progress(self):
-    """保存学习进度
-
-    Returns:
-        bool: 保存成功返回True
-    """
-```
-
-#### load_progress
-
-```python
-def load_progress(self):
-    """加载学习进度
-
-    Returns:
-        bool: 加载成功返回True
-    """
-```
-
-## AudioPlayer API
-
-AudioPlayer 提供单词发音功能。
-
-### 初始化
-
-```python
-def __init__(self, logger=None):
-    """初始化AudioPlayer
-
-    Args:
-        logger: 日志记录器实例，可选
+def cleanup_cache(self):
+    """清理过期的缓存文件
     """
 ```
 
