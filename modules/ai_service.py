@@ -13,10 +13,10 @@ from .utils import extract_json_from_text
 
 class AIService:
     """AI服务类，负责生成题目和判题"""
-    
+
     def __init__(self, word_manager=None):
         """初始化AI服务（使用AIManager单例）
-        
+
         Args:
             word_manager: 可选的WordManager实例，用于共享AI连接检测状态
         """
@@ -24,7 +24,7 @@ class AIService:
         self.db_manager = ComprehensionDatabase()
         self.word_manager = word_manager  # 保存传入的WordManager实例
         self._lock = threading.RLock()
-        
+
         # 初始化AI可用性状态
         # 如果有外部传入的WordManager，直接使用它的AI可用性检测结果
         if self.word_manager is not None and hasattr(self.word_manager, 'ai_available'):
@@ -32,10 +32,10 @@ class AIService:
         else:
             # 只有在没有WordManager实例时，才进行AI连接测试
             self.ai_available = self._test_ai_connection()
-        
+
     def _get_available_models(self) -> list:
         """获取可用的Ollama模型列表
-        
+
         Returns:
             可用模型名称列表
         """
@@ -60,17 +60,17 @@ class AIService:
             log_info(f"已保存原始AI响应到: {path}")
         except Exception as e:
             log_warning(f"保存原始AI响应失败: {str(e)}")
-    
+
     def _test_ai_connection(self) -> bool:
         """测试AI连接是否可用（使用轻量级健康检查，避免实际AI调用）
-        
+
         Returns:
             bool: AI连接是否可用
         """
         # 如果有外部传入的WordManager，优先使用它的AI可用性检测结果
         if self.word_manager is not None and hasattr(self.word_manager, 'ai_available'):
             return self.word_manager.ai_available
-            
+
         try:
             # 只检查Ollama服务的健康状态，不发送实际的生成请求
             health_response = requests.get("http://localhost:11434/api/tags", timeout=5)
@@ -86,10 +86,10 @@ class AIService:
         except Exception as e:
             log_warning(f"AI连接测试失败: {str(e)}")
             return False
-    
+
     def is_ai_available(self) -> bool:
         """检查AI服务是否可用，优先使用WordManager的AI可用性状态
-        
+
         Returns:
             bool: AI服务是否可用
         """
@@ -100,14 +100,14 @@ class AIService:
             # 否则，重新测试连接状态
             self.ai_available = self._test_ai_connection()
         return self.ai_available
-    
+
     def generate_cloze_test(self, level: str = "高中", topic: str = "通用") -> Optional[Dict]:
         """生成完形填空题目
-        
+
         Args:
             level: 难度级别（初中/高中/大学/专升本/考研）
             topic: 主题
-            
+
         Returns:
             Dict: 包含题目信息的字典
         """
@@ -115,7 +115,7 @@ class AIService:
             if not self.is_ai_available():
                 log_error("AI服务不可用，无法生成完形填空题目")
                 return None
-            
+
             prompt = f"""
 请生成一篇{level}难度的英语完形填空文章，主题为{topic}。
 
@@ -138,9 +138,9 @@ class AIService:
   "explanation": "题目解析，包括每个空格的正确答案说明，使用中文回答，引用部分可以使用英语"
 }}
             """
-            
+
             response = self.ai_manager._ask_sync(prompt)
-            
+
             # 解析AI返回的JSON
             try:
                 # 去除可能的代码块标记
@@ -150,25 +150,25 @@ class AIService:
                 if clean_response.endswith('```'):
                     clean_response = clean_response[:-3]
                 clean_response = clean_response.strip()
-                
+
                 # 使用工具函数提取JSON
                 result = extract_json_from_text(clean_response)
                 if result is None:
                     log_error("无法从AI返回中提取有效的JSON")
                     return None
-                
+
                 # 处理可能的字段名拼写错误
                 if 'answeers' in result:
                     result['answers'] = result.pop('answeers')
                     log_info("已修复字段名拼写错误: answeers -> answers")
-                
+
                 # 验证必要字段
                 required_fields = ['title', 'content', 'options', 'answers', 'explanation']
                 for field in required_fields:
                     if field not in result:
                         log_error(f"AI返回的完形填空数据缺少{field}字段")
                         return None
-                
+
                 # 处理选项格式
                 processed_options = []
                 for opt in result['options']:
@@ -181,7 +181,7 @@ class AIService:
                     except Exception as e:
                         log_error(f"处理选项失败: {str(e)}")
                         return None
-                
+
                 # 保存到数据库
                 test_id = self.db_manager.add_cloze_test(
                     title=result['title'],
@@ -190,7 +190,7 @@ class AIService:
                     answer=result['answers'],
                     explanation=result['explanation']
                 )
-                
+
                 if test_id > 0:
                     result['id'] = test_id
                     # 兼容字段：数据库中使用 answer 字段，AI 返回可能使用 answers
@@ -200,7 +200,7 @@ class AIService:
                     return result
                 else:
                     return None
-                    
+
             except json.JSONDecodeError as e:
                 log_error(f"解析AI返回的JSON失败: {str(e)}")
                 log_error(f"AI返回内容: {response}")
@@ -210,22 +210,22 @@ class AIService:
                 except Exception:
                     pass
                 return None
-                
+
         except Exception as e:
             log_error(f"生成完形填空题目失败: {str(e)}")
             return None
-    
-    def generate_reading_comprehension(self, level: str = "高中", 
-                                     length: str = "短篇", 
+
+    def generate_reading_comprehension(self, level: str = "高中",
+                                     length: str = "短篇",
                                      question_count: int = 5, topic: str = "通用") -> Optional[Dict]:
         """生成阅读理解题目
-        
+
         Args:
             level: 难度级别（初中/高中/大学/专升本/考研）
             length: 文章长度（短篇/长篇）
             question_count: 题目数量
             topic: 主题
-            
+
         Returns:
             Dict: 包含题目信息的字典
         """
@@ -233,10 +233,10 @@ class AIService:
             if not self.ai_available:
                 log_error("AI服务不可用，无法生成阅读理解题目")
                 return None
-            
+
             # 设置文章长度对应的单词数
             word_count = "300-500" if length == "短篇" else "600-800"
-            
+
             prompt = f"""
 请生成一篇{length}（约{word_count}个单词）的{level}难度英语阅读理解文章，主题为{topic}，并附带{question_count}个问题。
 
@@ -270,12 +270,12 @@ class AIService:
   ]
 }}
             """
-            
+
             response = self.ai_manager._ask_sync(prompt)
-            
+
             # 保存原始响应用于调试
             self._save_raw_response('reading_generation', response)
-            
+
             # 解析AI返回的JSON
             try:
                 # 去除可能的代码块标记
@@ -285,7 +285,7 @@ class AIService:
                 if clean_response.endswith('```'):
                     clean_response = clean_response[:-3]
                 clean_response = clean_response.strip()
-                
+
                 # 使用工具函数提取JSON
                 result = extract_json_from_text(clean_response)
                 if result is None:
@@ -297,55 +297,55 @@ class AIService:
                     except Exception:
                         pass
                     return None
-                
+
                 # 处理可能的字段名拼写错误
                 if 'answeers' in result:
                     result['answers'] = result.pop('answeers')
                     log_info("已修复字段名拼写错误: answeers -> answers")
-                
+
                 if 'explanaations' in result:
                     result['explanations'] = result.pop('explanaations')
                     log_info("已修复字段名拼写错误: explanaations -> explanations")
-                
+
                 # 验证必要字段
                 required_fields = ['article', 'questions', 'answers', 'explanations']
                 for field in required_fields:
                     if field not in result:
                         log_error(f"AI返回的阅读理解数据缺少{field}字段")
                         return None
-                
+
                 # 检查问题内容是否有效
                 if not result['questions']:
                     log_error("AI返回的题目为空")
                     self._save_raw_response('reading_invalid_questions', response)
                     return None
-                
+
                 # 检查是否有选择题只包含'question'文本
                 has_invalid_questions = False
                 invalid_question_indices = []
-                
+
                 for i, question in enumerate(result['questions']):
                     # 检查是否是选择题
                     is_multiple_choice = any(opt in question.upper() for opt in ["A.", "B.", "C.", "D.", "MULTIPLE CHOICE"])
-                    
+
                     # 检查题目是否只包含'question'文本（特别是选择题）
                     if question.lower().strip() == 'question' or (is_multiple_choice and len(question.strip()) < 10):
                         has_invalid_questions = True
                         invalid_question_indices.append(i+1)  # 题目编号从1开始
-                
+
                 if has_invalid_questions:
                     log_error(f"AI返回的选择题内容无效，问题编号: {invalid_question_indices}")
                     log_error(f"无效题目内容示例: {result['questions'][invalid_question_indices[0]-1]}")
                     self._save_raw_response('reading_invalid_questions', response)
                     return None
-                
+
                 # 检查问题数量是否匹配
                 if len(result['questions']) != len(result['answers']) or \
                    len(result['questions']) != len(result['explanations']):
                     log_error("问题、答案和解析数量不匹配")
                     log_error(f"问题数: {len(result['questions'])}, 答案数: {len(result['answers'])}, 解析数: {len(result['explanations'])}")
                     return None
-                
+
                 # 保存到数据库
                 test_id = self.db_manager.add_reading_comprehension(
                     article=result['article'],
@@ -353,7 +353,7 @@ class AIService:
                     answers=result['answers'],
                     explanations=result['explanations']
                 )
-                
+
                 if test_id > 0:
                     result['id'] = test_id
                     log_info(f"成功生成并保存阅读理解题目，ID: {test_id}")
@@ -361,7 +361,7 @@ class AIService:
                 else:
                     log_error("保存阅读理解题目到数据库失败")
                     return None
-                    
+
             except Exception as e:
                 log_error(f"处理AI返回的阅读理解数据失败: {str(e)}")
                 log_error(f"AI返回内容: {response}")
@@ -373,14 +373,14 @@ class AIService:
         except Exception as e:
             log_error(f"生成阅读理解题目失败: {str(e)}")
             return None
-    
+
     def evaluate_cloze_answer(self, user_answer: str, correct_answer: str) -> Tuple[bool, str]:
         """评估完形填空答案
-        
+
         Args:
             user_answer: 用户答案
             correct_answer: 正确答案
-            
+
         Returns:
             Tuple[bool, str]: (是否正确, 评估结果)
         """
@@ -388,33 +388,33 @@ class AIService:
             # 简单对比答案
             user_answers = [a.strip() for a in user_answer.split(',')]
             correct_answers = [a.strip() for a in correct_answer.split(',')]
-            
+
             if len(user_answers) != len(correct_answers):
                 return False, f"答案数量不匹配，需要{len(correct_answers)}个答案"
-            
+
             correct_count = 0
             for i, (user, correct) in enumerate(zip(user_answers, correct_answers)):
                 if user.lower() == correct.lower():
                     correct_count += 1
-            
+
             accuracy = correct_count / len(correct_answers)
             result = f"正确率: {correct_count}/{len(correct_answers)} ({accuracy*100:.1f}%)"
-            
+
             return correct_count == len(correct_answers), result
-            
+
         except Exception as e:
             log_error(f"评估完形填空答案失败: {str(e)}")
             return False, "评估失败"
-    
-    def evaluate_reading_answer(self, user_answer: str, correct_answer: str, 
+
+    def evaluate_reading_answer(self, user_answer: str, correct_answer: str,
                               question_type: str = "选择题") -> Tuple[bool, str]:
         """评估阅读理解答案
-        
+
         Args:
             user_answer: 用户答案
             correct_answer: 正确答案
             question_type: 题目类型（选择题/主观题）
-            
+
         Returns:
             Tuple[bool, str]: (是否正确, 评估结果)
         """
@@ -428,7 +428,7 @@ class AIService:
                 # 主观题使用AI评估
                 if not self.ai_available:
                     return False, "AI服务不可用，无法评估主观题"
-                
+
                 prompt = f"""
 请评估以下英语阅读理解主观题的答案：
 
@@ -448,7 +448,7 @@ class AIService:
   "feedback": "具体的评估反馈（使用中文）"
 }}
                 """
-                
+
                 response = self.ai_manager._ask_sync(prompt)
 
                 # 尝试解析AI返回的JSON，若失败则尝试提取JSON或重试一次要求AI仅返回JSON
@@ -484,7 +484,7 @@ class AIService:
                 except Exception as e:
                     log_error(f"处理AI评估结果字段失败: {str(e)}")
                     return False, "评估失败"
-                    
+
         except Exception as e:
             log_error(f"评估阅读理解答案失败: {str(e)}")
             return False, "评估失败"

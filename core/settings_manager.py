@@ -8,16 +8,16 @@ from .database_manager import DatabaseManager
 
 class SettingsManager:
     """优化版设置管理器，使用数据库存储设置，支持缓存"""
-    
+
     _instance = None
     _lock = threading.Lock()
-    
+
     def __new__(cls):
         with cls._lock:
             if cls._instance is None:
                 cls._instance = super().__new__(cls)
         return cls._instance
-    
+
     def __init__(self):
         """初始化设置管理器"""
         # 确保只初始化一次
@@ -29,35 +29,37 @@ class SettingsManager:
                 # 监听器：key -> list of callbacks(func(key, new_value))
                 self._listeners = {}
                 self._listeners_lock = threading.RLock()
-                
+
                 # 加载设置到缓存
                 self._load_settings_to_cache()
-                
+
                 self._initialized = True
-    
+
     def _load_settings_to_cache(self):
         """从数据库加载所有设置到缓存"""
         try:
-            results = self.db_manager.execute_read("SELECT key, value FROM settings")
-            
+            results = self.db_manager.execute_read(
+                "SELECT key, value FROM settings")
+
             with self._cache_lock:
                 for row in results:
                     try:
-                        self._settings_cache[row['key']] = json.loads(row['value'])
+                        self._settings_cache[row['key']
+                                             ] = json.loads(row['value'])
                     except json.JSONDecodeError:
                         # 如果解析失败，保存原始字符串
                         self._settings_cache[row['key']] = row['value']
-            
+
             # 确保有默认设置
             self._ensure_default_settings()
-            
+
             log_info("设置加载到缓存完成")
-            
+
         except Exception as e:
             log_error(f"加载设置到缓存失败: {str(e)}")
             # 加载默认设置
             self._ensure_default_settings()
-    
+
     def _ensure_default_settings(self):
         """确保默认设置存在"""
         default_settings = {
@@ -77,8 +79,7 @@ class SettingsManager:
             "tts_cache_enabled": True,
             "tts_cache_max_mb": 500,
             # 日志等级
-            "log_level": "INFO"
-            ,
+            "log_level": "INFO",
             # 翻译判定模式: ai_first / local_first / local_only
             "translation_mode": "ai_first",
             # 自动切换模式（manual/auto），分别控制单词学习模块、翻译练习模块与复习模块
@@ -91,23 +92,23 @@ class SettingsManager:
             # 听写AI总结功能设置
             "ai_summary_enabled": True
         }
-        
+
         with self._cache_lock:
             for key, value in default_settings.items():
                 if key not in self._settings_cache:
                     self._settings_cache[key] = value
                     # 保存到数据库
                     self.db_manager.set_setting(key, value)
-    
+
     def get_setting(self, key: str, default: Any = None) -> Any:
         """获取设置值（优先从缓存获取）"""
         with self._cache_lock:
             if key in self._settings_cache:
                 return self._settings_cache[key]
-        
+
         # 如果缓存中没有，从数据库获取
         value = self.db_manager.get_setting(key, default)
-        
+
         # 更新缓存
         # 注意：db_manager.get_setting 会返回 default 值当 key 不存在
         if value is not None:
@@ -118,9 +119,9 @@ class SettingsManager:
             with self._cache_lock:
                 self._settings_cache[key] = default
             value = default
-        
+
         return value
-    
+
     def set_setting(self, key: str, value: Any) -> bool:
         """设置设置值"""
         try:
@@ -146,11 +147,11 @@ class SettingsManager:
                 pass
 
             return True
-            
+
         except Exception as e:
             log_error(f"设置 {key} 失败: {str(e)}")
             return False
-    
+
     def toggle_auto_next_correct(self) -> bool:
         """切换答对后自动下一个设置"""
         current = self.get_setting("auto_next_correct", False)
@@ -159,7 +160,7 @@ class SettingsManager:
         if result:
             log_info(f"设置答对后自动下一个: {'开启' if new_value else '关闭'}")
         return result
-    
+
     def toggle_auto_next_wrong(self) -> bool:
         """切换答错后自动下一个设置"""
         current = self.get_setting("auto_next_wrong", False)
@@ -168,7 +169,7 @@ class SettingsManager:
         if result:
             log_info(f"设置答错后自动下一个: {'开启' if new_value else '关闭'}")
         return result
-    
+
     def toggle_example_enabled(self) -> bool:
         """切换例句功能设置"""
         current = self.get_setting("example_enabled", True)
@@ -177,13 +178,13 @@ class SettingsManager:
         if result:
             log_info(f"设置例句功能: {'开启' if new_value else '关闭'}")
         return result
-    
+
     def set_voice_speed(self, speed: float) -> bool:
         """设置语音速度"""
         # 限制速度范围
         speed = max(0.5, min(3.0, speed))
         return self.set_setting("voice_speed", speed)
-    
+
     def toggle_dark_mode(self) -> bool:
         """切换深色模式"""
         current = self.get_setting("dark_mode", False)
@@ -214,7 +215,7 @@ class SettingsManager:
             if not self.set_setting(k, v):
                 ok = False
         return ok
-    
+
     def get_all_settings(self) -> Dict[str, Any]:
         """获取所有设置"""
         with self._cache_lock:
@@ -268,7 +269,7 @@ class SettingsManager:
             log_error(f"未知模块: {module}")
             return False
         return self.set_setting(key, mode)
-    
+
     def reset_to_default(self) -> bool:
         """重置所有设置到默认值"""
         try:
@@ -291,55 +292,55 @@ class SettingsManager:
                 "ai_model": "gemma3n:latest",
                 "available_ai_models": []
             }
-            
+
             # 更新数据库
             for key, value in default_settings.items():
                 self.db_manager.set_setting(key, value)
-            
+
             # 更新缓存
             with self._cache_lock:
                 self._settings_cache = default_settings.copy()
-            
+
             log_info("所有设置已重置为默认值")
             return True
-            
+
         except Exception as e:
             log_error(f"重置设置失败: {str(e)}")
             return False
-    
+
     def get_ai_model(self) -> str:
         """获取当前使用的AI模型
-        
+
         Returns:
             当前AI模型名称
         """
         return self.get_setting("ai_model", "gemma3n:latest")
-    
+
     def set_ai_model(self, model: str) -> bool:
         """设置当前使用的AI模型
-        
+
         Args:
             model: AI模型名称
-        
+
         Returns:
             是否设置成功
         """
         return self.set_setting("ai_model", model)
-    
+
     def get_available_ai_models(self) -> list:
         """获取可用的AI模型列表
-        
+
         Returns:
             可用AI模型名称列表
         """
         return self.get_setting("available_ai_models", [])
-    
+
     def set_available_ai_models(self, models: list) -> bool:
         """设置可用的AI模型列表
-        
+
         Args:
             models: AI模型名称列表
-        
+
         Returns:
             是否设置成功
         """

@@ -82,8 +82,8 @@ class DictationPage(tk.Frame):
 
         # 标题
         title_label = tk.Label(
-            self.main_frame, 
-            text="听写模式选择", 
+            self.main_frame,
+            text="听写模式选择",
             font=self.font_config['header'],
             bg='white'
         )
@@ -375,7 +375,7 @@ class DictationPage(tk.Frame):
         batch_size = self.batch_size if self.current_mode == "queue" else 1
         self.dictation_manager.start_session(
             mode=self.current_mode,
-            source=self.current_source, 
+            source=self.current_source,
             batch_size=batch_size,
             difficulty=self.current_difficulty
         )
@@ -462,8 +462,8 @@ class DictationPage(tk.Frame):
 
         # 标题
         title_label = tk.Label(
-            self.main_frame, 
-            text="听写练习" if self.current_mode == "single" else f"队列听写 ({self.batch_size}个单词)", 
+            self.main_frame,
+            text="听写练习" if self.current_mode == "single" else f"队列听写 ({self.batch_size}个单词)",
             font=self.font_config['header'],
             bg='white'
         )
@@ -497,8 +497,8 @@ class DictationPage(tk.Frame):
 
         # 提示信息
         hint_label = tk.Label(
-            self.main_frame, 
-            text="请点击播放按钮听单词发音，然后在下方输入单词", 
+            self.main_frame,
+            text="请点击播放按钮听单词发音，然后在下方输入单词",
             font=self.font_config['normal'],
             bg='white',
             fg='#666666'
@@ -574,7 +574,7 @@ class DictationPage(tk.Frame):
             fg='white'
         )
         self.skip_button.pack(side=tk.LEFT, padx=10)
-        
+
         # 退出按钮
         self.exit_button = tk.Button(
             buttons_frame,
@@ -633,7 +633,7 @@ class DictationPage(tk.Frame):
             relief=tk.SUNKEN
         )
         self.status_bar.pack(side=tk.BOTTOM, fill=tk.X, pady=10)
-        
+
     def _exit_dictation(self):
         """退出听写练习，返回模式选择界面"""
         # 停止计时器
@@ -643,39 +643,39 @@ class DictationPage(tk.Frame):
                 self.timer_id = None
             except Exception:
                 pass
-        
+
         # 结束会话
         try:
             self.dictation_manager.end_session()
         except Exception:
             pass
-        
+
         # 重置状态
         self.current_word = None
         self.session_results = []
-        
+
         # 返回模式选择界面
         self._show_mode_selection()
-        
+
         # 记录日志
         log_info("用户退出听写练习")
-        
+
     def _show_stats(self):
         """显示统计信息"""
         # 获取统计信息
         stats = self.dictation_manager.get_stats(days=7)
-        
+
         # 创建统计信息窗口
         stats_window = tk.Toplevel(self)
         stats_window.title("听写统计信息")
         stats_window.geometry("600x400")
         stats_window.configure(bg='white')
-        
+
         # 创建滚动框架
         from ui.components.scrollable_frame import create_scrollable_frame
         scroll_frame, content_frame, _, _ = create_scrollable_frame(stats_window)
         scroll_frame.pack(expand=True, fill=tk.BOTH)
-        
+
         # 标题
         title_label = tk.Label(
             content_frame,
@@ -684,7 +684,7 @@ class DictationPage(tk.Frame):
             bg='white'
         )
         title_label.pack(pady=20)
-        
+
         # 总练习次数
         total_label = tk.Label(
             content_frame,
@@ -693,7 +693,7 @@ class DictationPage(tk.Frame):
             bg='white'
         )
         total_label.pack(pady=5, padx=20, anchor='w')
-        
+
         # 总练习单词数
         words_label = tk.Label(
             content_frame,
@@ -702,7 +702,7 @@ class DictationPage(tk.Frame):
             bg='white'
         )
         words_label.pack(pady=5, padx=20, anchor='w')
-        
+
         # 平均正确率
         avg_accuracy = stats.get('average_accuracy', 0)
         accuracy_label = tk.Label(
@@ -712,7 +712,7 @@ class DictationPage(tk.Frame):
             bg='white'
         )
         accuracy_label.pack(pady=5, padx=20, anchor='w')
-        
+
         # 最常错单词
         if stats.get('most_frequent_mistakes'):
             mistakes_label = tk.Label(
@@ -722,7 +722,7 @@ class DictationPage(tk.Frame):
                 font=('SimHei', 12, 'bold')
             )
             mistakes_label.pack(pady=(15, 5), padx=20, anchor='w')
-            
+
             mistakes_text = "、".join(stats['most_frequent_mistakes'][:10])  # 只显示前10个
             mistakes_words_label = tk.Label(
                 content_frame,
@@ -734,7 +734,7 @@ class DictationPage(tk.Frame):
                 justify=tk.LEFT
             )
             mistakes_words_label.pack(pady=5, padx=20, anchor='w')
-        
+
         # 关闭按钮
         close_button = tk.Button(
             content_frame,
@@ -924,7 +924,7 @@ class DictationPage(tk.Frame):
         self._stop_timer()
 
         # 先检查是否已经到达队列末尾，避免获取第11个单词
-        if (not self.dictation_manager.current_queue or 
+        if (not self.dictation_manager.current_queue or
             self.dictation_manager.current_queue_index >= len(self.dictation_manager.current_queue)):
             # 已到达队列末尾，直接显示总结
             self._show_summary()
@@ -975,8 +975,8 @@ class DictationPage(tk.Frame):
 
         # 标题
         title_label = tk.Label(
-            self.main_frame, 
-            text="听写完成！", 
+            self.main_frame,
+            text="听写完成！",
             font=self.font_config['header'],
             bg='white'
         )
@@ -984,33 +984,33 @@ class DictationPage(tk.Frame):
 
         # 结束会话并获取统计信息
         session_stats = self.dictation_manager.end_session()
-        
+
         # 直接创建总结框架和基本信息
         self._create_summary_frame(session_stats)
-        
+
         # 用于存储总结数据的变量
         self.summary_data = None
         self.session_stats = session_stats
-        
+
         # 检查是否启用了AI总结功能
         ai_summary_enabled = True
         if hasattr(self.dictation_manager, 'settings_manager') and self.dictation_manager.settings_manager:
             ai_summary_enabled = self.dictation_manager.settings_manager.get_setting("ai_summary_enabled", True)
-        
+
         # 清除之前的suggestion_text引用
         if hasattr(self, 'suggestion_text'):
             del self.suggestion_text
-        
+
         if ai_summary_enabled:
             # 创建学习建议区域的占位符，显示"正在获取建议..."
             self._create_suggestion_placeholder()
-            
+
             # 创建一个线程来获取总结，避免阻塞UI
             def get_summary_thread():
                 # 获取总结数据
                 summary = self.dictation_manager.summarize(callback=self._update_suggestion_stream)
                 self.summary_data = summary
-            
+
             # 启动线程
             thread = threading.Thread(target=get_summary_thread)
             thread.daemon = True
@@ -1018,26 +1018,26 @@ class DictationPage(tk.Frame):
         else:
             # 如果未启用AI总结功能，显示提示信息
             self._create_suggestion_disabled_message()
-            
+
             # 获取总结数据
             self.summary_data = self.dictation_manager.summarize()
-            
+
             # 显示错词列表或恭喜信息
             self._display_missed_words()
-            
+
             # 显示操作按钮
             self._show_summary_buttons()
-    
+
     def _create_summary_frame(self, session_stats):
         """创建总结框架和基本信息"""
         # 创建总结信息框架
         self.summary_frame = tk.Frame(self.main_frame, bg='white')
         self.summary_frame.pack(pady=20, padx=50, fill=tk.X)
-        
+
         # 会话基本信息卡片
         session_card = tk.LabelFrame(self.summary_frame, text="会话信息", font=self.font_config['normal'], bg='white')
         session_card.pack(fill=tk.X, pady=10, padx=5)
-        
+
         session_label = tk.Label(
             session_card,
             text=f"{self.current_mode}模式 - {self.current_source}来源 - {self.difficulty_var.get()}难度",
@@ -1045,11 +1045,11 @@ class DictationPage(tk.Frame):
             bg='white'
         )
         session_label.pack(anchor='w', pady=5, padx=5)
-        
+
         # 统计信息卡片
         stats_card = tk.LabelFrame(self.summary_frame, text="统计数据", font=self.font_config['normal'], bg='white')
         stats_card.pack(fill=tk.X, pady=10, padx=5)
-        
+
         # 正确率 - 使用session_stats中的数据，因为此时summary_data可能还没准备好
         accuracy = 0
         total = 0
@@ -1065,7 +1065,7 @@ class DictationPage(tk.Frame):
             bg='white'
         )
         accuracy_label.pack(pady=5, anchor='w', padx=5)
-        
+
         # 会话时长
         if session_stats and 'duration' in session_stats:
             duration_label = tk.Label(
@@ -1075,54 +1075,54 @@ class DictationPage(tk.Frame):
                 bg='white'
             )
             duration_label.pack(pady=5, anchor='w', padx=5)
-        
+
         # 错词列表和恭喜信息将在_summary_data准备好后更新
         # AI建议区域将在收到第一个chunk时创建
-    
+
     def _update_suggestion_stream(self, chunk, done):
         """处理流式输出的回调函数"""
         # 在主线程中更新UI
         self.after(0, lambda c=chunk, d=done: self._display_suggestion_chunk(c, d))
-    
+
     def _display_suggestion_chunk(self, chunk, done):
         """显示建议的一部分"""
         # 确保错词列表或恭喜信息已显示
         if hasattr(self, 'summary_data') and self.summary_data and not hasattr(self, 'missed_words_displayed'):
             self._display_missed_words()
             self.missed_words_displayed = True
-        
+
         # 临时设置为可编辑状态
         self.suggestion_text.config(state=tk.NORMAL)
-        
+
         # 检查是否是第一个chunk，如果是则清除占位符文本
         if self.suggestion_text.get(1.0, tk.END).strip() == "正在获取建议...":
             self.suggestion_text.delete(1.0, tk.END)
-        
+
         # 使用TextFormatter格式化chunk
         formatted_chunk = self.text_formatter.format_for_tkinter(chunk)
         self.suggestion_text.insert(tk.END, formatted_chunk)
-        
+
         # 滚动到最新内容
         self.suggestion_text.see(tk.END)
-        
+
         # 立即恢复为只读状态，防止用户编辑
         self.suggestion_text.config(state=tk.DISABLED)
-        
+
         if done:
             self._show_summary_buttons()
-    
+
     def _display_missed_words(self):
         """显示错过的单词或恭喜信息"""
         if not hasattr(self, 'summary_data') or not self.summary_data:
             return
-            
+
         # 错词列表
         missed_words = self.summary_data['missed']
-        
+
         if missed_words:
             missed_card = tk.LabelFrame(self.summary_frame, text="需要复习的单词", font=self.font_config['normal'], bg='white')
             missed_card.pack(fill=tk.X, pady=10, padx=5)
-            
+
             missed_text = "、".join(missed_words)
             missed_words_label = tk.Label(
                 missed_card,
@@ -1137,7 +1137,7 @@ class DictationPage(tk.Frame):
         else:
             perfect_card = tk.LabelFrame(self.summary_frame, text="恭喜", font=self.font_config['normal'], bg='white')
             perfect_card.pack(fill=tk.X, pady=10, padx=5)
-            
+
             perfect_label = tk.Label(
                 perfect_card,
                 text="太棒了！全部正确！",
@@ -1146,13 +1146,13 @@ class DictationPage(tk.Frame):
                 fg='#4CAF50'
             )
             perfect_label.pack(pady=10, anchor='w', padx=5)
-    
+
     def _create_suggestion_placeholder(self):
         """创建学习建议区域的占位符，显示"正在获取建议..."""
         # 导入TextFormatter
         from core.text_formatter import TextFormatter
         self.text_formatter = TextFormatter()
-        
+
         # AI建议标签
         suggestion_label = tk.Label(
             self.summary_frame,
@@ -1162,7 +1162,7 @@ class DictationPage(tk.Frame):
             anchor='w'
         )
         suggestion_label.pack(pady=(15, 5), anchor='w', padx=5)
-        
+
         # 创建ScrolledText组件作为占位符
         from tkinter import scrolledtext
         self.suggestion_text = scrolledtext.ScrolledText(
@@ -1172,11 +1172,11 @@ class DictationPage(tk.Frame):
             font=self.font_config['normal']
         )
         self.suggestion_text.pack(fill=tk.BOTH, expand=True, pady=(0, 10), padx=5)
-        
+
         # 显示"正在获取建议..."
         self.suggestion_text.insert(tk.END, "正在获取建议...")
         self.suggestion_text.config(state=tk.DISABLED)  # 设置为只读
-        
+
     def _create_suggestion_disabled_message(self):
         """创建学习建议功能被禁用的提示信息"""
         # AI建议标签
@@ -1188,7 +1188,7 @@ class DictationPage(tk.Frame):
             anchor='w'
         )
         suggestion_label.pack(pady=(15, 5), anchor='w', padx=5)
-        
+
         # 创建ScrolledText组件显示禁用信息
         from tkinter import scrolledtext
         self.suggestion_text = scrolledtext.ScrolledText(
@@ -1198,12 +1198,12 @@ class DictationPage(tk.Frame):
             font=self.font_config['normal']
         )
         self.suggestion_text.pack(fill=tk.BOTH, expand=True, pady=(0, 10), padx=5)
-        
+
         # 显示提示信息
         disabled_message = "学习建议功能已关闭。您可以在设置中启用此功能，以获取基于您学习情况的个性化建议。"
         self.suggestion_text.insert(tk.END, disabled_message)
         self.suggestion_text.config(state=tk.DISABLED)  # 设置为只读
-    
+
     def _show_summary_buttons(self):
         """显示总结页面的按钮"""
         # 按钮区域

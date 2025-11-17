@@ -26,7 +26,7 @@ class StatisticsManager:
 
         Args:
             set_id: 词库ID，可选。如果提供，则只统计该词库的单词
-            
+
         Returns:
             int: 总单词数
         """
@@ -50,7 +50,7 @@ class StatisticsManager:
 
         Args:
             set_id: 词库ID，可选。如果提供，则只统计该词库的单词
-            
+
         Returns:
             int: 已学习单词数（熟练度大于0的单词）
         """
@@ -352,7 +352,7 @@ class StatisticsManager:
 
         Args:
             set_id: 词库ID，可选。如果提供，则只统计该词库的单词
-            
+
         Returns:
             Dict: 综合统计信息
         """
