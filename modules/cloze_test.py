@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 import threading
 
 from logger import log_info, log_error
@@ -24,9 +24,9 @@ class ClozeTestModule:
         self._lock = threading.RLock()
 
         # 当前练习状态
-        self.current_test = None
-        self.user_answers = []
-        self._current_mode = None  # 保存当前实际使用的模式
+        self.current_test: Optional[dict] = None
+        self.user_answers: list = []
+        self._current_mode: Optional[str] = None  # 保存当前实际使用的模式
 
     def get_mode(self) -> str:
         """获取当前模式（在线/离线）
@@ -96,9 +96,10 @@ class ClozeTestModule:
                         self.current_test['answer'] = self.current_test.get('answers')
 
                     # 兼容选项格式：将可能的 'text' 字段解析为 'options' 列表
-                    if self.current_test.get('options') and len(self.current_test.get('options'))>0:
+                    options: list = self.current_test.get('options') or []
+                    if len(options) > 0:
                         normalized = []
-                        for opt in self.current_test.get('options'):
+                        for opt in options:
                             if isinstance(opt, dict):
                                 # 如果AI 返回的选项使用 'text' 字段存储分号分隔的选项
                                 if 'options' not in opt and 'text' in opt:
@@ -137,7 +138,7 @@ class ClozeTestModule:
             return {}
 
         # 创建显示用的数据
-        display_data = {
+        display_data: dict[str, Any] = {
             'id': self.current_test.get('id'),
             'title': self.current_test.get('title'),
             'content': self.current_test.get('content'),

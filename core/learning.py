@@ -4,7 +4,7 @@
 实现用户主动学习单词的功能，包括批次获取、掌握度标记、进度保存等
 采用模块化设计，将不同职责分离到不同类中
 """
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Callable, Any
 from datetime import datetime
 import json
 import os
@@ -421,6 +421,8 @@ class LearningManager:
         # 初始化日志
         try:
             from logger import log_info, log_error
+            self.log_info: Callable[[str], Any]
+            self.log_error: Callable[[str], Any]
             self.log_info = log_info
             self.log_error = log_error
         except ImportError:

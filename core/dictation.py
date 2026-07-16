@@ -3,6 +3,7 @@ import asyncio
 import threading
 import json
 from datetime import datetime, timedelta
+from typing import Optional, Any
 from concurrent.futures import ThreadPoolExecutor
 
 from logger import log_info, log_error, log_warning, log_wrong_word, log_exercise_start, log_debug
@@ -27,7 +28,7 @@ class DictationManager:
         self.current_queue_index = 0  # 当前队列索引
         self.current_index = 0  # 当前单词索引
         self.score = 0  # 得分
-        self.start_time = None  # 开始时间
+        self.start_time: Optional[datetime] = None  # 开始时间
         self.duration = 0  # 持续时间
         self.current_mode = None  # 当前模式（single/queue）
         self.current_source = None  # 当前单词来源
@@ -37,7 +38,7 @@ class DictationManager:
         self.session_results = []
 
         # 用户设置
-        self.settings = {
+        self.settings: dict[str, Any] = {
             'auto_play': True,
             'play_interval': 3000,
             'difficulty_level': 'medium',
@@ -310,6 +311,8 @@ class DictationManager:
 
             # 计算会话统计信息
             end_time = datetime.now()
+            if self.start_time is None:
+                return None
             duration = int((end_time - self.start_time).total_seconds())
             total_words = len(self.session_results)
             correct_words = sum(

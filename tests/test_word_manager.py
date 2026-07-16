@@ -117,3 +117,106 @@ class TestWordCRUD:
         wm.add_word("two", "二")
         assert "one" in wm.get_all_words()
         assert "two" in wm.get_all_words()
+
+
+class TestWordSet:
+    def test_创建词库返回id(self, wm):
+        sid, msg = wm.create_word_set("测试词库", "描述")
+        assert isinstance(sid, int) and sid > 0
+
+    def test_列举含新建词库(self, wm):
+        wm.create_word_set("库X", "")
+        names = [s["name"] for s in wm.get_all_word_sets()]
+        assert "库X" in names
+
+    def test_激活并加词(self, wm):
+        sid, _ = wm.create_word_set("库A", "")
+        wm.set_active_word_set(sid)
+        ok, msg = wm.add_word_to_active_set("hello", "你好")
+        assert ok is True
+        words = wm.get_words_from_active_set()
+        assert any(w["word"] == "hello" for w in words)
+
+    def test_删除非默认词库(self, wm):
+        sid, _ = wm.create_word_set("待删", "")
+        result = wm.delete_word_set(sid)
+        assert result is not False
+        assert not any(s.get("name") == "待删" for s in wm.get_all_word_sets())
+
+    def test_缺失详情单词(self, wm):
+        sid, _ = wm.create_word_set("库B", "")
+        wm.set_active_word_set(sid)
+        wm.add_word_to_active_set("apple", "苹果")
+        missing = wm.get_words_missing_details(limit=10)
+        assert any(w["word"] == "apple" for w in missing)
+
+
+class TestSpellingAndTranslation:
+    def test_拼写大小写不敏感(self, wm):
+        assert wm.check_spelling("Apple", "apple") is True
+        assert wm.check_spelling("Apple", "banana") is False
+
+    def test_翻译检查正确(self, wm):
+        wm.add_word("apple", "苹果")
+        assert wm.check_translation("apple", "苹果") is True
+
+    def test_翻译检查错误(self, wm):
+        wm.add_word("apple", "苹果")
+        assert wm.check_translation("apple", "香蕉") is False
+
+    def test_翻译缺词返回False(self, wm):
+        assert wm.check_translation("ghostword", "xyz") is False
+
+
+class TestRandomAndCount:
+    def test_随机单词(self, wm):
+        sid, _ = wm.create_word_set("库R", "")
+        wm.set_active_word_set(sid)
+        wm.add_word_to_active_set("one", "一")
+        wm.add_word_to_active_set("two", "二")
+        assert wm.get_random_word() in ("one", "two")
+
+    def test_加权随机单词(self, wm):
+        sid, _ = wm.create_word_set("库R2", "")
+        wm.set_active_word_set(sid)
+        wm.add_word_to_active_set("one", "一")
+        wm.add_word_to_active_set("two", "二")
+        r = wm.get_weighted_random_word()
+        assert r is None or isinstance(r, str)
+
+    def test_单词计数返回int(self, wm):
+        assert isinstance(wm.get_word_count(), int)
+
+
+class TestProficiency:
+    def test_更新熟练度不报错(self, wm):
+        wm.add_word("apple", "苹果")
+        wm.update_word_proficiency("apple", True)
+        wm.update_word_proficiency("apple", False)
+        fam = wm.get_word_familiarity("apple")
+        assert isinstance(fam, (int, float))
+
+    def test_熟悉度增量更新(self, wm):
+        wm.add_word("apple", "苹果")
+        wm.update_word_familiarity("apple", 0.1, delta=True)
+        fam = wm.get_word_familiarity("apple")
+        assert isinstance(fam, (int, float))
+
+
+class TestExerciseAndProgress:
+    def test_开始练习写会话(self, wm):
+        wm.start_exercise("听写")  # 仅验证不抛异常
+
+    def test_获取进度返回dict(self, wm):
+        prog = wm.get_progress()
+        assert isinstance(prog, dict)
+        assert "total_learned" in prog
+
+
+class TestWrongAndDifficult:
+    def test_错词记录(self, wm):
+        # add_wrong_word 经 update_word_weight / update_word_proficiency 联动底层熟练度，
+        # 但不直接写入 self.wrong_words（该内存字典由外部练习流程填充，方法语义存疑）
+        wm.add_word("apple", "苹果")
+        wm.add_wrong_word("apple")
+        assert isinstance(wm.get_wrong_words(), dict)

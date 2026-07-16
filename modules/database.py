@@ -117,6 +117,8 @@ class ComprehensionDatabase:
             conn.commit()
             conn.close()
 
+            if test_id is None:
+                test_id = -1
             log_info(f"添加完形填空题目成功，ID: {test_id}")
             return test_id
 
@@ -227,6 +229,8 @@ class ComprehensionDatabase:
             conn.commit()
             conn.close()
 
+            if test_id is None:
+                test_id = -1
             log_info(f"添加阅读理解题目成功，ID: {test_id}")
             return test_id
 

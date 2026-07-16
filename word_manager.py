@@ -38,25 +38,25 @@ class WordManager:
             self.statistics_manager = statistics_manager
 
         # 内存缓存
-        self._word_cache = {}  # 单词翻译缓存
-        self._weight_cache = {}  # 权重缓存
+        self._word_cache: dict[str, Any] = {}  # 单词翻译缓存
+        self._weight_cache: dict[str, Any] = {}  # 权重缓存
         self._cache_lock = threading.RLock()  # 缓存锁
 
         # 初始化错误单词字典
-        self.wrong_words = {}
+        self.wrong_words: dict[str, Any] = {}
 
         # 单词熟悉度映射（在内存中缓存，避免频繁查询数据库）
-        self.word_familiarity = {}
+        self.word_familiarity: dict[str, Any] = {}
 
         # 当前激活的词库ID
-        self.active_word_set_id = None
+        self.active_word_set_id: Optional[int] = None
 
         # 初始化AI管理器（延迟加载方式）
-        self.ai_manager = None
+        self.ai_manager: Optional[Any] = None
 
         # 节流控制相关
         self._throttle_lock = threading.RLock()
-        self._recent_ai_calls = deque(maxlen=20)  # 最近20次AI调用时间
+        self._recent_ai_calls: deque[float] = deque(maxlen=20)  # 最近20次AI调用时间
         self._min_interval_ms = 500  # 最小调用间隔(毫秒)
         self._max_calls_per_minute = 10  # 每分钟最大调用次数
 
@@ -64,8 +64,8 @@ class WordManager:
         self.is_initialized = False
 
         # 今日学习单词缓存
-        self._today_learned_words_cache = None
-        self._today_learned_words_cache_time = None
+        self._today_learned_words_cache: Optional[list[str]] = None
+        self._today_learned_words_cache_time: Optional[datetime] = None
 
         # 将耗时操作放在后台线程执行
         self._init_thread = threading.Thread(
@@ -955,7 +955,7 @@ class WordManager:
         with self._cache_lock:
             self._word_cache.clear()
             self._weight_cache.clear()
-        self.get_translation.cache_clear()  # 清除lru_cache
+        # get_translation 未使用 lru_cache，翻译缓存已由 _word_cache.clear() 清理
         log_info("内存缓存已清除")
 
     def _load_word_familiarity(self):
@@ -1127,7 +1127,7 @@ class WordManager:
                 "errors": [str(e)]
             }
 
-    def get_word_translation(self, word: str) -> Optional[str]:
+    def get_word_translation(self, word: str) -> Any:
         """获取单词翻译
 
         Args:
@@ -1437,8 +1437,9 @@ class WordManager:
         try:
             # 检查缓存是否有效（缓存有效期为60秒）
             now = datetime.now()
-            if (self._today_learned_words_cache_time and (now -
-                                                          self._today_learned_words_cache_time).total_seconds() < 60):
+            if (self._today_learned_words_cache is not None
+                    and self._today_learned_words_cache_time is not None
+                    and (now - self._today_learned_words_cache_time).total_seconds() < 60):
                 log_debug(
                     f"使用缓存的今日学习单词: {len(self._today_learned_words_cache)}个")
                 return self._today_learned_words_cache
@@ -1562,8 +1563,8 @@ class WordManager:
                                      word: str,
                                      attributes: List[str] = None,
                                      async_mode=False,
-                                     callback=None) -> Dict[str,
-                                                            str]:
+                                     callback=None) -> Optional[Dict[str,
+                                                            str]]:
         """获取并保存单词的属性（节流模式）
 
         只在数据库中对应字段为空时从AI获取数据并存储，已有内容的字段不调用AI
@@ -1791,7 +1792,7 @@ class WordManager:
             self,
             word: str,
             async_mode=False,
-            callback=None) -> str:
+            callback=None) -> Optional[str]:
         """
         获取单词的例句（优先从数据库获取，没有则通过AI补全）
 
@@ -1886,6 +1887,7 @@ class WordManager:
         if async_mode:
             return None
         else:
+            assert attributes is not None
             example = attributes.get('example', '')
             example_translation = attributes.get('example_translation', '')
             if example and example_translation:
@@ -1924,7 +1926,7 @@ class WordManager:
         except Exception as e:
             log_error(f"保存例句到数据库异常: {str(e)}")
 
-    def get_example_sentence(self, word: str) -> str:
+    def get_example_sentence(self, word: str) -> Optional[str]:
         """获取单词的例句（兼容性方法，调用get_word_example）
 
         Args:

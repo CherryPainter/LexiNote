@@ -1,7 +1,7 @@
 """单词批量导入模块，负责从JSON文件批量导入单词到数据库"""
 import os
 import json
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Any
 
 from logger import log_info, log_error, log_warning
 from core.database_manager import DatabaseManager
@@ -26,7 +26,7 @@ class WordImporter:
             Tuple[bool, Dict]: 导入是否成功和统计信息
             统计信息包含: total(总单词数), imported(成功导入), skipped(跳过的单词)
         """
-        result = {
+        result: dict[str, Any] = {
             "total": 0,
             "imported": 0,
             "skipped": 0,

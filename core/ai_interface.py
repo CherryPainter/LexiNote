@@ -139,7 +139,7 @@ class AIManager:
         if model_name is None:
             model_name = self.model
         # 如果云端功能启用且当前模型匹配云端配置模型，则使用云端
-        return (
+        return bool(
             self.cloud_enabled
             and self.cloud_api_url
             and self.cloud_api_key

@@ -24,10 +24,10 @@ class ReadingComprehensionModule:
         self._lock = threading.RLock()
 
         # 当前练习状态
-        self.current_test = None
-        self.user_answers = []
+        self.current_test: Optional[dict] = None
+        self.user_answers: list = []
         self.current_question_index = 0
-        self._current_mode = None  # 保存当前实际使用的模式
+        self._current_mode: Optional[str] = None  # 保存当前实际使用的模式
 
     def get_mode(self) -> str:
         """获取当前模式（在线/离线）

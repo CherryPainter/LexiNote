@@ -1,0 +1,10 @@
+repos:
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy 静态类型检查
+        entry: C:/Users/blueberry/.workbuddy/binaries/python/envs/default/Scripts/python.exe -m mypy
+        language: system
+        args: ["--config-file=mypy.ini", "--explicit-package-bases"]
+        files: ^(core/|modules/|word_manager\.py|main\.py|ui/)
+        pass_filenames: false
