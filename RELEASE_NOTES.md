@@ -1,5 +1,16 @@
 # LexiNote Release Notes
 
+## v2.7.1 (2026-07-17)
+
+### 质量提升
+- 核心测试覆盖率提升（word_manager 12.9%→32%、dictation 4.3%→27%，全量 306 passed）；mypy 零错误并接入 pre-commit 门禁；关键路径异常日志升级为 warning/error。
+- `font_config` 重构为 `FontConfig` 数据类（`ui/font_config.py`），类型化默认值从根上消除 KeyError；11 个 UI 页面已迁移。
+- README 重写为技术架构导向文档。
+- 仓库清理：删除孤儿文件 `data/database.db`；删除 `main_window.py` 中无调用方的死方法 `_apply_decay`（潜伏 AttributeError）。
+
+### 版本信息
+- 升级版本号到 v2.7.1
+
 ## v2.6.1 (2025-11-16)
 
 ### 修复
