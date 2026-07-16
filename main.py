@@ -6,6 +6,12 @@ from tkinter import messagebox
 # 添加当前目录到Python路径
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
+# 打包为单文件 exe 后，将工作目录切换到可执行文件所在目录，
+# 使 data/、cache/、word_dict.json 等相对路径在分发后仍能
+# 定位到安装目录（与开发时 cwd=项目根的行为保持一致）
+if getattr(sys, 'frozen', False):
+    os.chdir(os.path.dirname(sys.executable))
+
 # 版本信息
 VERSION = "v2.7.1"
 
