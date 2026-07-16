@@ -478,8 +478,6 @@ class MainWindow:
 
         log_info("切换到学习统计页面")
 
-    # _show_settings方法已被_settings_page替代，保留_apply_decay方法用于设置页面
-
     def _show_ai_assistant_page(self):
         """显示AI助手页面"""
         page_key = "ai_assistant"
@@ -541,42 +539,6 @@ class MainWindow:
         self.current_page.pack(fill=tk.BOTH, expand=True)
 
         log_info("切换到词库管理页面")
-
-    def _apply_decay(self):
-        """应用每日权重衰减"""
-        result = self.word_manager.apply_daily_decay()
-
-        # 显示结果提示
-        result_window = tk.Toplevel(self.root)
-        result_window.title("操作结果")
-        result_window.geometry("300x150")
-        result_window.resizable(False, False)
-
-        # 计算居中位置
-        x = self.root.winfo_x() + (self.root.winfo_width() // 2) - 150
-        y = self.root.winfo_y() + (self.root.winfo_height() // 2) - 75
-        result_window.geometry(f"300x150+{x}+{y}")
-
-        message = "权重衰减应用成功！"
-        if not result:
-            message = "权重衰减应用失败！"
-
-        message_label = tk.Label(
-            result_window,
-            text=message,
-            font=self.font_config['normal']
-        )
-        message_label.pack(pady=40)
-
-        ok_button = tk.Button(
-            result_window,
-            text="确定",
-            font=self.font_config['button'],
-            width=10,
-            command=result_window.destroy
-        )
-        ok_button.pack()
-
 
 def main():
     """主函数"""

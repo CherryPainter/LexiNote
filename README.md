@@ -1,320 +1,323 @@
-# LexiNote - 个人英语学习工具
+# LexiNote
 
-一款基于 AI 和智能权重算法的英语学习助手，帮助用户高效记忆单词、练习翻译和听写，支持多词库管理和个性化学习。
+> 基于权重算法与 AI 辅助的桌面英语学习工具 · tkinter GUI + SQLite(WAL) + 本地/云端 LLM
+>
+> 版本 **v2.7.0** · Python 3.12+ · MIT License
 
-### 当前版本
-v2.7.0
+LexiNote 是一款单机英语学习客户端，围绕「以遗忘曲线驱动的自适应复习」构建，集成单词学习、听写、翻译、复习、完形填空、阅读理解等模块，并通过 Ollama / 云端 OpenAI 兼容接口提供智能判题与内容生成。本文档以**技术架构**为主线，功能操作细节见 [`SETTINGS.md`](SETTINGS.md) 与 [`DEVELOPER_DOCS.md`](DEVELOPER_DOCS.md)。
 
-## 功能特点
+---
 
-### ✨ 核心功能
+## 目录
 
-- **智能学习系统**：基于权重算法的学习进度追踪，错词优先复习
-- **多词库管理**：支持创建、导入、导出多个独立词库，实现学习内容分类管理
-- **多种练习模式**：支持单词学习、听写练习、翻译练习和单词复习
-- **AI 辅助学习**：集成 Ollama API，提供智能翻译判断和参考翻译
-- **AI 模型切换**：支持动态切换不同的 Ollama 模型，可手动添加和测试模型可用性
-- **发音播放**：自动播放单词发音，提升听力学习体验
-- **学习统计**：记录并展示学习进度和正确率，包括综合统计、趋势图表和熟练度分布
-- **数据库存储**：使用 SQLite 数据库持久化存储单词和学习数据
-- **AI 英语助手**：智能英语学习辅助，支持单词解释、语法讲解、写作批改等多种功能
-- **单词批量导入**：支持从JSON文件批量导入单词到数据库，快速扩充词库
-- **理解类练习**：包含完形填空和阅读理解模块，提升综合语言能力
-- **学习统计页面**：全新的学习统计页面，展示关键学习指标和可视化图表
-- **文本格式化**：内置文本格式化工具，提升内容可读性
-- **多级缓存机制**：实现高效的缓存管理，提升应用响应速度
+- [技术栈](#技术栈)
+- [架构总览](#架构总览)
+- [分层与目录结构](#分层与目录结构)
+- [核心设计](#核心设计)
+  - [单例与生命周期](#单例与生命周期)
+  - [数据访问层与异步写队列](#数据访问层与异步写队列)
+  - [AI 编排与降级](#ai-编排与降级)
+  - [多级缓存](#多级缓存)
+  - [学习算法](#学习算法)
+  - [UI 架构](#ui-架构)
+- [数据模型](#数据模型)
+- [关键数据流：听写提交](#关键数据流听写提交)
+- [快速开始](#快速开始)
+- [质量保障](#质量保障)
+- [已知架构债务](#已知架构债务)
+- [许可证](#许可证)
 
-### 🎯 特色亮点
-
-- **自适应学习**：根据用户掌握程度动态调整单词权重，优先复习薄弱环节
-- **多词库管理**：创建多个独立词库，按主题、难度或场景分类管理词汇
-- **AI 翻译判断**：智能判断翻译正确性，支持英译中和中译英双向翻译
-- **掌握度追踪**：精确记录每个单词的掌握情况，量化学习进度
-- **自动模式支持**：可配置自动/手动模式，提升学习效率
-- **缓存优化**：实现多级缓存机制，提升应用响应速度和性能
-- **错误处理**：完善的错误捕获和日志记录，确保应用稳定运行
-- **智能学习辅助**：AI驱动的学习内容生成和指导，支持多种学习任务类型和难度级别
-- **高效数据管理**：支持单词批量导入，自动处理重复数据，保证数据一致性
-- **理解能力提升**：通过完形填空和阅读理解练习，全面提升英语理解能力
-- **数据可视化**：直观展示学习趋势、熟练度分布和词库统计信息
-- **模块化设计**：清晰的代码结构，便于扩展和维护
-- **单例模式管理**：核心管理器采用单例模式，确保资源高效利用
-- **实时配置更新**：设置变更实时生效，无需重启应用
-
-## 项目架构
-
-```
-├── .flake8              # Flake8配置文件
-├── .gitignore           # Git忽略文件
-├── API_DOCUMENTATION.md # API文档
-├── CHANGELOG.md         # 更新日志
-├── CONTRIBUTING.md      # 贡献指南
-├── DEVELOPER_DOCS.md    # 开发者文档
-├── README.md            # 项目说明
-├── RELEASE_NOTES.md     # 发布说明
-├── SETTINGS.md          # 设置说明
-├── TESTS.md             # 测试说明
-├── app.ico              # 应用图标
-├── audio_cache.py       # 音频缓存管理
-├── audio_player.py      # 音频播放模块
-├── core/                # 核心功能模块
-│   ├── ai_interface.py  # AI接口管理
-│   ├── cache_manager.py # 缓存管理
-│   ├── database_manager.py # 数据库管理
-│   ├── dictation.py     # 听写核心逻辑
-│   ├── learning.py      # 学习逻辑模块
-│   ├── settings_manager.py # 设置管理
-│   └── text_formatter.py # 文本格式化工具
-├── logger.py            # 日志记录模块
-├── main.py              # 程序入口
-├── modules/             # 功能模块
-│   ├── ai_service.py    # AI服务
-│   ├── cloze_test.py    # 完形填空模块
-│   ├── database.py      # 数据库操作
-│   ├── portal_manager.py # 题库门户管理
-│   ├── reading_comprehension.py # 阅读理解模块
-│   ├── utils.py         # 工具函数
-│   └── word_importer.py # 单词导入工具
-├── requirements.txt     # 依赖列表
-├── statistics.py        # 统计功能模块
-├── ui/                  # 用户界面
-│   ├── ai_assistant_page.py # AI英语助手页面
-│   ├── cloze_test_page.py # 完形填空页面
-│   ├── components/      # UI组件
-│   │   ├── loading_dialog.py # 加载对话框
-│   │   ├── scrollable_frame.py # 可滚动框架
-│   │   └── translation_editor.py # 翻译编辑器
-│   ├── dictation_page.py # 听写练习页面
-│   ├── learning_page.py # 学习模式页面
-│   ├── main_window.py   # 主窗口
-│   ├── reading_comprehension_page.py # 阅读理解页面
-│   ├── review_page.py   # 单词复习页面
-│   ├── settings_page.py # 设置页面
-│   ├── statistics_page.py # 学习统计页面
-│   ├── translation_page.py # 翻译练习页面
-│   └── word_set_page.py # 词库管理页面
-└── word_manager.py      # 单词管理核心逻辑
-```
+---
 
 ## 技术栈
 
-- **编程语言**：Python 3.12+
-- **GUI框架**：tkinter (Python标准库)
-- **数据库**：SQLite
-- **AI集成**：Ollama API
-- **音频处理**：gTTS、playsound
-- **网络请求**：requests
-- **并发处理**：asyncio、threading
-- **代码规范**：PEP8 (使用flake8检查)
-- **版本控制**：Git
+| 领域 | 选型 | 说明 |
+| --- | --- | --- |
+| 语言 | Python 3.12+ | 类型注解 + `dataclass` |
+| GUI | tkinter | 标准库，无外部 UI 依赖 |
+| 持久化 | SQLite (WAL) | 单文件 `data/lexinote.db`，`busy_timeout=5000ms` |
+| AI | Ollama / OpenAI 兼容云端 | `requests` 直连，`ThreadPoolExecutor` + `asyncio` 并发 |
+| 语音 | gTTS + playsound | TTS 合成 + 本地缓存播放 |
+| 静态检查 | mypy + flake8 | pre-commit 门禁挂 mypy |
+| 测试 | pytest | 会话级 `tk_root` fixture 支持 headless |
 
-## 安装与配置
+依赖清单见 [`requirements.txt`](requirements.txt)（运行期仅 `gTTS` / `playsound` / `requests`，其余为开发工具）。
 
-### 环境要求
+---
 
-- Python 3.12 或更高版本
-- Ollama 服务（用于 AI 功能）
-- 网络连接（用于语音播放功能）
+## 架构总览
 
-### 安装步骤
+三层结构，依赖自上而下（UI → 业务逻辑 → 数据/基础设施），`logger` 为全局叶子节点。
 
-1. **克隆仓库**
+```mermaid
+flowchart TD
+    subgraph UI["UI 层 (ui/)"]
+        MW[main_window.py<br/>主窗口 · 页面路由]
+        PAGES[各功能页 page<br/>learning / dictation / translation<br/>review / cloze / reading / statistics ...]
+        COMP[components/<br/>scrollable_frame · loading_dialog · translation_editor]
+        FC[font_config.py<br/>FontConfig dataclass]
+    end
 
-```bash
-git clone https://github.com/CherryPainter/LexiNote.git
-cd LexiNote
+    subgraph BIZ["业务逻辑层"]
+        WM[word_manager.py<br/>业务门面]
+        LEARN[core/learning.py<br/>遗忘曲线 · 选词]
+        DICT[core/dictation.py<br/>听写流程]
+        AISVC[modules/ai_service.py<br/>命题 / 判题]
+        EXAM[modules/cloze_test · reading_comprehension<br/>exam_specs · portal_manager]
+        STAT[statistics.py<br/>统计聚合]
+    end
+
+    subgraph DATA["数据 / 基础设施层"]
+        DBM[(core/database_manager.py<br/>主库 · 异步写队列)]
+        CDB[(modules/database.py<br/>理解类练习库)]
+        AI[core/ai_interface.py<br/>AIManager · Ollama/云端]
+        CACHE[core/cache_manager.py<br/>两级缓存]
+        AUDIO[audio_player.py · audio_cache.py]
+        SET[core/settings_manager.py]
+        LOG[logger.py]
+    end
+
+    MW --> PAGES --> WM
+    PAGES --> COMP & FC
+    WM --> LEARN & DICT & DBM & AI
+    DICT --> DBM & AI
+    AISVC --> AI & CDB
+    EXAM --> AISVC & CDB
+    STAT --> DBM
+    AI --> CACHE & SET
+    SET --> DBM
+    DBM & CDB -.->|SQLite| DBFILE[(data/lexinote.db)]
+    WM & DICT & AI & DBM --> LOG
 ```
 
-2. **安装依赖**
+**关键约定**
+
+- `word_manager.py` 是事实上的**业务门面**（非单例），UI 与各练习模块通过它访问共享状态；它在构造时持有 `DatabaseManager()` 单例。
+- 数据访问层暴露 `execute_read` / `execute_write` 统一入口，屏蔽连接管理与线程安全细节。
+- 存在少量分层泄漏（部分 UI 页直接引用 `core` 类、理解类页面接收整个 `MainWindow` 实例），详见[已知架构债务](#已知架构债务)。
+
+---
+
+## 分层与目录结构
+
+```
+25-10-25/
+├── main.py                     # 入口：创建 Tk root → MainWindow → mainloop
+├── logger.py                   # 全局日志（模块级单例 + log_info/warning/error 兼容函数）
+│
+├── ui/                         # ── UI 层 ──
+│   ├── main_window.py          #   主窗口、侧边导航、页面懒加载与切换（pack_forget 复用实例）
+│   ├── font_config.py          #   FontConfig dataclass（字典式访问 + 缺键兜底）
+│   ├── *_page.py               #   10 个功能页（learning/dictation/translation/review/
+│   │                           #     word_set/settings/statistics/cloze_test/
+│   │                           #     reading_comprehension/ai_assistant）
+│   └── components/             #   复用组件：scrollable_frame / loading_dialog / translation_editor
+│
+├── word_manager.py             # ── 业务门面 ── 词库 CRUD、权重/熟练度更新、错词、选词
+├── statistics.py               #   统计聚合
+├── core/                       # ── 核心业务 + 数据/基础设施 ──
+│   ├── learning.py             #   ForgettingCurve 遗忘曲线权重、WordSelector 加权选词
+│   ├── dictation.py            #   DictationManager 听写会话/评分/落库
+│   ├── ai_interface.py         #   AIManager：Ollama/云端调用、请求合并、缓存、降级
+│   ├── database_manager.py     #   主库单例：WAL、异步写队列、JSON→SQLite 迁移
+│   ├── settings_manager.py     #   设置单例（存 settings 表，实时生效）
+│   ├── cache_manager.py        #   两级缓存（内存 + 文件），TTL/自动清理
+│   └── text_formatter.py       #   文本格式化
+│
+├── modules/                    # ── 理解类练习 + AI 服务 ──
+│   ├── ai_service.py           #   AIService：命题/判题编排（组合 AIManager + ComprehensionDatabase）
+│   ├── database.py             #   ComprehensionDatabase 单例：cloze/reading/delete_logs 表
+│   ├── cloze_test.py           #   完形填空业务
+│   ├── reading_comprehension.py#   阅读理解业务
+│   ├── exam_specs.py           #   命题提示词规格（build_*_prompt）
+│   ├── portal_manager.py       #   离线题库门户
+│   └── word_importer.py        #   JSON 批量导入
+│
+├── audio_player.py             # 发音播放（gTTS 合成 + 缓存回退）
+├── audio_cache.py              # 音频兜底缓存（md5 键、LRU 近似、30 天 TTL、500MB 上限）
+│
+├── data/                       # SQLite 数据库 + 遗留 JSON + 运行日志
+├── cache/                      # ai_text/ (文本响应) · ai_tts/ (语音) · audio/ (兜底)
+├── tests/                      # pytest 用例 + conftest.py
+├── mypy.ini / .pre-commit-config.yaml / .flake8   # 质量门禁配置
+└── requirements.txt
+```
+
+---
+
+## 核心设计
+
+### 单例与生命周期
+
+核心管理器采用统一单例模式：`__new__` 返回类级 `_instance` + `threading.Lock`，`__init__` 内以 `_initialized` 守卫防止重复初始化。
+
+| 类 | 位置 | 单例方式 |
+| --- | --- | --- |
+| `DatabaseManager` | `core/database_manager.py` | `__new__` + `_lock` + `_initialized` |
+| `SettingsManager` | `core/settings_manager.py` | 同上，构造内注入 `DatabaseManager()` |
+| `CacheManager` | `core/cache_manager.py` | `__new__` 单例 + `get_cache_manager()` 工厂 |
+| `AIManager` | `core/ai_interface.py` | `__new__`（无锁，靠 `_initialized` 守卫） |
+| `ComprehensionDatabase` | `modules/database.py` | `__new__` 单例 |
+| `Logger` | `logger.py` | 模块级 `global_logger` 实例 |
+
+> `WordManager` **不是**单例，由 `MainWindow` 直接实例化并向下注入，作为业务门面。
+
+### 数据访问层与异步写队列
+
+`DatabaseManager` 是主库唯一入口，核心机制：
+
+- **WAL 模式** + `busy_timeout=5000ms`，缓解读写锁争用。
+- **异步写队列**：`execute_write(query, params, immediate=False)` 默认将写操作入 `_write_queue`，由 daemon 线程批量落盘（队列非空且距上次写入 > 10s 触发）；`immediate=True` 时同步提交并返回 `lastrowid`。
+- **读写隔离**：`execute_read` 每次新建连接（`row_factory=sqlite3.Row`），与写线程互不阻塞。
+- **批量导入**：`execute_write_many` 供词库导入使用。
+- **迁移**：`_import_from_json` 在词库为空时一次性把旧版 `word_dict.json` 灌入 `words` 表。
+
+理解类练习数据由 `ComprehensionDatabase`（`modules/database.py`）独立管理，与主库共用同一 `lexinote.db` 文件但负责不同的表。
+
+### AI 编排与降级
+
+`AIManager`（`core/ai_interface.py`）是 AI 编排核心：
+
+- **多后端**：`ai_mode ∈ {off, local, cloud}`。`local` 走 Ollama `POST /api/generate`（健康检查 `/api/tags`）；`cloud` 走 OpenAI 兼容 `POST {cloud_api_url}`（`Bearer` 鉴权）；`off` 直接返回哨兵字符串，不做任何网络探测。
+- **并发控制**：`ThreadPoolExecutor(max_workers=2)` + `asyncio.Semaphore(2)`；`_safe_post` 对网络异常做指数退避重试。
+- **请求合并**：相同 `hash(prompt)` 的并发请求复用同一 future，避免重复调用。
+- **响应缓存**：成功结果写入 `ai_cache` 表（`prompt_hash` 唯一），后续同问先查缓存。
+- **降级链**：AI 不可用时，`translate/example/get_word_details/advise` 回退到本地词典与规则化建议；`evaluate` 解析失败时回退精确匹配。
+
+`AIService`（`modules/ai_service.py`）在其上做命题/判题：`exam_specs.build_*_prompt` 构造提示词 → 调用 `AIManager` → 鲁棒 JSON 解析（剥离代码围栏、纠正常见字段拼写）→ 落库。
+
+### 多级缓存
+
+- **`CacheManager`（两级）**：内存层（约 500 项上限，按最近访问保留）+ 文件层（`cache/ai_text/*.json` 文本响应、`cache/ai_tts/*.mp3` 语音，默认 TTL 30 天）；写入采用 `os.replace` 原子替换；daemon 线程每 24h 清理过期文件。
+- **`AudioCache`（兜底）**：md5(`text_lang`) 为键，`cache_index.json` 索引，30 天 TTL、500MB 上限、`last_access` 最旧优先淘汰；仅在全局 `CacheManager` 不可用时由 `AudioPlayer` 回退启用。
+
+### 学习算法
+
+**遗忘曲线权重**（`core/learning.py` · `ForgettingCurve`）：
+
+```
+weight = base_weight * (1 - mastery_score * mastery_factor) * (1 + interval_days * forget_rate)
+       # base_weight=1.0, mastery_factor=0.8, forget_rate=0.02
+       # clamp 到 [0.1, 5.0]；无复习记录直接返回上限 5.0
+```
+
+- 掌握度更新 `update_mastery_score`：正确 `+0.15`、错误 `−0.1`，钳制 `[0, 1]`。
+- 选词 `WordSelector.select_words`：以 `weight = 1.0 − mastery_score` 用 `random.choices` 加权采样。
+
+**熟练度更新**（`word_manager.py`）：`update_word_weight` 引入**响应时间分档**——答对时越快加分越多（`<2s` +0.15，`>10s` +0.05）、答错时越快扣分越多；结果钳制 `[0, 1]` 后写回 `proficiency`。
+
+### UI 架构
+
+- **启动链**：`main.py` → `MainWindow.__init__`（建 `settings_manager` / `audio_player` / `word_manager`）→ `mainloop`。
+- **页面路由**：页面**懒加载**进 `self._pages` 字典，切换用 `pack_forget()` 而非 `destroy()` 以**复用实例**并保留状态；部分页暴露 `on_show` / `on_enter` 钩子做延迟刷新。
+- **通用构造签名**：多数页面为 `(parent, word_manager, settings_manager, font_config)`，共享同一批注入的管理器。
+- **`FontConfig`**（`ui/font_config.py`）：dataclass，实现 `__getitem__` / `get` / `__contains__` 使其可字典式访问，所有字体键带默认值，缺键返回兜底元组，从根源杜绝 `KeyError`。
+- **复用组件**：`create_scrollable_frame`（Canvas + Scrollbar + 滚轮绑定）、`LoadingDialog`（AI 异步生成时的模态进度框）、`TranslationEditor`。
+
+---
+
+## 数据模型
+
+单文件 `data/lexinote.db`（WAL），两个访问单例分管不同表：
+
+**主库（`DatabaseManager`）**
+
+| 表 | 用途 |
+| --- | --- |
+| `word_sets` | 多词库元信息 |
+| `words` | 单词及 `proficiency` / `familiarity` / `last_review` 等学习字段 |
+| `progress` | 每次练习的进度流水 |
+| `settings` | 应用设置（键值） |
+| `ai_cache` | AI 响应缓存（`prompt_hash` 唯一） |
+| `dictation_history` | 听写历史 |
+| `exercise_sessions` | 练习会话汇总 |
+
+**理解类练习库（`ComprehensionDatabase`）**
+
+| 表 | 用途 |
+| --- | --- |
+| `cloze_tests` | 完形填空题目 |
+| `reading_comprehensions` | 阅读理解题目 |
+| `delete_logs` | 删除审计 |
+
+---
+
+## 关键数据流：听写提交
+
+以「用户在听写页提交一个单词」为例，串起 UI → 业务 → 数据的完整链路：
+
+```mermaid
+sequenceDiagram
+    participant U as dictation_page (UI)
+    participant D as DictationManager
+    participant W as WordManager
+    participant DB as DatabaseManager
+
+    U->>D: process_result(word, user_input, time_spent)
+    D->>D: is_correct = input.lower()==word.lower()（精确匹配）
+    D->>DB: execute_write(INSERT dictation_history)  ➜ 入写队列
+    D->>DB: add_progress_record(±0.1 / -0.15)        ➜ 入写队列
+    D->>DB: UPDATE words SET proficiency,last_review  ➜ 入写队列
+    D->>W: update_word_weight(word, is_correct, time_spent)
+    W->>DB: update_proficiency(...)                   ➜ 入写队列
+    alt 答错
+        D->>W: add_wrong_word(word)
+    end
+    Note over DB: daemon 线程：队列非空且距上次写入>10s → 批量 commit(WAL)
+```
+
+常规提交走**精确匹配 + 延迟写队列**；AI 语义评判仅在 `summarize` 汇总路径触发，不阻塞主提交流程。
+
+---
+
+## 快速开始
+
+**环境**：Python 3.12+；如需 AI 功能，本地运行 Ollama（默认端口 `11434`）或配置云端 API；语音合成需联网。
 
 ```bash
+# 1. 安装依赖
 pip install -r requirements.txt
-```
 
-3. **配置 Ollama**
+# 2.（可选）准备 Ollama 模型
+ollama pull gemma:7b        # 或其他 chat 模型
 
-- 下载并安装 [Ollama](https://ollama.com/download)
-- 拉取所需模型：`ollama pull gemma:7b` 或其他支持的模型
-- 确保 Ollama 服务在默认端口(11434)运行
-
-4. **运行程序**
-
-```bash
+# 3. 运行
 python main.py
 ```
 
-## 使用指南
+首次启动会自动建库；如检测到旧版 `word_dict.json` 且词库为空，会一次性迁移到 SQLite。
 
-### 词库管理
+---
 
-词库管理功能允许您创建和组织多个独立的词汇集合，方便分类学习不同主题或难度的单词。
+## 质量保障
 
-1. **创建新词库**：
-   - 从左侧导航菜单选择"📁 词库管理"
-   - 点击「创建词库」按钮
-   - 输入词库名称和描述
-   - 点击「确认」完成创建
+- **测试**：`tests/` 下以 pytest 组织；`conftest.py` 提供会话级 `tk_root` fixture（headless tkinter）与 autouse 的单例重置，保证用例隔离。核心层（`word_manager` / `core/dictation`）已补齐关键路径覆盖。
+- **静态检查**：`mypy.ini` 限定检查范围 `files = core, modules, word_manager.py`（`explicit_package_bases`、`ignore_missing_imports`）；已清零该范围内的类型错误。
+- **门禁**：`.pre-commit-config.yaml` 挂载 mypy hook（`pass_filenames: false`，依赖 `mypy.ini` 的 `files`），提交时自动执行。
+- **代码风格**：`.flake8`（`max-line-length=88`，忽略 `E402/W503`），手动运行。
+- **异常分层原则**：关键路径（数据写入、状态变更、初始化）的失败升级为 `log_error/log_warning` 使其可见；容错路径（网络降级、缓存 miss、格式解析回退）保持静默，避免日志噪声。
 
-2. **切换词库**：
-   - 在词库列表中选择目标词库
-   - 点击「设为当前词库」按钮
-   - 后续的所有学习和练习操作将在此词库中进行
+运行测试：
 
-3. **导入词库**：
-   - 准备符合格式要求的JSON文件
-   - 点击「导入词库」按钮
-   - 选择JSON文件并确认
-   - 系统会自动创建新词库并导入单词
+```bash
+pytest tests/ -q
+mypy            # 读取 mypy.ini
+```
 
-4. **导出词库**：
-   - 选择要导出的词库
-   - 点击「导出词库」按钮
-   - 选择保存位置
-   - 词库将以JSON格式导出
+---
 
-5. **管理单词**：
-   - 在当前词库中，您可以：
-     - 添加新单词（包含单词、翻译、音标等信息）
-     - 编辑现有单词信息
-     - 删除不需要的单词
-     - 搜索特定单词
+## 已知架构债务
 
-### 单词学习
+以下为已识别、尚待清理的技术债，供二次开发参考：
 
-1. 从左侧导航菜单选择"📚 单词学习"
-2. 设置批次大小，点击"开始学习"
-3. 在单词卡片界面，您可以：
-   - 点击"🔊 播放发音"听取单词
-   - 点击"需复习"标记单词需要再次复习
-   - 点击"已掌握"标记单词已掌握
-4. 完成批次学习后，系统会自动保存进度并显示统计
+1. **双存储并存**：SQLite 为主，但仍有遗留 JSON（`word_dict.json` / `word_progress.json` 等）被部分模块读取，处于迁移过渡态。
+2. **孤儿文件**：`data/database.db`（0 字节早期版本遗留）已清理；`cache/ai_tts`（CacheManager 主 TTS 缓存）与 `cache/audio`（AudioCache 兜底缓存）为主／兜底分层关系，并非冗余，二者统一可列为后续优化项。
+3. **分层泄漏**：部分 UI 页面直接引用 `core` 类；`cloze_test_page` / `reading_comprehension_page` / `ai_assistant_page` 接收整个 `MainWindow` 实例以取共享管理器。
+4. **门禁覆盖不全**：mypy 仅检查 `core / modules / word_manager.py`，`ui/` 与 `main.py` 未纳入类型检查；flake8 未接入 pre-commit。
+5. **`AIManager.__new__` 未加锁**：仅靠 `_initialized` 守卫，理论上存在极小初始化竞态。
 
-### 翻译练习
-
-1. 从左侧导航菜单选择"🌐 翻译练习"
-2. 选择翻译方向（英译中/中译英）
-3. 根据显示的单词/短语输入对应的翻译
-4. 点击"检查"或按回车键验证答案
-5. 系统会使用 AI 判断翻译正确性并显示参考翻译
-6. 点击"下一步"继续练习
-
-### 听写练习
-
-1. 从左侧导航菜单选择"📝 听写练习"
-2. 点击「播放发音」按钮听取单词
-3. 在输入框中输入单词（系统会设置倒计时）
-4. 点击「检查」验证答案或按回车键
-5. 未能及时回答的单词会被视为未掌握，自动增加复习权重
-
-### 理解类练习
-
-#### 完形填空
-
-1. 从左侧导航菜单选择"🔍 完形填空"
-2. 选择模式（在线生成或离线题库）
-3. 阅读文章，点击空缺处查看选项
-4. 选择您认为正确的答案
-5. 完成后点击「检查答案」查看结果和解析
-
-#### 阅读理解
-
-1. 从左侧导航菜单选择"📖 阅读理解"
-2. 选择文章难度级别
-3. 阅读文章内容
-4. 回答文章后的问题（支持选择题和主观题）
-5. 提交答案后查看AI评分和详细解析
-
-### 单词复习
-
-1. 从左侧导航菜单选择"📊 单词复习"
-2. 可选择查看全部单词、错误单词或重点单词
-3. 点击「显示翻译」查看单词释义
-4. 点击「标记重点」增加单词复习权重
-
-## 智能学习算法
-
-### 权重算法
-
-- **初始权重**：每个单词初始权重为 1.0
-- **错误惩罚**：每次错误，权重增加 0.5
-- **正确奖励**：每次正确，权重乘以 0.8
-- **掌握度计算**：基于练习历史动态计算单词掌握程度
-- **每日衰减**：模拟遗忘曲线，自动调整单词权重
-
-### AI 翻译判断
-
-- **智能判断**：使用 Ollama API 智能判断翻译的正确性
-- **双向支持**：同时支持英译中和中译英的 AI 判断
-- **备用机制**：当 AI 服务不可用时，系统自动回退到原有匹配逻辑
-- **参考翻译**：无论翻译是否正确，都提供 AI 的参考翻译
-
-## 配置与设置
-
-应用使用数据库存储设置，支持实时生效和配置监听。
-
-### 自动模式配置
-
-应用支持对三个核心模块单独设置"手动/自动"模式：
-
-- **单词学习**：`auto_mode_word_learning`
-- **翻译练习**：`auto_mode_translation_practice`
-- **单词复习**：`auto_mode_review`
-
-当设置为"自动"模式时，可配置以下参数：
-- `auto_next_correct`：答对自动下一个
-- `auto_next_wrong`：答错自动下一个
-- `auto_next_delay`：自动跳转延迟（毫秒）
-
-### 其他设置
-
-- **语音设置**：启用/禁用语音、调整语音速度
-- **示例设置**：启用/禁用单词示例
-- **翻译模式**：设置翻译判断模式（ai_first / local_first / local_only）
-- **缓存设置**：控制音频缓存大小和行为
-- **AI设置**：配置默认AI模型、API地址等
-
-## 快捷键
-
-| 操作         | 快捷键   |
-| ------------ | -------- |
-| 播放发音     | 回车键   |
-| 标记为需复习 | 左方向键 |
-| 标记为已掌握 | 右方向键 |
-| 检查答案     | 回车键   |
-
-## 开发规范
-
-- 遵循 PEP8 代码规范，使用flake8进行代码质量检查
-- 模块化设计，每个文件负责单一功能
-- UI 和逻辑层分离，不允许在 UI 文件中直接调用 AI 逻辑
-- 所有数据统一保存在数据库中，确保数据一致性
-- 重要操作记录日志，便于调试和问题排查
-- 使用线程安全机制确保多线程环境下的数据安全
-- 核心管理器采用单例模式，避免资源浪费
-- 函数和类命名规范：文件名使用小写+下划线，类名使用PascalCase
-
-## 故障排除
-
-### 常见问题
-
-1. **AI 功能不可用**：检查 Ollama 服务是否正常运行，端口是否为 11434
-2. **音频播放失败**：确保网络连接正常，检查系统音频设备
-3. **数据库错误**：程序会自动创建必要的数据库结构，如遇到问题可重新启动应用
-4. **模块导入失败**：确保已正确安装所有依赖，执行 `pip install -r requirements.txt`
-5. **缓存问题**：如遇到缓存相关问题，可在设置中清理缓存
-
-## 贡献指南
-
-欢迎提交问题报告和功能建议！请确保遵循以下原则：
-
-1. 提交前运行代码检查，确保符合 PEP8 规范
-2. 详细描述问题或功能的具体内容
-3. 对于重大功能变更，请先创建 issue 进行讨论
+---
 
 ## 许可证
 
-MIT License
-
-## 版本历史
-
-详细版本信息请查看 [CHANGELOG.md](CHANGELOG.md)
+MIT License · 版本历史见 [`CHANGELOG.md`](CHANGELOG.md)
