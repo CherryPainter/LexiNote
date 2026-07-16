@@ -21,7 +21,16 @@ class TranslationPage(tk.Frame):
         self.parent = parent
         self.settings_manager = settings_manager
         self.word_manager = word_manager
-        self.font_config = font_config or {'title': ('Arial', 24), 'normal': ('Arial', 16), 'small': ('Arial', 12)}
+        # 默认字体配置（补全 header / button，避免调用方未提供时 KeyError）
+        _default_font_config = {
+            'title': ('Arial', 24),
+            'header': ('Arial', 18),
+            'normal': ('Arial', 16),
+            'button': ('Arial', 14),
+            'small': ('Arial', 12),
+        }
+        # 合并：以默认为底，用传入的覆盖，保证缺键时也有兜底值
+        self.font_config = {**_default_font_config, **(font_config or {})}
         self.current_word = ""
         self.current_translation = ""
 

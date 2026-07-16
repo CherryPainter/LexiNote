@@ -152,68 +152,41 @@ class ReadingComprehensionPage(tk.Frame):
                                                      height=15, bg="#f5f5f5", state=tk.DISABLED)
         self.article_text.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
 
-        # 题目和答案区域
-        qa_frame = tk.Frame(content_frame)
-        qa_frame.pack(fill=tk.BOTH, expand=True)
+        # 题目区域：所有题目 + 选项 一次性展示（类似完形填空的答题方式）
+        qa_frame = tk.LabelFrame(content_frame, text="题目", font=self.font_config['normal'])
+        qa_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
 
-        # 左半部分：题目
-        questions_frame = tk.LabelFrame(qa_frame, text="题目", font=self.font_config['normal'])
-        questions_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 5))
+        qa_scroll_frame, qa_inner, _, _ = create_scrollable_frame(qa_frame)
+        qa_scroll_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        self.questions_inner = qa_inner
 
-        self.questions_text = scrolledtext.ScrolledText(questions_frame, wrap=tk.WORD, font=self.font_config['normal'],
-                                                      height=15, bg="#f0f0f0", state=tk.DISABLED)
-        self.questions_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        # 已选答案汇总 + 提交按钮
+        answer_frame = tk.Frame(content_frame)
+        answer_frame.pack(fill=tk.X, pady=(0, 10))
 
-        # 右半部分：答案输入和结果
-        answers_frame = tk.LabelFrame(qa_frame, text="答案与结果", font=self.font_config['normal'])
-        answers_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(5, 0))
+        self.selected_answers_label = tk.Label(answer_frame, text="已选答案：",
+                                               font=self.font_config['normal'], anchor=tk.W)
+        self.selected_answers_label.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
 
-        # 当前问题标签
-        self.current_question_var = tk.StringVar(value="请开始练习")
-        current_question_label = tk.Label(answers_frame, textvariable=self.current_question_var,
-                                        font=self.font_config['normal'], anchor=tk.W)
-        current_question_label.pack(fill=tk.X, padx=5, pady=5)
-
-        # 答案输入
-        answer_input_frame = tk.Frame(answers_frame)
-        answer_input_frame.pack(fill=tk.X, padx=5, pady=5)
-
-        tk.Label(answer_input_frame, text="答案:", font=self.font_config['normal']).grid(row=0, column=0, sticky=tk.W)
-        self.answer_entry = tk.Entry(answer_input_frame, font=self.font_config['normal'], width=30)
-        self.answer_entry.grid(row=0, column=1, padx=5, sticky=tk.EW)
-
-        # 按钮区域
-        buttons_frame = tk.Frame(answers_frame)
-        buttons_frame.pack(fill=tk.X, padx=5, pady=5)
-
-        self.prev_button = tk.Button(buttons_frame, text="上一题", command=self._prev_question,
-                                   font=self.font_config['button'], width=10, state=tk.DISABLED)
-        self.prev_button.pack(side=tk.LEFT, padx=5)
-
-        self.next_button = tk.Button(buttons_frame, text="下一题", command=self._next_question,
-                                   font=self.font_config['button'], width=10, state=tk.DISABLED)
-        self.next_button.pack(side=tk.LEFT, padx=5)
-
-        self.submit_button = tk.Button(buttons_frame, text="提交当前题", command=self._submit_current_question,
+        self.submit_button = tk.Button(answer_frame, text="提交答案", command=self._submit_answer,
                                      font=self.font_config['button'], bg="#2196F3", fg="white",
-                                     width=12, state=tk.DISABLED)
-        self.submit_button.pack(side=tk.RIGHT, padx=5)
+                                     width=12, height=1, state=tk.DISABLED)
+        self.submit_button.pack(side=tk.RIGHT, padx=10, pady=5)
 
-        # 全部提交按钮
-        self.submit_all_button = tk.Button(buttons_frame, text="全部提交", command=self._submit_all_questions,
-                                         font=self.font_config['button'], bg="#FF9800", fg="white",
-                                         width=12, state=tk.DISABLED)
-        self.submit_all_button.pack(side=tk.RIGHT, padx=5)
+        # 结果显示区域
+        result_frame = tk.LabelFrame(content_frame, text="结果", font=self.font_config['normal'])
+        result_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
 
-        # 结果显示
-        self.result_text = scrolledtext.ScrolledText(answers_frame, wrap=tk.WORD, font=self.font_config['normal'],
-                                                    height=6, bg="#e8f5e9", state=tk.DISABLED)
+        self.result_text = scrolledtext.ScrolledText(result_frame, wrap=tk.WORD, font=self.font_config['normal'],
+                                                    height=8, bg="#f0f0f0", state=tk.DISABLED)
         self.result_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
         # 当前问题索引
         self.current_question_index = 0
         self.user_answers = []
         self.question_results = []
+        self.question_vars = []
+        self.question_result_labels = []
         self.test_data = None
 
     # 滚动相关方法已通过create_scrollable_frame实现
@@ -317,46 +290,17 @@ class ReadingComprehensionPage(tk.Frame):
                     self.article_text.insert(tk.END, article)
                     self.article_text.config(state=tk.DISABLED)
 
-                    # 显示题目
+                    # 显示题目（所有题目 + 选项，类似完形填空）
                     questions = test_data.get('questions', [])
-                    self.questions_text.config(state=tk.NORMAL)
-                    self.questions_text.delete(1.0, tk.END)
-
-                    for i, question in enumerate(questions, 1):
-                        # 插入问题标题（只保留问题部分）
-                        if "Multiple Choice:" in question:
-                            # 提取问题部分
-                            question_part = question.split("Multiple Choice:")[0].strip()
-                            self.questions_text.insert(tk.END, f"第{i}题: {question_part}\n")
-
-                            # 提取选项部分
-                            options_part = question.split("Multiple Choice:")[1].strip()
-                            # 分割选项 (A. B. C. D. 格式)
-                            import re
-                            options = re.split(r'([A-D]\.)', options_part)
-
-                            # 处理分割后的选项，跳过空字符串
-                            for j in range(1, len(options), 2):
-                                if j+1 < len(options):
-                                    self.questions_text.insert(tk.END, f"{options[j]} {options[j+1].strip()}\n")
-                        else:
-                            # 普通问题，直接显示
-                            self.questions_text.insert(tk.END, f"第{i}题: {question}\n")
-
-                        self.questions_text.insert(tk.END, "\n")
-
-                    self.questions_text.config(state=tk.DISABLED)
+                    self._display_questions(questions)
 
                     # 初始化
                     self.current_question_index = 0
                     self.user_answers = ["" for _ in questions]
                     self.question_results = [None for _ in questions]
 
-                    # 显示第一个问题
-                    self._show_current_question()
-
-                    # 启用按钮
-                    self._update_buttons_state()
+                    # 启用提交按钮
+                    self.submit_button.config(state=tk.NORMAL)
 
                     log_info(f"成功开始新的阅读理解练习，ID: {test_data.get('id')}")
                     messagebox.showinfo("提示", "题目已准备好，请开始答题！")
@@ -378,141 +322,108 @@ class ReadingComprehensionPage(tk.Frame):
             log_error(f"开始新测试失败: {str(e)}")
             messagebox.showerror("错误", f"开始新测试失败: {str(e)}")
 
-    def _show_current_question(self):
-        """显示当前问题"""
-        if not self.test_data:
+    def _extract_options(self, question_text):
+        """从题目文本中提取题干和 A/B/C/D 选项"""
+        import re
+        # 去除可能的 "Multiple Choice:" 前缀
+        question_text = re.sub(r'Multiple Choice:\s*', '', question_text, flags=re.IGNORECASE).strip()
+        # 按 A./B./C./D. 切分，保留选项字母
+        parts = re.split(r'\s*([A-D])\.\s*', question_text)
+        stem = parts[0].strip()
+        options = []
+        for i in range(1, len(parts), 2):
+            if i + 1 < len(parts):
+                options.append((parts[i], parts[i + 1].strip()))
+        return stem, options
+
+    def _display_questions(self, questions):
+        """一次性展示全部题目，每题内嵌 A/B/C/D 单选按钮（类似完形填空）"""
+        # 清空旧题目
+        for widget in self.questions_inner.winfo_children():
+            widget.destroy()
+        self.question_vars = []
+        self.question_result_labels = []
+
+        for idx, question in enumerate(questions, 1):
+            stem, options = self._extract_options(question)
+
+            q_frame = tk.LabelFrame(self.questions_inner, text=f"第{idx}题",
+                                    font=self.font_config['normal'])
+            q_frame.pack(fill=tk.X, pady=5, padx=2)
+
+            stem_label = tk.Label(q_frame, text=stem, font=self.font_config['normal'],
+                                  wraplength=640, justify=tk.LEFT, anchor=tk.W)
+            stem_label.pack(fill=tk.X, padx=8, pady=4)
+
+            var = tk.StringVar(value="")
+            self.question_vars.append(var)
+            var.trace_add('write', lambda *args: self._update_selected_answers_label())
+
+            opts_frame = tk.Frame(q_frame)
+            opts_frame.pack(fill=tk.X, padx=8, pady=4)
+
+            available_letters = {o[0] for o in options}
+            for letter in ['A', 'B', 'C', 'D']:
+                if letter in available_letters:
+                    opt_text = next(o[1] for o in options if o[0] == letter)
+                    text = f"{letter}. {opt_text}"
+                    st = tk.NORMAL
+                else:
+                    text = f"{letter}. （无选项）"
+                    st = tk.DISABLED
+                rb = tk.Radiobutton(opts_frame, text=text, variable=var, value=letter,
+                                   font=self.font_config['normal'], anchor=tk.W, state=st)
+                rb.pack(fill=tk.X, pady=2)
+
+            result_label = tk.Label(q_frame, text="", font=('SimHei', 11),
+                                   justify=tk.LEFT, anchor=tk.W, wraplength=640)
+            result_label.pack(fill=tk.X, padx=8, pady=4)
+            self.question_result_labels.append(result_label)
+
+        self._update_selected_answers_label()
+
+    def _update_selected_answers_label(self):
+        """更新已选答案显示"""
+        if not hasattr(self, 'question_vars') or not self.question_vars:
+            self.selected_answers_label.config(text="已选答案：")
             return
+        selected = [v.get() if v.get() else "_" for v in self.question_vars]
+        self.selected_answers_label.config(text=f"已选答案：{','.join(selected)}")
 
-        questions = self.test_data.get('questions', [])
-        if 0 <= self.current_question_index < len(questions):
-            question = questions[self.current_question_index]
-
-            # 更新当前问题标签
-            self.current_question_var.set(f"第{self.current_question_index + 1}题/{len(questions)}")
-
-            # 显示用户之前的答案
-            self.answer_entry.delete(0, tk.END)
-            if self.user_answers[self.current_question_index]:
-                self.answer_entry.insert(0, self.user_answers[self.current_question_index])
-
-            # 显示结果（如果有）
-            self.result_text.config(state=tk.NORMAL)
-            self.result_text.delete(1.0, tk.END)
-
-            if self.question_results[self.current_question_index]:
-                result = self.question_results[self.current_question_index]
-                self.result_text.insert(tk.END, f"评估: {result['evaluation']}\n\n")
-                self.result_text.insert(tk.END, f"解析: {result['explanation']}")
-
-            self.result_text.config(state=tk.DISABLED)
-
-    def _prev_question(self):
-        """上一题"""
-        if self.current_question_index > 0:
-            # 保存当前答案
-            self.user_answers[self.current_question_index] = self.answer_entry.get().strip()
-
-            self.current_question_index -= 1
-            self._show_current_question()
-            self._update_buttons_state()
-
-    def _next_question(self):
-        """下一题"""
-        if self.test_data and self.current_question_index < len(self.test_data.get('questions', [])) - 1:
-            # 保存当前答案
-            self.user_answers[self.current_question_index] = self.answer_entry.get().strip()
-
-            self.current_question_index += 1
-            self._show_current_question()
-            self._update_buttons_state()
-
-    def _update_buttons_state(self):
-        """更新按钮状态"""
-        if not self.test_data:
-            return
-
-        total_questions = len(self.test_data.get('questions', []))
-
-        # 更新导航按钮状态
-        self.prev_button.config(state=tk.NORMAL if self.current_question_index > 0 else tk.DISABLED)
-        self.next_button.config(state=tk.NORMAL if self.current_question_index < total_questions - 1 else tk.DISABLED)
-
-        # 更新提交按钮状态
-        self.submit_button.config(state=tk.NORMAL)
-        self.submit_all_button.config(state=tk.NORMAL)
-
-    def _submit_current_question(self):
-        """提交当前问题的答案"""
+    def _submit_answer(self):
+        """提交全部答案"""
         try:
-            user_answer = self.answer_entry.get().strip()
-
-            if not user_answer:
-                messagebox.showwarning("提示", "请输入答案！")
+            if not hasattr(self, 'question_vars') or not self.question_vars:
+                messagebox.showwarning("提示", "没有可提交的题目")
                 return
 
-            # 提交答案
-            is_correct, evaluation, explanation = self.reading_module.submit_question_answer(
-                self.current_question_index, user_answer
-            )
+            selected = [v.get() for v in self.question_vars]
+            if any(s == "" for s in selected):
+                messagebox.showwarning("提示", "请回答所有题目后再提交")
+                return
 
-            # 保存结果
-            self.question_results[self.current_question_index] = {
-                'is_correct': is_correct,
-                'evaluation': evaluation,
-                'explanation': explanation
-            }
-
-            # 显示结果
-            self.result_text.config(state=tk.NORMAL)
-            self.result_text.delete(1.0, tk.END)
-            self.result_text.insert(tk.END, f"评估: {evaluation}\n\n")
-            self.result_text.insert(tk.END, f"解析: {explanation}")
-            self.result_text.config(state=tk.DISABLED)
-
-            # 提示用户
-            if is_correct:
-                messagebox.showinfo("提示", "答案正确！")
-            else:
-                messagebox.showinfo("提示", "请查看解析")
-
-        except Exception as e:
-            log_error(f"提交当前问题答案失败: {str(e)}")
-            messagebox.showerror("错误", f"提交答案失败: {str(e)}")
-
-    def _submit_all_questions(self):
-        """提交所有问题的答案"""
-        try:
-            # 检查是否所有问题都有答案
-            self.user_answers[self.current_question_index] = self.answer_entry.get().strip()
-
-            empty_indices = [i for i, ans in enumerate(self.user_answers) if not ans.strip()]
-
-            if empty_indices:
-                if messagebox.askyesno("确认", f"有{len(empty_indices)}道题未作答，是否继续提交？"):
-                    # 未作答的题目填写默认值
-                    for i in empty_indices:
-                        self.user_answers[i] = "未作答"
-                else:
-                    return
+            self.user_answers = selected
 
             # 提交所有答案
             total_score, results = self.reading_module.submit_all_answers(self.user_answers)
-
-            # 更新所有结果
             self.question_results = results
 
-            # 显示总分
-            messagebox.showinfo("总分", f"测试完成！\n总分: {total_score:.1f}/100")
+            # 更新每题结果
+            for i, res in enumerate(results):
+                if i < len(self.question_result_labels) and res:
+                    is_correct = res.get('is_correct', False)
+                    color = "#2e7d32" if is_correct else "#c62828"
+                    mark = "✓ 正确" if is_correct else "✗ 错误"
+                    text = f"{mark}\n解析：{res.get('explanation', '')}"
+                    self.question_result_labels[i].config(text=text, fg=color)
 
-            # 更新当前问题的结果显示
-            self._show_current_question()
+            messagebox.showinfo("总分", f"测试完成！\n总分：{total_score:.1f}/100")
 
             # 禁用提交按钮
             self.submit_button.config(state=tk.DISABLED)
-            self.submit_all_button.config(state=tk.DISABLED)
 
         except Exception as e:
-            log_error(f"提交所有问题答案失败: {str(e)}")
+            log_error(f"提交答案失败: {str(e)}")
             messagebox.showerror("错误", f"提交答案失败: {str(e)}")
 
     def _clear_ui(self):
@@ -528,24 +439,23 @@ class ReadingComprehensionPage(tk.Frame):
         self.article_text.delete(1.0, tk.END)
         self.article_text.config(state=tk.DISABLED)
 
-        # 清空题目
-        self.questions_text.config(state=tk.NORMAL)
-        self.questions_text.delete(1.0, tk.END)
-        self.questions_text.config(state=tk.DISABLED)
+        # 清空题目区
+        if hasattr(self, 'questions_inner'):
+            for widget in self.questions_inner.winfo_children():
+                widget.destroy()
+        self.question_vars = []
+        self.question_result_labels = []
 
-        # 重置状态
-        self.current_question_var.set("请开始练习")
-        self.answer_entry.delete(0, tk.END)
+        # 重置已选答案显示
+        if hasattr(self, 'selected_answers_label') and self.selected_answers_label:
+            self.selected_answers_label.config(text="已选答案：")
 
         self.result_text.config(state=tk.NORMAL)
         self.result_text.delete(1.0, tk.END)
         self.result_text.config(state=tk.DISABLED)
 
-        # 禁用按钮
-        self.prev_button.config(state=tk.DISABLED)
-        self.next_button.config(state=tk.DISABLED)
+        # 禁用提交按钮
         self.submit_button.config(state=tk.DISABLED)
-        self.submit_all_button.config(state=tk.DISABLED)
 
         # 重置变量
         self.current_question_index = 0

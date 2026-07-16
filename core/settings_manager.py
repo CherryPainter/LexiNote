@@ -89,6 +89,9 @@ class SettingsManager:
             # AI模型设置
             "ai_model": "gemma3n:latest",
             "available_ai_models": [],
+            # AI 总开关/模式：off(关闭) / local(本地Ollama) / cloud(云端)
+            # 关闭时不探测任何 AI 服务；本地只探测 Ollama；云端只使用云端配置
+            "ai_mode": "off",
             # 听写AI总结功能设置
             "ai_summary_enabled": True
         }
@@ -290,7 +293,9 @@ class SettingsManager:
                 "log_level": "INFO",
                 # AI模型设置
                 "ai_model": "gemma3n:latest",
-                "available_ai_models": []
+                "available_ai_models": [],
+                # AI 总开关/模式：off / local / cloud
+                "ai_mode": "off"
             }
 
             # 更新数据库
@@ -345,3 +350,137 @@ class SettingsManager:
             是否设置成功
         """
         return self.set_setting("available_ai_models", models)
+
+    # ---------- AI 总开关/模式 ----------
+
+    def get_ai_mode(self) -> str:
+        """获取 AI 总开关/模式
+
+        取值：
+            "off"   - 关闭 AI（纯本地，不探测任何 AI 服务）
+            "local" - 本地 Ollama
+            "cloud" - 云端模型
+
+        兼容旧配置：未显式设置 ai_mode 时，若 cloud_ai_enabled 为真则视为 cloud，
+        否则视为 off（默认关闭，符合“AI 是增强项、用户可不用”的设计）。
+
+        Returns:
+            str: 当前 AI 模式
+        """
+        mode = self.get_setting("ai_mode", None)
+        if mode in ("off", "local", "cloud"):
+            return mode
+        if self.get_cloud_ai_enabled():
+            return "cloud"
+        return "off"
+
+    def set_ai_mode(self, mode: str) -> bool:
+        """设置 AI 总开关/模式
+
+        Args:
+            mode: "off" / "local" / "cloud"
+
+        Returns:
+            bool: 设置是否成功
+        """
+        if mode not in ("off", "local", "cloud"):
+            return False
+        return self.set_setting("ai_mode", mode)
+
+    # ---------- 云端模型配置 ----------
+
+    def get_cloud_ai_enabled(self) -> bool:
+        """获取云端AI是否启用
+
+        Returns:
+            bool: 云端AI是否启用
+        """
+        return self.get_setting("cloud_ai_enabled", False)
+
+    def set_cloud_ai_enabled(self, enabled: bool) -> bool:
+        """设置云端AI是否启用
+
+        Args:
+            enabled: 是否启用
+
+        Returns:
+            是否设置成功
+        """
+        return self.set_setting("cloud_ai_enabled", enabled)
+
+    def get_cloud_ai_api_url(self) -> str:
+        """获取云端AI API地址
+
+        Returns:
+            API地址字符串
+        """
+        return self.get_setting("cloud_ai_api_url", "")
+
+    def set_cloud_ai_api_url(self, url: str) -> bool:
+        """设置云端AI API地址
+
+        Args:
+            url: API地址
+
+        Returns:
+            是否设置成功
+        """
+        return self.set_setting("cloud_ai_api_url", url)
+
+    def get_cloud_ai_api_key(self) -> str:
+        """获取云端AI API密钥
+
+        Returns:
+            API密钥字符串
+        """
+        return self.get_setting("cloud_ai_api_key", "")
+
+    def set_cloud_ai_api_key(self, api_key: str) -> bool:
+        """设置云端AI API密钥
+
+        Args:
+            api_key: API密钥
+
+        Returns:
+            是否设置成功
+        """
+        return self.set_setting("cloud_ai_api_key", api_key)
+
+    def get_cloud_ai_model_name(self) -> str:
+        """获取云端AI模型名称
+
+        Returns:
+            模型名称字符串
+        """
+        return self.get_setting("cloud_ai_model_name", "")
+
+    def set_cloud_ai_model_name(self, model_name: str) -> bool:
+        """设置云端AI模型名称
+
+        Args:
+            model_name: 模型名称
+
+        Returns:
+            是否设置成功
+        """
+        return self.set_setting("cloud_ai_model_name", model_name)
+
+    def save_cloud_ai_config(self, enabled: bool, api_url: str, api_key: str, model_name: str) -> bool:
+        """一次性保存所有云端AI配置
+
+        Args:
+            enabled: 是否启用云端AI
+            api_url: API地址
+            api_key: API密钥
+            model_name: 模型名称
+
+        Returns:
+            是否全部保存成功
+        """
+        results = [
+            self.set_cloud_ai_enabled(enabled),
+            self.set_cloud_ai_api_url(api_url),
+            self.set_cloud_ai_api_key(api_key),
+            self.set_cloud_ai_model_name(model_name)
+        ]
+        return all(results)

@@ -53,7 +53,6 @@ class WordManager:
 
         # 初始化AI管理器（延迟加载方式）
         self.ai_manager = None
-        self.ai_available = False
 
         # 节流控制相关
         self._throttle_lock = threading.RLock()
@@ -112,48 +111,24 @@ class WordManager:
         try:
             from core.ai_interface import AIManager
             self.ai_manager = AIManager()  # 由于AIManager实现了单例模式，这里会返回已有的实例或创建新实例
-            # 直接检查AI可用性，不再调用不存在的is_ai_available方法
-            self.ai_available = self._test_ai_connection()
-        except ImportError:
-            log_warning("AI接口模块未找到，部分功能可能受限")
-            self.ai_available = False
         except Exception as e:
             log_error(f"初始化AI管理器失败: {str(e)}")
-            self.ai_available = False
+            self.ai_manager = None
 
-    def _test_ai_connection(self) -> bool:
-        """测试AI连接是否可用
+    @property
+    def ai_available(self) -> bool:
+        """实时判断 AI 是否可用
+
+        覆盖云端（已启用且配置完整）与本地 Ollama（服务存活）两种情况。
+        改为 property 后，用户随时在设置中勾选/取消云端都会立即生效，
+        不再沿用初始化时的旧值。
 
         Returns:
-            bool: AI连接是否可用
+            bool: AI是否可用
         """
-        try:
-            # 简单测试AI连接，只检查Ollama服务是否可用，不实际生成例句
-            if self.ai_manager:
-                # 使用try-except捕获可能的错误，避免在初始化过程中抛出异常
-                try:
-                    import requests
-                    # 只检查Ollama服务的健康状态，不发送实际的生成请求
-                    health_response = requests.get(
-                        "http://localhost:11434/api/tags", timeout=5)
-                    if health_response.status_code == 200:
-                        log_info("AI功能测试成功，服务可用")
-                        return True
-                    else:
-                        log_info(
-                            f"AI功能测试失败: Ollama服务状态码 {
-                                health_response.status_code}")
-                        return False
-                except requests.RequestException as e:
-                    log_warning(f"测试AI连接失败: Ollama服务未启动或不可访问 - {str(e)}")
-                    return False
-                except Exception as e:
-                    log_warning(f"测试AI连接时发生未知错误: {str(e)}")
-                    return False
-        except Exception as e:
-            log_warning(f"检查AI可用性时发生错误: {str(e)}")
+        if self.ai_manager is None:
             return False
-        return False
+        return self.ai_manager.is_ai_available()
 
     def _check_throttle_limit(self) -> bool:
         """检查是否超过节流限制
@@ -1961,47 +1936,18 @@ class WordManager:
         return self.get_word_example(word)
 
     def is_ai_available(self) -> bool:
-        """检查AI功能是否可用
+        """检查AI功能是否可用（覆盖云端与本地 Ollama）
 
         Returns:
             bool: AI功能是否可用
         """
         # 初始化AI管理器（如果尚未初始化）
-        if not self.ai_manager:
+        if self.ai_manager is None:
             self._init_ai_manager()
-
-        # 每次都重新检查连接状态
-        try:
-            import requests
-
-            # 尝试连接Ollama API进行可用性检查
-            try:
-                response = requests.get("http://localhost:11434", timeout=2)
-                if response.status_code == 200:
-                    # 更新AI可用状态
-                    self.ai_available = True
-                    return True
-                else:
-                    log_warning(f"Ollama服务返回非200状态码: {response.status_code}")
-                    self.ai_available = False
-                    return False
-            except (
-                requests.exceptions.ConnectionError,
-                requests.exceptions.Timeout,
-                requests.exceptions.RequestException
-            ) as conn_err:
-                # 连接失败，可能是Ollama未启动或不可用
-                log_warning(f"无法连接到Ollama服务，AI功能不可用: {str(conn_err)}")
-                self.ai_available = False
-                return False
-        except ImportError:
-            log_warning("requests模块未安装，AI功能不可用")
-            self.ai_available = False
+        if self.ai_manager is None:
             return False
-        except Exception as e:
-            log_error(f"检查AI可用性时发生异常: {str(e)}")
-            self.ai_available = False
-            return False
+        # 直接委托给 AIManager 的实时判断（云端已启用配置完整 或 本地 Ollama 存活）
+        return self.ai_manager.is_ai_available()
 
     def get_words_by_criteria(self, criteria: Dict) -> List[str]:
         """根据条件获取单词

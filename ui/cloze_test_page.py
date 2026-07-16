@@ -158,16 +158,14 @@ class ClozeTestPage(tk.Frame):
         answer_frame = tk.Frame(content_frame)
         answer_frame.pack(fill=tk.X, pady=(0, 10))
 
-        tk.Label(answer_frame, text="请输入答案（用逗号分隔，如：1,2,3,4）:",
-                font=self.font_config['normal']).grid(row=0, column=0, sticky=tk.W, pady=5)
-
-        self.answer_entry = tk.Entry(answer_frame, font=self.font_config['normal'], width=50)
-        self.answer_entry.grid(row=1, column=0, sticky=tk.W, pady=5)
+        self.selected_answers_label = tk.Label(answer_frame, text="已选答案：",
+                                               font=self.font_config['normal'], anchor=tk.W)
+        self.selected_answers_label.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
 
         self.submit_button = tk.Button(answer_frame, text="提交答案", command=self._submit_answer,
                                      font=self.font_config['button'], bg="#2196F3", fg="white",
                                      width=12, height=1, state=tk.DISABLED)
-        self.submit_button.grid(row=1, column=1, padx=10, pady=5)
+        self.submit_button.pack(side=tk.RIGHT, padx=10, pady=5)
 
         # 结果显示区域
         result_frame = tk.LabelFrame(content_frame, text="结果", font=self.font_config['normal'])
@@ -287,6 +285,7 @@ class ClozeTestPage(tk.Frame):
             widget.destroy()
 
         # 显示每个空格的选项
+        self.blank_vars = []
         for opt in sorted(options, key=lambda x: x['blank']):
             blank_num = opt['blank']
             opts = opt['options']
@@ -296,25 +295,46 @@ class ClozeTestPage(tk.Frame):
                                        font=self.font_config['normal'])
             blank_frame.pack(fill=tk.X, pady=5)
 
+            # 该空的单选值
+            var = tk.StringVar(value="")
+            self.blank_vars.append(var)
+            var.trace_add('write', lambda *args, v=var: self._update_selected_answers_label())
+
             # 显示选项 - 水平排列，每个选项之间有间距
             options_frame = tk.Frame(blank_frame)
             options_frame.pack(anchor=tk.W, padx=10, pady=5, fill=tk.X)
 
             for i, opt in enumerate(opts, 1):
-                option_text = f"{chr(64+i)}. {opt}"
-                tk.Label(options_frame, text=option_text, font=self.font_config['normal'],
-                        justify=tk.LEFT).pack(side=tk.LEFT, padx=15)
+                letter = chr(64 + i)
+                option_text = f"{letter}. {opt}"
+                tk.Radiobutton(options_frame, text=option_text, variable=var, value=letter,
+                               font=self.font_config['normal']).pack(side=tk.LEFT, padx=15)
+
+        self._update_selected_answers_label()
 
         # 滚动区域会自动更新，无需手动调用
+
+    def _update_selected_answers_label(self):
+        """更新已选答案显示"""
+        if not hasattr(self, 'blank_vars') or not self.blank_vars:
+            self.selected_answers_label.config(text="已选答案：")
+            return
+        selected = [v.get() if v.get() else "_" for v in self.blank_vars]
+        self.selected_answers_label.config(text=f"已选答案：{','.join(selected)}")
 
     def _submit_answer(self):
         """提交答案"""
         try:
-            user_answer = self.answer_entry.get().strip()
-
-            if not user_answer:
-                messagebox.showwarning("提示", "请输入答案！")
+            if not self.blank_vars:
+                messagebox.showwarning("提示", "没有可提交的选项")
                 return
+
+            selected = [var.get() for var in self.blank_vars]
+            if any(v == "" for v in selected):
+                messagebox.showwarning("提示", "请为所有空格选择答案")
+                return
+
+            user_answer = ",".join(selected)
 
             # 提交答案
             is_correct, evaluation, explanation = self.cloze_module.submit_answer(user_answer)
@@ -363,9 +383,11 @@ class ClozeTestPage(tk.Frame):
         # 清空选项区域
         for widget in self.options_frame.winfo_children():
             widget.destroy()
+        self.blank_vars = []
 
-        # 清空答案输入
-        self.answer_entry.delete(0, tk.END)
+        # 清空已选答案显示
+        if hasattr(self, 'selected_answers_label') and self.selected_answers_label:
+            self.selected_answers_label.config(text="已选答案：")
 
         # 清空结果显示
         self.result_text.config(state=tk.NORMAL)

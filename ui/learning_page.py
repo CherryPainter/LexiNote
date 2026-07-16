@@ -404,7 +404,7 @@ class LearningPage(tk.Frame):
                             pass
 
                 try:
-                    self.main_frame.after(0, _on_done)
+                    self.after(0, _on_done)
                 except Exception:
                     _on_done()
 

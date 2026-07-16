@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>白盒测试报告 · 单词学习软件（v2 · 三项建议落实）</title>
+<style>
+  :root{
+    --bg:#f5f7fa; --card:#ffffff; --ink:#1f2933; --sub:#52606d;
+    --line:#e4e7eb; --accent:#2563eb; --green:#16a34a; --amber:#d97706; --red:#dc2626;
+    --bar-bg:#eceff3;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,"Segoe UI","Microsoft YaHei",Roboto,Helvetica,Arial,sans-serif;
+       background:var(--bg);color:var(--ink);line-height:1.65;font-size:14px}
+  .wrap{max-width:1080px;margin:0 auto;padding:32px 24px 64px}
+  header{background:linear-gradient(135deg,#2563eb,#1e40af);color:#fff;border-radius:14px;
+         padding:28px 32px;margin-bottom:24px;box-shadow:0 8px 24px rgba(30,64,175,.18)}
+  header h1{margin:0 0 6px;font-size:24px;font-weight:700}
+  header .meta{opacity:.92;font-size:13px;display:flex;flex-wrap:wrap;gap:18px;margin-top:10px}
+  header .meta span{display:inline-flex;align-items:center;gap:6px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;
+        padding:22px 26px;margin-bottom:20px;box-shadow:0 1px 3px rgba(15,23,42,.04)}
+  .card h2{margin:0 0 14px;font-size:18px;color:var(--ink);border-left:4px solid var(--accent);
+           padding-left:12px}
+  .card h3{font-size:15px;margin:18px 0 8px;color:var(--sub)}
+  .summary{display:flex;gap:16px;flex-wrap:wrap}
+  .kpi{flex:1;min-width:150px;background:var(--bg);border:1px solid var(--line);border-radius:10px;
+       padding:16px;text-align:center}
+  .kpi .num{font-size:30px;font-weight:800;line-height:1.1}
+  .kpi .lab{font-size:12px;color:var(--sub);margin-top:4px}
+  .kpi.pass .num{color:var(--green)} .kpi.fail .num{color:var(--red)}
+  .kpi.warn .num{color:var(--amber)} .kpi.cov .num{color:var(--accent)}
+  .kpi.ok .num{color:var(--green)}
+  table{width:100%;border-collapse:collapse;margin-top:6px;font-size:13px}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line)}
+  th{background:var(--bg);color:var(--sub);font-weight:600;font-size:12px}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+  tr:hover td{background:#fafbfc}
+  .bar{height:8px;background:var(--bar-bg);border-radius:4px;overflow:hidden;min-width:80px}
+  .bar > span{display:block;height:100%;border-radius:4px}
+  .b100{background:var(--green)} .b80{background:#22c55e} .b60{background:#84cc16}
+  .b40{background:var(--amber)} .b20{background:#f97316} .b0{background:var(--red)}
+  .pill{display:inline-block;padding:1px 9px;border-radius:999px;font-size:11px;font-weight:600}
+  .p-crit{background:#fee2e2;color:var(--red)} .p-mid{background:#fef3c7;color:var(--amber)}
+  .p-low{background:#e0f2fe;color:#0369a1}
+  .defect{border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:14px;background:var(--bg)}
+  .defect .t{font-weight:700;margin-bottom:6px;display:flex;align-items:center;gap:8px}
+  .defect dl{margin:6px 0 0;display:grid;grid-template-columns:96px 1fr;gap:4px 12px}
+  .defect dt{color:var(--sub);font-weight:600}
+  .defect dd{margin:0}
+  code{background:#eef2f7;padding:1px 6px;border-radius:4px;font-size:12px;font-family:"SFMono-Regular",Consolas,Menlo,monospace}
+  .note{font-size:13px;color:var(--sub);background:#fffbeb;border:1px solid #fde68a;
+        border-radius:8px;padding:12px 14px}
+  .note.blue{background:#eff6ff;border-color:#bfdbfe}
+  ul{margin:6px 0;padding-left:20px} li{margin:3px 0}
+  .foot{color:var(--sub);font-size:12px;text-align:center;margin-top:30px}
+  a{color:var(--accent)}
+  .tag-done{display:inline-block;background:#dcfce7;color:#15803d;font-size:11px;font-weight:700;
+            padding:1px 8px;border-radius:999px;margin-left:6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>白盒测试报告 <span style="font-size:14px;opacity:.8;font-weight:400">（v2 · 三项建议已落实）</span></h1>
+  <div>英语单词学习软件 · 基于 AI 的完形填空 / 阅读理解命题与答题系统</div>
+  <div class="meta">
+    <span>📅 报告日期：2026-07-16</span>
+    <span>🧪 测试框架：pytest 9.x + unittest.mock + pytest-cov 7.x</span>
+    <span>🐍 运行环境：Python 3.13.12（隔离 venv）</span>
+    <span>📂 被测代码：核心 AI 接口 / 命题蓝图 / 业务服务 / 数据层 / 设置与统计 / UI 各答题页</span>
+  </div>
+</header>
+
+<!-- 执行摘要 -->
+<div class="card">
+  <h2>一、执行摘要</h2>
+  <div class="summary">
+    <div class="kpi pass"><div class="num">279</div><div class="lab">通过用例</div></div>
+    <div class="kpi ok"><div class="num">0</div><div class="lab">失败 / 错误</div></div>
+    <div class="kpi cov"><div class="num">7</div><div class="lab">累计修复缺陷</div></div>
+    <div class="kpi ok"><div class="num">0</div><div class="lab">遗留待修复缺陷</div></div>
+    <div class="kpi cov"><div class="num">45%</div><div class="lab">整体行覆盖率 <span style="font-size:11px">（分支 52%）</span></div></div>
+  </div>
+  <p style="margin:14px 0 0;color:var(--sub)">
+    在首版白盒测试（<b>157 用例 / 16%</b>）基础上，按用户要求落实三项建议：①（高）<b>移除游离死代码
+    <code>ui/word_detail_page.py</code></b>，消除被再次静默损坏的风险；②（中）为<b>核心 / 数据层</b>补充集成测试
+    （内存 SQLite + AIManager 桩），覆盖 <code>database_manager</code>、<code>cloze_test</code>、
+    <code>reading_comprehension</code>、<code>word_manager</code>；③（低）为<b>设置 / 学习 / 听写 / 翻译 / 统计 / 词书</b>
+    6 个 UI 页面补充逻辑单测。共新增 <b>9 个测试文件、122 个用例</b>，全套回归 <b>279 通过 / 0 失败</b>。
+    整体行覆盖率由 <b>16% 提升至 45%</b>（含分支判定为 52%）。测试过程中（建议 3 的子代理）在 6 个 UI 页面测试里
+    <b>新发现 4 处源代码真实缺陷，现已全部修复</b>（详见第五节）；连同首版修复的 3 处，本项目白盒测试累计修复
+    <b>7 处缺陷</b>，当前<b>无遗留待修复缺陷</b>。
+  </p>
+  <div class="note blue" style="margin-top:14px">
+    📈 <b>覆盖率跃升关键点</b>：数据层 <code>database_manager</code> 7%→<b>51%</b>、命题实现层
+    <code>cloze_test</code> 0%→<b>73%</b> / <code>reading_comprehension</code> 11%→<b>61%</b>、
+    统计页 <code>statistics_page</code> 0%→<b>96%</b>、学习页 0%→<b>69%</b>、听写页 0%→<b>55%</b>、
+    翻译页 0%→<b>62%</b>、设置页 0%→<b>53%</b>、词书页 0%→<b>40%</b>。
+  </div>
+</div>
+
+<!-- 测试环境与方法 -->
+<div class="card">
+  <h2>二、测试环境与方法</h2>
+  <h3>2.1 运行环境</h3>
+  <ul>
+    <li>隔离虚拟环境：<code>C:/Users/blueberry/.workbuddy/binaries/python/envs/default</code>（不污染用户环境）</li>
+    <li>Python 3.13.12；pytest 9.x、pytest-cov 7.x、unittest.mock（MagicMock / AsyncMock / patch）</li>
+    <li>启动命令：<code>python -m pytest tests -q --cov=. --cov-branch --cov-report=term-missing</code></li>
+    <li>覆盖率口径：<b>全源码（剔除测试文件，共 7473 语句）</b>行覆盖率 45%；含分支判定覆盖为 52%。<code>main.py</code> 入口与 <code>audio_*</code> 音频模块不在白盒范围。</li>
+  </ul>
+  <h3>2.2 白盒测试关键技术点</h3>
+  <ul>
+    <li><b>单例绕过构造</b>：<code>DatabaseManager</code> / <code>SettingsManager</code> / <code>AIManager</code> 为单例，测试通过 <code>__new__</code> 绕过 <code>__init__</code> 并手动注入依赖（临时目录 / mock），每个用例前后由 conftest 的 autouse fixture 重置 <code>_instance</code> / <code>_initialized</code>，避免状态串扰。</li>
+    <li><b>内存 SQLite 集成测试（建议2）</b>：<code>test_database_manager.py</code> 绕过 <code>__init__</code> 建立临时 SQLite 单例，并强制 <code>execute_write(immediate=True)</code> 立即落库，使「写后读」断言可读到数据，覆盖单词 CRUD、熟练度、学习进度、词库、设置、AI 缓存。</li>
+    <li><b>模块层 patch 桩（建议2）</b>：对 <code>cloze_test</code> / <code>reading_comprehension</code> 注入 <code>ComprehensionDatabase</code> / <code>AIService</code> 桩，验证在线生成、离线加载规范化、提交评估、计分、统计、删除全链路。</li>
+    <li><b>Headless tkinter 共享根</b>：conftest 提供<b>会话级单一 <code>tk_root</code></b>，规避同一进程内「销毁首个 Tk() 后再建第二个」触发的 <code>TclError</code>。</li>
+    <li><b>边界与异常路径</b>：参数化覆盖 URL 归一化、节流下限保护（<code>set_throttle_limits</code> 100ms / 1 次）、JSON 字段缺失 / 拼写容错、流式 <code>content:null</code> 健壮性、AI 不可用降级、除零保护、熟练度区间边界等。</li>
+  </ul>
+</div>
+
+<!-- 测试清单 -->
+<div class="card">
+  <h2>三、测试清单</h2>
+  <table>
+    <thead><tr><th>测试文件</th><th class="num">用例数</th><th>覆盖目标</th></tr></thead>
+    <tbody>
+      <tr><td><code>test_exam_specs.py</code></td><td class="num">18</td><td>命题蓝图：全学段、字段注入、单篇限制、题型随机、避免雷同、未知学段回退、可选参数</td></tr>
+      <tr><td><code>test_ai_interface.py</code></td><td class="num">55</td><td>URL 归一化 / 哨兵 / is_ai_available / 模型列表 / 重试超时 / 流式 null 安全 / 本地降级 / 云端通道分流 / 连通探测 / 用量统计</td></tr>
+      <tr><td><code>test_ai_service.py</code></td><td class="num">32</td><td>完形 / 阅读 JSON 解析、字段兜底、拼写容错、计数一致性、占位符拦截、temperature 透传、主观题评估降级</td></tr>
+      <tr><td><code>test_settings_wordmanager_statistics.py</code></td><td class="num">26</td><td>ai_mode 读写兼容、云端配置、缓存 / 监听器、voice_speed 范围、WordManager 委托、Statistics 统计 / 熟练度边界 / 除零 / 周报 / 词库</td></tr>
+      <tr><td><code>test_ui_pages.py</code></td><td class="num">18</td><td>完形 / 阅读页选项渲染、已选答案汇总、提交收集、未答全警告、_clear_ui 重置、题干解析、删除流程、延迟初始化</td></tr>
+      <tr><td><code>test_database_manager.py</code> <span class="tag-done">建议2</span></td><td class="num">18</td><td>集成测试：临时 SQLite 单词 CRUD、熟练度、学习进度、词库、设置、AI 缓存（绕过 __init__ 注入单例，强制 immediate 落库）</td></tr>
+      <tr><td><code>test_modules_cloze_reading.py</code> <span class="tag-done">建议2</span></td><td class="num">19</td><td>集成测试：ClozeTestModule / ReadingComprehensionModule 模式切换、在线生成、离线加载、提交评估、计分、统计、删除</td></tr>
+      <tr><td><code>test_word_manager.py</code> <span class="tag-done">建议2</span></td><td class="num">9</td><td>集成测试：节流控制（间隔 / 每分钟次数）、AI 可用性委托、单词 CRUD / 缓存（注入 MagicMock AIManager + 临时 DB 单例）</td></tr>
+      <tr><td><code>test_ui_settings_page.py</code> <span class="tag-done">建议3</span></td><td class="num">20</td><td>_normalize_url、开关回调、_apply_ai_mode_ui、保存 / 重置分支</td></tr>
+      <tr><td><code>test_ui_learning_page.py</code> <span class="tag-done">建议3</span></td><td class="num">17</td><td>_show_current_word、_update_progress、按钮启停、mark / 推进</td></tr>
+      <tr><td><code>test_ui_dictation_page.py</code> <span class="tag-done">建议3</span></td><td class="num">16</td><td>来源判断、_check_answer、_skip_word、超时、模式回调</td></tr>
+      <tr><td><code>test_ui_translation_page.py</code> <span class="tag-done">建议3</span></td><td class="num">10</td><td>方向切换、翻译校验、跳过、闪烁</td></tr>
+      <tr><td><code>test_ui_statistics_page.py</code> <span class="tag-done">建议3</span></td><td class="num">9</td><td>各统计区加载、空 / 有数据、刷新</td></tr>
+      <tr><td><code>test_ui_word_set_page.py</code> <span class="tag-done">建议3</span></td><td class="num">12</td><td>词库列表、分页导航、搜索</td></tr>
+      <tr><td><b>合计（不含 conftest）</b></td><td class="num"><b>279</b></td><td>14 个测试文件 + conftest（路径注入 + 单例重置 + 会话级共享 Tk 根）</td></tr>
+    </tbody>
+  </table>
+  <p style="color:var(--sub);font-size:12px;margin-top:8px">
+    注：<code>ui/word_detail_page.py</code> 及对应 <code>test_word_detail_page.py</code> 已依<b>建议1（高）</b>从仓库移除，故未列入清单。
+  </p>
+</div>
+
+<!-- 覆盖率 -->
+<div class="card">
+  <h2>四、覆盖率分析</h2>
+  <h3>4.1 全源码覆盖率明细（按行覆盖率升序，共 7473 语句）</h3>
+  <table>
+    <thead><tr><th>模块</th><th class="num">语句</th><th class="num">缺失</th><th class="num">行覆盖率</th><th style="width:160px">可视化</th></tr></thead>
+    <tbody>
+      <tr><td><code>main.py</code></td><td class="num">31</td><td class="num">31</td><td class="num">0%</td><td><div class="bar"><span class="b0" style="width:0%"></span></div></td></tr>
+      <tr><td><code>core/dictation.py</code></td><td class="num">798</td><td class="num">753</td><td class="num">6%</td><td><div class="bar"><span class="b0" style="width:6%"></span></div></td></tr>
+      <tr><td><code>modules/database.py</code></td><td class="num">192</td><td class="num">169</td><td class="num">12%</td><td><div class="bar"><span class="b0" style="width:12%"></span></div></td></tr>
+      <tr><td><code>audio_player.py</code></td><td class="num">107</td><td class="num">91</td><td class="num">15%</td><td><div class="bar"><span class="b0" style="width:15%"></span></div></td></tr>
+      <tr><td><code>audio_cache.py</code></td><td class="num">104</td><td class="num">88</td><td class="num">15%</td><td><div class="bar"><span class="b0" style="width:15%"></span></div></td></tr>
+      <tr><td><code>word_manager.py</code></td><td class="num">1024</td><td class="num">859</td><td class="num">16%</td><td><div class="bar"><span class="b0" style="width:16%"></span></div></td></tr>
+      <tr><td><code>ui/components/loading_dialog.py</code></td><td class="num">56</td><td class="num">45</td><td class="num">20%</td><td><div class="bar"><span class="b0" style="width:20%"></span></div></td></tr>
+      <tr><td><code>ui/word_set_page.py</code></td><td class="num">535</td><td class="num">321</td><td class="num">40%</td><td><div class="bar"><span class="b40" style="width:40%"></span></div></td></tr>
+      <tr><td><code>core/settings_manager.py</code></td><td class="num">202</td><td class="num">107</td><td class="num">47%</td><td><div class="bar"><span class="b40" style="width:47%"></span></div></td></tr>
+      <tr><td><code>core/database_manager.py</code></td><td class="num">669</td><td class="num">330</td><td class="num">51%</td><td><div class="bar"><span class="b40" style="width:51%"></span></div></td></tr>
+      <tr><td><code>ui/settings_page.py</code></td><td class="num">496</td><td class="num">231</td><td class="num">53%</td><td><div class="bar"><span class="b40" style="width:53%"></span></div></td></tr>
+      <tr><td><code>ui/dictation_page.py</code></td><td class="num">592</td><td class="num">267</td><td class="num">55%</td><td><div class="bar"><span class="b40" style="width:55%"></span></div></td></tr>
+      <tr><td><code>modules/utils.py</code></td><td class="num">61</td><td class="num">25</td><td class="num">59%</td><td><div class="bar"><span class="b40" style="width:59%"></span></div></td></tr>
+      <tr><td><code>modules/reading_comprehension.py</code></td><td class="num">170</td><td class="num">67</td><td class="num">61%</td><td><div class="bar"><span class="b60" style="width:61%"></span></div></td></tr>
+      <tr><td><code>ui/translation_page.py</code></td><td class="num">343</td><td class="num">131</td><td class="num">62%</td><td><div class="bar"><span class="b60" style="width:62%"></span></div></td></tr>
+      <tr><td><code>core/ai_interface.py</code></td><td class="num">438</td><td class="num">157</td><td class="num">64%</td><td><div class="bar"><span class="b60" style="width:64%"></span></div></td></tr>
+      <tr><td><code>modules/ai_service.py</code></td><td class="num">246</td><td class="num">80</td><td class="num">67%</td><td><div class="bar"><span class="b60" style="width:67%"></span></div></td></tr>
+      <tr><td><code>ui/cloze_test_page.py</code></td><td class="num">230</td><td class="num">74</td><td class="num">68%</td><td><div class="bar"><span class="b60" style="width:68%"></span></div></td></tr>
+      <tr><td><code>ui/learning_page.py</code></td><td class="num">287</td><td class="num">90</td><td class="num">69%</td><td><div class="bar"><span class="b60" style="width:69%"></span></div></td></tr>
+      <tr><td><code>statistics.py</code></td><td class="num">139</td><td class="num">42</td><td class="num">70%</td><td><div class="bar"><span class="b60" style="width:70%"></span></div></td></tr>
+      <tr><td><code>modules/cloze_test.py</code></td><td class="num">124</td><td class="num">33</td><td class="num">73%</td><td><div class="bar"><span class="b60" style="width:73%"></span></div></td></tr>
+      <tr><td><code>ui/reading_comprehension_page.py</code></td><td class="num">268</td><td class="num">66</td><td class="num">75%</td><td><div class="bar"><span class="b60" style="width:75%"></span></div></td></tr>
+      <tr><td><code>logger.py</code></td><td class="num">73</td><td class="num">17</td><td class="num">77%</td><td><div class="bar"><span class="b60" style="width:77%"></span></div></td></tr>
+      <tr><td><code>ui/components/scrollable_frame.py</code></td><td class="num">38</td><td class="num">4</td><td class="num">89%</td><td><div class="bar"><span class="b100" style="width:89%"></span></div></td></tr>
+      <tr><td><code>ui/statistics_page.py</code></td><td class="num">208</td><td class="num">8</td><td class="num">96%</td><td><div class="bar"><span class="b100" style="width:96%"></span></div></td></tr>
+      <tr><td><code>modules/exam_specs.py</code></td><td class="num">42</td><td class="num">0</td><td class="num">100%</td><td><div class="bar"><span class="b100" style="width:100%"></span></div></td></tr>
+    </tbody>
+  </table>
+
+  <h3>4.2 建议落实前后的重点模块对照</h3>
+  <table>
+    <thead><tr><th>模块</th><th class="num">白盒前</th><th class="num">白盒后</th><th>备注</th></tr></thead>
+    <tbody>
+      <tr><td><code>core/database_manager.py</code></td><td class="num">7%</td><td class="num">51%</td><td>建议2：内存 SQLite 集成测试</td></tr>
+      <tr><td><code>modules/cloze_test.py</code></td><td class="num">0%</td><td class="num">73%</td><td>建议2：模块层 patch 桩</td></tr>
+      <tr><td><code>modules/reading_comprehension.py</code></td><td class="num">11%</td><td class="num">61%</td><td>建议2：模块层 patch 桩</td></tr>
+      <tr><td><code>word_manager.py</code></td><td class="num">8%</td><td class="num">16%</td><td>建议2：仅覆盖节流 / 委托 / 缓存，体量庞大（1024 语句）仍偏低</td></tr>
+      <tr><td><code>ui/dictation_page.py</code></td><td class="num">0%</td><td class="num">55%</td><td>建议3：逻辑单测</td></tr>
+      <tr><td><code>ui/learning_page.py</code></td><td class="num">0%</td><td class="num">69%</td><td>建议3：逻辑单测</td></tr>
+      <tr><td><code>ui/settings_page.py</code></td><td class="num">0%</td><td class="num">53%</td><td>建议3：逻辑单测</td></tr>
+      <tr><td><code>ui/translation_page.py</code></td><td class="num">0%</td><td class="num">62%</td><td>建议3：逻辑单测</td></tr>
+      <tr><td><code>ui/statistics_page.py</code></td><td class="num">0%</td><td class="num">96%</td><td>建议3：逻辑单测</td></tr>
+      <tr><td><code>ui/word_set_page.py</code></td><td class="num">0%</td><td class="num">40%</td><td>建议3：逻辑单测</td></tr>
+      <tr><td><code>ui/components/scrollable_frame.py</code></td><td class="num">79%</td><td class="num">89%</td><td>建议3：补充</td></tr>
+    </tbody>
+  </table>
+
+  <h3>4.3 仍偏低 / 未覆盖模块说明</h3>
+  <p style="color:var(--sub);margin:4px 0 8px">
+    整体行覆盖率 45%（7473 语句，缺失 4086），剩余缺口主要集中在以下模块，多为重型 UI 容器、音频 IO 与体量庞大的业务体：
+  </p>
+  <table>
+    <thead><tr><th>模块</th><th class="num">行覆盖率</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td><code>word_manager.py</code></td><td class="num">16%</td><td>核心单词管理，1024 语句、方法众多；本次仅覆盖节流 / AI 委托 / CRUD 缓存，建议后续专项集成测试（已搭好 DB 单例 + AIManager 桩基础设施）</td></tr>
+      <tr><td><code>core/dictation.py</code></td><td class="num">6%</td><td>听写核心逻辑层（与 ui/dictation_page 分离），尚未纳入白盒范围</td></tr>
+      <tr><td><code>modules/database.py</code>（ComprehensionDatabase）</td><td class="num">12%</td><td>命题数据访问层，经 UI 删除流程间接调用；建议补直接单测</td></tr>
+      <tr><td><code>audio_cache.py</code> / <code>audio_player.py</code></td><td class="num">15%</td><td>音频缓存 / 播放 IO，依赖本地音频后端，headless 环境难以覆盖</td></tr>
+      <tr><td><code>main.py</code> / <code>ui/components/loading_dialog.py</code></td><td class="num">0% / 20%</td><td>程序入口与加载弹窗，通常不在白盒单元测试范围</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- 发现的问题 -->
+<div class="card">
+  <h2>五、发现的问题与修复</h2>
+
+  <h3 style="color:var(--green)">5.0 已修复缺陷（3 处，源码已修正）</h3>
+
+  <div class="defect">
+    <div class="t"><span class="pill p-crit">严重</span> <code>ui/word_detail_page.py</code> 文件被重复插入而彻底损坏 → 已按建议1移除</div>
+    <dl>
+      <dt>现象</dt><dd>文件曾达 <b>6260 行</b>、约 <b>50 个重复类定义</b>；<code>py_compile</code> 报语法错误（全角逗号游离 docstring 外）；覆盖率解析报 <code>Couldn't parse</code>。</dd>
+      <dt>根因</dt><dd>文件写入 / 编辑异常，同一段被反复追加，尾部原始代码丢失；该文件<b>从未被 git 跟踪</b>且<b>零处 import</b>（游离死代码），不直接影响主程序。</dd>
+      <dt>处置</dt><dd>依<b>建议1（高）</b>已从仓库<b>彻底移除</b> <code>ui/word_detail_page.py</code> 及其测试 <code>test_word_detail_page.py</code>，从源头消除被再次静默损坏的风险（先前曾重建为 343 行干净版本，本次直接删除）。</dd>
+      <dt>验证</dt><dd>仓库已无该文件；全套回归无引用残留，279 用例全绿。</dd>
+    </dl>
+  </div>
+
+  <div class="defect">
+    <div class="t"><span class="pill p-mid">中等</span> <code>modules/exam_specs.py</code> 未知学段在 prompt 文本显示「未知」</div>
+    <dl>
+      <dt>现象</dt><dd>传入不在大纲中的学段（拼写错误）时，命题提示词里学段位置显示字面量「未知」，而非回退默认「高中」。</dd>
+      <dt>根因</dt><dd><code>build_cloze_prompt</code> / <code>build_reading_prompt</code> 的 f-string 直接用 <code>{level}</code>，未对未知 level 回退。</dd>
+      <dt>修复</dt><dd>新增 <code>level_name = level if level in CLOZE_SPECS/READING_SPECS else "高中"</code>，f-string 改用 <code>{level_name}</code>（共 4 处）。</dd>
+      <dt>验证</dt><dd>py_compile 通过；白盒用例 <code>test_未知阶段回退</code> 断言提示词含「高中」。</dd>
+    </dl>
+  </div>
+
+  <div class="defect">
+    <div class="t"><span class="pill p-mid">中等</span> <code>modules/ai_service.py</code> 使用陈旧实例属性判断 AI 可用性</div>
+    <dl>
+      <dt>现象</dt><dd><code>generate_reading_comprehension</code> 用 <code>if not self.ai_available:</code>（初始化时缓存快照）判断可用性，运行时切换 ai_mode 后不刷新。</dd>
+      <dt>根因</dt><dd><code>self.ai_available</code> 是初始化快照；应使用实时 property <code>is_ai_available()</code>（覆盖云端 + 本地）。</dd>
+      <dt>修复</dt><dd>改为 <code>if not self.is_ai_available():</code>。</dd>
+      <dt>验证</dt><dd>py_compile 通过；白盒用例覆盖「云端已配置 → 仍判可用」路径。</dd>
+    </dl>
+  </div>
+
+  <h3 style="color:var(--green);margin-top:22px">5.1 建议3 UI 单测新发现的 4 处缺陷（现已全部修复）</h3>
+  <p style="color:var(--sub);font-size:13px;margin:4px 0 10px">
+    以下缺陷由建议3 的 UI 页面白盒测试间接暴露（测试通过桩绕过了崩溃路径从而保持全绿），属真实源代码问题，<b>本轮已全部修复，回归 279 用例仍全绿</b>：
+  </p>
+
+  <div class="defect">
+    <div class="t"><span class="pill p-mid">中等</span> <span class="tag-done">已修复</span> <code>ui/settings_page.py</code> —— <code>_on_reset_settings</code> 重复定义（L742 / L1003）</div>
+    <dl>
+      <dt>现象</dt><dd>同一方法在文件内被定义两次；后一处（L1003）覆盖前者，导致重置逻辑不完整——<b>云端配置（api_key / base_url / model）UI 在重置时不被复位</b>，仅本地开关被更新。</dd>
+      <dt>修复</dt><dd>删除末尾重复且不完整的定义（L1003–1038），保留 L742 处的完整版本——该版本在重置时会同步复位云端配置 UI（<code>cloud_api_url_var</code> / <code>cloud_api_key_var</code> / <code>cloud_model_name_var</code> / <code>cloud_enabled_var</code>）、<code>ai_summary_enabled_var</code> 及 AI 模式区显示。</dd>
+      <dt>验证</dt><dd><code>py_compile</code> 通过；<code>grep def _on_reset_settings</code> 仅剩 1 处；回归全绿。</dd>
+    </dl>
+  </div>
+
+  <div class="defect">
+    <div class="t"><span class="pill p-crit">高</span> <span class="tag-done">已修复</span> <code>ui/settings_page.py</code> L672 —— 使用未导入的 <code>log_warning</code></div>
+    <dl>
+      <dt>现象</dt><dd>该处调用 <code>log_warning(...)</code>，但文件仅 <code>from logger import log_info</code>，未导入 <code>log_warning</code>。运行到该分支会抛 <code>NameError: name 'log_warning' is not defined</code>。</dd>
+      <dt>修复</dt><dd>导入改为 <code>from logger import log_info, log_warning</code>。</dd>
+      <dt>验证</dt><dd><code>py_compile</code> 通过；导入行已确认包含 <code>log_warning</code>。</dd>
+    </dl>
+  </div>
+
+  <div class="defect">
+    <div class="t"><span class="pill p-crit">高</span> <span class="tag-done">已修复</span> <code>ui/learning_page.py</code> L407 —— <code>play_pronunciation</code> 引用不存在的 <code>self.main_frame</code></div>
+    <dl>
+      <dt>现象</dt><dd>发音完成回调中调用 <code>self.main_frame.after(0, _on_done)</code>，但 <code>LearningPage(tk.Frame)</code> 并无 <code>main_frame</code> 属性，运行时会抛 <code>AttributeError</code>，导致点击发音后崩溃。</dd>
+      <dt>修复</dt><dd>改为 <code>self.after(0, _on_done)</code>——<code>LearningPage</code> 继承 <code>tk.Frame</code> 本身具备 <code>after</code>，且与同文件 L429 / L445 的写法一致。</dd>
+      <dt>验证</dt><dd><code>py_compile</code> 通过；<code>grep self.main_frame</code> 已无残留；回归全绿。</dd>
+    </dl>
+  </div>
+
+  <div class="defect">
+    <div class="t"><span class="pill p-mid">中等</span> <span class="tag-done">已修复</span> <code>ui/translation_page.py</code> —— 默认 <code>font_config</code> 缺 <code>'header'</code> / <code>'button'</code> 键</div>
+    <dl>
+      <dt>现象</dt><dd><code>TranslationPage.__init__</code> 的默认 <code>font_config</code> 仅含 <code>title / normal / small</code>，但代码多处用到 <code>'header'</code>（L63 / L116）与 <code>'button'</code>（L185 起 5 处）；若调用方未传完整 font_config，访问这两个键会抛 <code>KeyError</code>。</dd>
+      <dt>修复</dt><dd>默认字典补全 <code>'header'</code>（Arial 18）/ <code>'button'</code>（Arial 14），并改为 <code>{**默认, **(传入 or {})}</code> 合并——即使调用方传入不完整的 font_config 也以默认值兜底，杜绝 KeyError。</dd>
+      <dt>验证</dt><dd><code>py_compile</code> 通过；回归全绿（含 translation_page 10 个用例）。</dd>
+    </dl>
+  </div>
+
+  <h3>5.2 测试基础设施修正（非代码缺陷，保障测试稳定）</h3>
+  <ul>
+    <li>conftest 新增<b>会话级单一 <code>tk_root</code></b>，解决 headless 环境重复创建 / 销毁 <code>Tk()</code> 触发的 <code>TclError</code>；并移除 UI 测试文件各自的 module 级 <code>tk_root</code>。</li>
+    <li>修正 3 个 UI 测试 patch 目标：<code>ui.xxx_page.ComprehensionDatabase</code> / <code>ReadingComprehensionModule</code> → <code>modules.database.ComprehensionDatabase</code> / <code>modules.reading_comprehension.ReadingComprehensionModule</code>（局部 import 须 patch 到真实定义处）。</li>
+    <li>安装 pytest-cov 以支持覆盖率统计；集成测试通过单例绕过 + 强制 <code>immediate</code> 落库解决「写后读」断言读不到数据的问题。</li>
+  </ul>
+</div>
+
+<!-- 结论 -->
+<div class="card">
+  <h2>六、结论与建议</h2>
+  <ul>
+    <li><b>结论</b>：核心 AI 命题与答题链路（命题蓝图 → AI 接口 → 业务服务 → UI 答题页）逻辑健壮，<b>279 个白盒用例全绿</b>；落实三项建议后整体行覆盖率由 16% 升至 <b>45%</b>（分支 52%）。白盒测试累计修复 <b>7 处真实缺陷</b>（首版 3 处 + 本轮 UI 单测新发现的 4 处），<b>当前无遗留待修复缺陷</b>。</li>
+    <li><b>建议1（高）— 已完成 ✅</b>：<code>ui/word_detail_page.py</code> 游离死代码已彻底移除，消除被再次静默损坏的风险。</li>
+    <li><b>建议2（中）— 已完成 ✅</b>：新增 <code>test_database_manager.py</code> / <code>test_modules_cloze_reading.py</code> / <code>test_word_manager.py</code> 三个集成测试，覆盖数据持久化与命题实现（数据层 7%→51%、命题实现 0%→73%）。</li>
+    <li><b>建议3（低）— 已完成 ✅</b>：新增 6 个 UI 页面逻辑单测（设置 / 学习 / 听写 / 翻译 / 统计 / 词书），统计页达 96%、学习页 69%、翻译页 62%。</li>
+    <li><b>后续建议</b>：第五节 5.1 的 4 处新缺陷已全部修复；<code>word_manager.py</code>（16%）与 <code>core/dictation.py</code>（6%）仍偏低，可基于已搭好的 DB 单例 + AIManager 桩基础设施继续扩写集成测试进一步提升覆盖率。</li>
+  </ul>
+  <div class="note">
+    ⚠️ 遗留事项：所有代码改动（累计 7 处缺陷修复 + 9 个新增测试文件）与移除操作（word_detail 死代码）尚未提交 git——此前多轮已询问，待你确认后我再执行提交。
+  </div>
+</div>
+
+<div class="foot">本报告由白盒测试执行结果自动汇总生成 · 2026-07-16 · v2（三项建议已落实）</div>
+
+</div>
+</body>
+</html>

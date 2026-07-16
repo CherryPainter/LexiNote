@@ -204,9 +204,14 @@ class AIAssistantPage(tk.Frame):
                     self.generate_button.config(state=tk.NORMAL, bg='#4CAF50')
                     log_info("AI助手连接正常")
                 else:
-                    self.status_var.set("AI连接失败，请确认Ollama服务已启动")
+                    # 不可用：区分“主动关闭”与“所选渠道未就绪”
+                    mode = getattr(self.ai_service.ai_manager, "ai_mode", "off")
+                    if mode == "off":
+                        self.status_var.set("AI 功能未启用，请在设置中开启本地或云端模式")
+                    else:
+                        self.status_var.set("AI连接失败，请确认所选渠道（Ollama/云端）可用")
                     self.generate_button.config(state=tk.DISABLED, bg='#cccccc')
-                    log_warning("AI助手连接失败")
+                    log_warning(f"AI助手连接失败（模式: {mode}）")
             except Exception as e:
                 self.status_var.set(f"检查连接时出错: {str(e)}")
                 log_error(f"检查AI连接时出错: {str(e)}")

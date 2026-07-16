@@ -9,6 +9,7 @@ from logger import log_info, log_error, log_warning
 from core.ai_interface import AIManager
 from .database import ComprehensionDatabase
 from .utils import extract_json_from_text
+from .exam_specs import build_cloze_prompt, build_reading_prompt, GEN_TEMPERATURE
 
 
 class AIService:
@@ -72,14 +73,8 @@ class AIService:
             return self.word_manager.ai_available
 
         try:
-            # 只检查Ollama服务的健康状态，不发送实际的生成请求
-            health_response = requests.get("http://localhost:11434/api/tags", timeout=5)
-            if health_response.status_code == 200:
-                log_info("AI服务连接测试成功")
-                return True
-            else:
-                log_warning(f"Ollama服务运行异常，状态码: {health_response.status_code}")
-                return False
+            # 复用 AIManager 的统一可用性判断（同时覆盖云端与本地 Ollama）
+            return self.ai_manager.is_ai_available()
         except requests.RequestException as e:
             log_warning(f"Ollama服务连接失败: {str(e)}")
             return False
@@ -116,30 +111,9 @@ class AIService:
                 log_error("AI服务不可用，无法生成完形填空题目")
                 return None
 
-            prompt = f"""
-请生成一篇{level}难度的英语完形填空文章，主题为{topic}。
+            prompt = build_cloze_prompt(level, topic)
 
-要求：
-1. 文章长度适中，包含约200-300个单词
-2. 文章内容连贯，适合{level}英语水平的学习者
-3. 请在文章中选择10个合适的单词替换为空格
-4. 为每个空格提供4个选项，其中只有一个是正确答案
-5. 请按照以下JSON格式输出，不要包含其他任何无关内容：
-
-{{
-  "title": "文章标题",
-  "content": "包含[BLANK_1], [BLANK_2], ..., [BLANK_10]的文章内容",
-  "options": [
-    {{"blank": 1, "text": "空格1的四个选项，用分号分隔，例如：word1;word2;word3;word4"}},
-    {{"blank": 2, "text": "空格2的四个选项"}},
-    // 其他空格的选项
-  ],
-  "answers": "答案序列，例如：1,3,2,4,...",
-  "explanation": "题目解析，包括每个空格的正确答案说明，使用中文回答，引用部分可以使用英语"
-}}
-            """
-
-            response = self.ai_manager._ask_sync(prompt)
+            response = self.ai_manager._ask_sync(prompt, temperature=GEN_TEMPERATURE)
 
             # 解析AI返回的JSON
             try:
@@ -161,13 +135,25 @@ class AIService:
                 if 'answeers' in result:
                     result['answers'] = result.pop('answeers')
                     log_info("已修复字段名拼写错误: answeers -> answers")
+                # AI 可能用 'answer'（单数）返回答案序列
+                if 'answer' in result and 'answers' not in result:
+                    result['answers'] = result.pop('answer')
+                    log_info("已修复字段名拼写错误: answer -> answers")
 
-                # 验证必要字段
-                required_fields = ['title', 'content', 'options', 'answers', 'explanation']
-                for field in required_fields:
+                # 必要字段缺失则无法构成题目
+                essential_fields = ['content', 'options', 'answers']
+                for field in essential_fields:
                     if field not in result:
-                        log_error(f"AI返回的完形填空数据缺少{field}字段")
+                        log_error(f"AI返回的完形填空数据缺少必要字段{field}")
                         return None
+
+                # 非必要字段缺失时给出合理默认值，避免整题生成失败
+                if not result.get('title'):
+                    result['title'] = f"{level}英语完形填空（{topic}）"
+                    log_info("AI返回缺少title，已自动生成标题")
+                if not result.get('explanation'):
+                    result['explanation'] = ""
+                    log_info("AI返回缺少explanation，已置空")
 
                 # 处理选项格式
                 processed_options = []
@@ -230,48 +216,13 @@ class AIService:
             Dict: 包含题目信息的字典
         """
         try:
-            if not self.ai_available:
+            if not self.is_ai_available():
                 log_error("AI服务不可用，无法生成阅读理解题目")
                 return None
 
-            # 设置文章长度对应的单词数
-            word_count = "300-500" if length == "短篇" else "600-800"
+            prompt = build_reading_prompt(level, topic, length, question_count)
 
-            prompt = f"""
-请生成一篇{length}（约{word_count}个单词）的{level}难度英语阅读理解文章，主题为{topic}，并附带{question_count}个问题。
-
-要求：
-1. 文章内容连贯，主题明确，适合{level}英语水平的学习者
-2. 问题类型混合使用选择题和主观题
-3. 选择题请提供4个选项，其中只有一个正确答案
-4. 所有问题（包括选择题和简答题）必须包含具体的问题内容，**绝对不可以**使用'Question X'或类似的占位符
-5. 选择题格式：具体问题内容 A.Option1 B.Option2 C.Option3 D.Option4（选项内容必须使用英文，不可以使用中文）
-6. 简答题格式：具体问题内容（例如：请解释文章中提到的主要观点）
-7. 答案部分：选择题使用A/B/C/D，主观题提供中文标准参考答案
-8. 解析部分：使用中文回答，引用部分可以使用英语
-9. 请严格按照以下JSON格式输出，不要包含任何额外的内容、解释或说明：
-
-{{
-  "article": "完整的阅读文章内容",
-  "questions": [
-    "具体问题1（选择题：A.First option B.Second option C.Third option D.Fourth option）",
-    "具体问题2（简答题：请解释文章中的关键概念）",
-    // 其他问题
-  ],
-  "answers": [
-    "答案1（选择题使用A/B/C/D，主观题提供标准参考答案）",
-    "答案2",
-    // 其他答案
-  ],
-  "explanations": [
-    "解析1",
-    "解析2",
-    // 其他解析
-  ]
-}}
-            """
-
-            response = self.ai_manager._ask_sync(prompt)
+            response = self.ai_manager._ask_sync(prompt, temperature=GEN_TEMPERATURE)
 
             # 保存原始响应用于调试
             self._save_raw_response('reading_generation', response)
@@ -441,7 +392,7 @@ class AIService:
 2. 语言表达是否清晰准确
 3. 是否包含了所有关键信息
 
-请使用中文回答，引用部分可以使用英语。评估结果请以JSON格式输出：
+Please answer in English. The evaluation result must be output in the following JSON format:
 {{
   "is_acceptable": true/false,
   "score": 0-100,

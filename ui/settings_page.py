@@ -7,7 +7,7 @@ import threading
 # 添加项目根目录到Python路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from logger import log_info
+from logger import log_info, log_warning
 from core.ai_interface import AIManager
 from ui.components.scrollable_frame import create_scrollable_frame
 
@@ -265,12 +265,54 @@ class SettingsPage(tk.Frame):
         )
         ai_model_frame.pack(fill=tk.X, padx=20, pady=15)
 
+        # AI 总开关/模式：关闭 / 本地(Ollama) / 云端（渠道互斥，不跨渠道试探）
+        mode_frame = tk.Frame(ai_model_frame, bg="white")
+        mode_frame.pack(fill=tk.X, pady=(0, 10))
+
+        mode_label = tk.Label(
+            mode_frame, text="AI 功能模式：", font=self.font_config['normal'], bg="white"
+        )
+        mode_label.pack(anchor=tk.W, pady=(0, 5))
+
+        self.ai_mode_var = tk.StringVar(value=self.settings_manager.get_ai_mode())
+
+        def _on_ai_mode_change():
+            mode = self.ai_mode_var.get()
+            self.settings_manager.set_ai_mode(mode)
+            # 同步云端开关状态，保证与旧版 cloud_ai_enabled 兼容
+            self.cloud_enabled_var.set(mode == "cloud")
+            self.settings_manager.set_cloud_ai_enabled(mode == "cloud")
+            log_info(f"AI 模式已切换为: {mode}")
+            self._apply_ai_mode_ui()
+            # 切换后重新加载模型列表（按新模式只探测对应渠道）
+            self._refresh_ai_models()
+
+        for m, text in (("off", "关闭（纯本地，不使用 AI，核心学习功能不受影响）"),
+                        ("local", "本地 (Ollama)"),
+                        ("cloud", "云端")):
+            tk.Radiobutton(
+                mode_frame, text=text, value=m, variable=self.ai_mode_var,
+                command=_on_ai_mode_change, font=self.font_config['normal'],
+                bg="white", anchor=tk.W
+            ).pack(fill=tk.X, padx=10)
+
         # 初始化AI管理器
         self.ai_manager = AIManager()
 
+        # 本地模型区域（仅在“本地”模式下显示）
+        self.local_ai_frame = tk.LabelFrame(
+            ai_model_frame,
+            text="本地模型 (Ollama)",
+            font=self.font_config['normal'],
+            bg="white",
+            padx=15,
+            pady=10
+        )
+        self.local_ai_frame.pack(fill=tk.X, pady=(0, 10))
+
         # 当前模型选择
         model_label = tk.Label(
-            ai_model_frame,
+            self.local_ai_frame,
             text="当前使用模型:",
             font=self.font_config['normal'],
             bg="white"
@@ -280,7 +322,7 @@ class SettingsPage(tk.Frame):
         # 模型选择下拉框
         self.ai_model_var = tk.StringVar(value="加载中...")
         self.ai_model_combo = ttk.Combobox(
-            ai_model_frame,
+            self.local_ai_frame,
             textvariable=self.ai_model_var,
             values=[],
             state="disabled",
@@ -302,7 +344,7 @@ class SettingsPage(tk.Frame):
         self.ai_model_combo.pack(fill=tk.X, pady=5)
 
         # 模型管理按钮框架
-        model_buttons_frame = tk.Frame(ai_model_frame, bg="white")
+        model_buttons_frame = tk.Frame(self.local_ai_frame, bg="white")
         model_buttons_frame.pack(fill=tk.X, pady=10)
 
         # 添加模型按钮
@@ -343,6 +385,143 @@ class SettingsPage(tk.Frame):
             pady=5
         )
         refresh_models_button.pack(side=tk.LEFT, padx=5)
+
+        # 云端模型设置区域
+        cloud_frame = tk.LabelFrame(
+            ai_model_frame,
+            text="连接云端模型",
+            font=self.font_config['normal'],
+            bg="white",
+            padx=15,
+            pady=10
+        )
+        self.cloud_frame = cloud_frame
+        cloud_frame.pack(fill=tk.X, pady=(15, 5))
+
+        # 云端启用开关
+        self.cloud_enabled_var = tk.BooleanVar(
+            value=self.settings_manager.get_cloud_ai_enabled()
+        )
+        cloud_enable_checkbox = tk.Checkbutton(
+            cloud_frame,
+            text="启用云端模型",
+            variable=self.cloud_enabled_var,
+            command=self._on_cloud_enabled_change,
+            font=self.font_config['normal'],
+            bg="white",
+            anchor=tk.W
+        )
+        cloud_enable_checkbox.pack(fill=tk.X, pady=5)
+
+        # API地址输入
+        api_url_label = tk.Label(
+            cloud_frame,
+            text="API地址:",
+            font=self.font_config['normal'],
+            bg="white"
+        )
+        api_url_label.pack(anchor=tk.W, pady=(5, 0))
+        self.cloud_api_url_var = tk.StringVar(
+            value=self.settings_manager.get_cloud_ai_api_url()
+        )
+        self.cloud_api_url_entry = tk.Entry(
+            cloud_frame,
+            textvariable=self.cloud_api_url_var,
+            font=self.font_config['normal'],
+            bd=1,
+            relief=tk.SOLID
+        )
+        self.cloud_api_url_entry.pack(fill=tk.X, pady=2)
+        api_url_hint = tk.Label(
+            cloud_frame,
+            text="例如: https://api.openai.com/v1/chat/completions",
+            font=(self.font_config['normal'][0], 9),
+            bg="white",
+            fg="#888888"
+        )
+        api_url_hint.pack(anchor=tk.W)
+
+        # API密钥输入
+        api_key_label = tk.Label(
+            cloud_frame,
+            text="API密钥:",
+            font=self.font_config['normal'],
+            bg="white"
+        )
+        api_key_label.pack(anchor=tk.W, pady=(5, 0))
+        self.cloud_api_key_var = tk.StringVar(
+            value=self.settings_manager.get_cloud_ai_api_key()
+        )
+        self.cloud_api_key_entry = tk.Entry(
+            cloud_frame,
+            textvariable=self.cloud_api_key_var,
+            font=self.font_config['normal'],
+            bd=1,
+            relief=tk.SOLID,
+            show="*"
+        )
+        self.cloud_api_key_entry.pack(fill=tk.X, pady=2)
+
+        # 模型名称输入
+        cloud_model_label = tk.Label(
+            cloud_frame,
+            text="模型名称:",
+            font=self.font_config['normal'],
+            bg="white"
+        )
+        cloud_model_label.pack(anchor=tk.W, pady=(5, 0))
+        self.cloud_model_name_var = tk.StringVar(
+            value=self.settings_manager.get_cloud_ai_model_name()
+        )
+        self.cloud_model_name_entry = tk.Entry(
+            cloud_frame,
+            textvariable=self.cloud_model_name_var,
+            font=self.font_config['normal'],
+            bd=1,
+            relief=tk.SOLID
+        )
+        self.cloud_model_name_entry.pack(fill=tk.X, pady=2)
+        cloud_model_hint = tk.Label(
+            cloud_frame,
+            text="例如: gpt-4o, gpt-3.5-turbo, claude-3-sonnet",
+            font=(self.font_config['normal'][0], 9),
+            bg="white",
+            fg="#888888"
+        )
+        cloud_model_hint.pack(anchor=tk.W)
+
+        # 云端模型操作按钮
+        cloud_buttons_frame = tk.Frame(cloud_frame, bg="white")
+        cloud_buttons_frame.pack(fill=tk.X, pady=10)
+
+        save_cloud_button = tk.Button(
+            cloud_buttons_frame,
+            text="保存云端配置",
+            command=self._on_save_cloud_config,
+            font=self.font_config['button'],
+            bg="#4CAF50",
+            fg="white",
+            padx=10,
+            pady=5
+        )
+        save_cloud_button.pack(side=tk.LEFT, padx=5)
+
+        test_cloud_button = tk.Button(
+            cloud_buttons_frame,
+            text="测试云端连接",
+            command=self._on_test_cloud_connection,
+            font=self.font_config['button'],
+            bg="#2196F3",
+            fg="white",
+            padx=10,
+            pady=5
+        )
+        test_cloud_button.pack(side=tk.LEFT, padx=5)
+
+        # 根据当前启用状态更新控件可用性
+        self._update_cloud_ui_state()
+        # 根据 AI 模式显示/隐藏 本地 与 云端 配置区域
+        self._apply_ai_mode_ui()
 
         # 重置设置按钮，居中显示
         button_frame = tk.Frame(center_frame, bg="#f0f0f0")
@@ -400,6 +579,166 @@ class SettingsPage(tk.Frame):
         self.settings_manager.set_setting("ai_summary_enabled", value)
         log_info(f"AI总结功能设置已更新为: {value}")
 
+    def _apply_ai_mode_ui(self):
+        """根据当前 AI 模式显示/隐藏 本地 与 云端 配置区域（渠道互斥）"""
+        mode = self.ai_mode_var.get() if hasattr(self, 'ai_mode_var') else "off"
+        # 同步云端开关状态，保证与旧版 cloud_ai_enabled 兼容
+        if hasattr(self, 'cloud_enabled_var'):
+            self.cloud_enabled_var.set(mode == "cloud")
+        if hasattr(self, 'local_ai_frame'):
+            self.local_ai_frame.pack_forget()
+        if hasattr(self, 'cloud_frame'):
+            self.cloud_frame.pack_forget()
+        if mode == "local" and hasattr(self, 'local_ai_frame'):
+            self.local_ai_frame.pack(fill=tk.X, pady=(0, 10))
+        elif mode == "cloud" and hasattr(self, 'cloud_frame'):
+            self.cloud_frame.pack(fill=tk.X, pady=(15, 5))
+        # off：两者均隐藏
+
+    def _on_cloud_enabled_change(self):
+        """处理云端模型启用状态变更（同步切换 AI 模式）"""
+        enabled = self.cloud_enabled_var.get()
+        self.settings_manager.set_cloud_ai_enabled(enabled)
+        mode = "cloud" if enabled else "off"
+        self.settings_manager.set_ai_mode(mode)
+        if hasattr(self, 'ai_mode_var'):
+            self.ai_mode_var.set(mode)
+        log_info(f"云端模型已{'启用' if enabled else '禁用'}，AI 模式: {mode}")
+        self._apply_ai_mode_ui()
+        self._update_cloud_ui_state()
+
+    def _update_cloud_ui_state(self):
+        """根据云端启用状态更新UI控件可用性"""
+        enabled = self.cloud_enabled_var.get()
+        state = tk.NORMAL if enabled else tk.DISABLED
+        self.cloud_api_url_entry.config(state=state)
+        self.cloud_api_key_entry.config(state=state)
+        self.cloud_model_name_entry.config(state=state)
+
+    @staticmethod
+    def _normalize_url(url: str) -> str:
+        """自动补全 https:// 前缀，避免 requests 报 "No scheme supplied" """
+        url = (url or "").strip()
+        if url and "://" not in url:
+            return "https://" + url
+        return url
+
+    def _on_save_cloud_config(self):
+        """保存云端模型配置"""
+        try:
+            enabled = self.cloud_enabled_var.get()
+            # 自动补全 https:// 前缀，避免用户漏写协议头
+            api_url = self._normalize_url(self.cloud_api_url_var.get())
+            api_key = self.cloud_api_key_var.get().strip()
+            model_name = self.cloud_model_name_var.get().strip()
+
+            # 如果启用云端，验证必填项
+            if enabled:
+                if not api_url:
+                    messagebox.showwarning("配置不完整", "请填写API地址")
+                    return
+                if not api_key:
+                    messagebox.showwarning("配置不完整", "请填写API密钥")
+                    return
+                if not model_name:
+                    messagebox.showwarning("配置不完整", "请填写模型名称")
+                    return
+
+            # 保存配置
+            success = self.settings_manager.save_cloud_ai_config(
+                enabled, api_url, api_key, model_name
+            )
+
+            if success:
+                log_info("云端模型配置已保存")
+                messagebox.showinfo("保存成功", "云端模型配置已保存")
+                # 立即刷新 AIManager 单例配置，使云端/本地切换在已运行的程序中即时生效
+                try:
+                    # 保存时确保 AI 模式与云端开关一致
+                    self.settings_manager.set_ai_mode("cloud" if enabled else "off")
+                    if hasattr(self, 'ai_mode_var'):
+                        self.ai_mode_var.set("cloud" if enabled else "off")
+                    self._apply_ai_mode_ui()
+                    self.ai_manager._load_cloud_config()
+                    self.ai_manager.ai_mode = self.settings_manager.get_ai_mode()
+                    if enabled and self.ai_manager.cloud_model_name:
+                        # 让单例当前模型对齐到云端模型（异步执行，避免网络探测卡住界面）
+                        threading.Thread(
+                            target=self.ai_manager.set_model,
+                            args=(self.ai_manager.cloud_model_name,),
+                            daemon=True
+                        ).start()
+                except Exception as e:
+                    log_warning(f"刷新 AIManager 云端配置失败: {str(e)}")
+                # 刷新模型列表，让云端模型出现在下拉框中
+                self._refresh_ai_models()
+            else:
+                messagebox.showerror("保存失败", "保存云端配置时出错")
+        except Exception as e:
+            log_info(f"保存云端配置失败: {str(e)}")
+            messagebox.showerror("保存失败", f"保存云端配置时出错: {str(e)}")
+
+    def _on_test_cloud_connection(self):
+        """测试云端模型连接"""
+        try:
+            # 自动补全 https:// 前缀，避免用户漏写协议头
+            api_url = self._normalize_url(self.cloud_api_url_var.get())
+            api_key = self.cloud_api_key_var.get().strip()
+            model_name = self.cloud_model_name_var.get().strip()
+
+            if not api_url or not api_key or not model_name:
+                messagebox.showwarning("配置不完整", "请填写完整的API地址、密钥和模型名称")
+                return
+
+            # 显示加载提示
+            loading_window = tk.Toplevel(self)
+            loading_window.title("测试云端连接")
+            loading_window.geometry("300x100")
+            loading_window.resizable(False, False)
+            loading_window.update_idletasks()
+            x = (self.winfo_screenwidth() // 2) - (300 // 2)
+            y = (self.winfo_screenheight() // 2) - (100 // 2)
+            loading_window.geometry(f"300x100+{x}+{y}")
+
+            loading_label = tk.Label(
+                loading_window,
+                text="正在测试云端连接...",
+                font=self.font_config['normal']
+            )
+            loading_label.pack(expand=True)
+            loading_window.update()
+
+            def do_test():
+                try:
+                    import requests
+                    headers = {
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/json"
+                    }
+                    data = {
+                        "model": model_name,
+                        "messages": [{"role": "user", "content": "hello"}],
+                        "max_tokens": 5
+                    }
+                    response = requests.post(api_url, headers=headers, json=data, timeout=15)
+                    loading_window.destroy()
+
+                    if response.status_code == 200:
+                        log_info(f"云端模型 {model_name} 连接测试成功")
+                        messagebox.showinfo("测试成功", f"云端模型 {model_name} 连接成功！")
+                    else:
+                        log_info(f"云端模型连接测试失败，状态码: {response.status_code}")
+                        messagebox.showerror("测试失败", f"连接失败，状态码: {response.status_code}\n请检查配置信息")
+                except Exception as e:
+                    loading_window.destroy()
+                    log_info(f"云端模型连接测试失败: {str(e)}")
+                    messagebox.showerror("测试失败", f"连接测试失败: {str(e)}")
+
+            threading.Thread(target=do_test, daemon=True).start()
+        except Exception as e:
+            log_info(f"测试云端连接时出错: {str(e)}")
+            messagebox.showerror("测试失败", f"测试云端连接时出错: {str(e)}")
+
     def _on_reset_settings(self):
         """重置设置为默认值"""
         if messagebox.askyesno("确认重置", "确定要将所有设置重置为默认值吗？"):
@@ -430,6 +769,25 @@ class SettingsPage(tk.Frame):
                     self.auto_translation_combo.set('自动' if self.settings_manager.get_setting('auto_mode_translation_practice','manual')=='auto' else '手动')
                 if hasattr(self, 'auto_review_combo'):
                     self.auto_review_combo.set('自动' if self.settings_manager.get_setting('auto_mode_review','manual')=='auto' else '手动')
+                # 更新云端模型UI
+                if hasattr(self, 'cloud_enabled_var'):
+                    self.cloud_enabled_var.set(self.settings_manager.get_cloud_ai_enabled())
+                if hasattr(self, 'cloud_api_url_var'):
+                    self.cloud_api_url_var.set(self.settings_manager.get_cloud_ai_api_url())
+                if hasattr(self, 'cloud_api_key_var'):
+                    self.cloud_api_key_var.set(self.settings_manager.get_cloud_ai_api_key())
+                if hasattr(self, 'cloud_model_name_var'):
+                    self.cloud_model_name_var.set(self.settings_manager.get_cloud_ai_model_name())
+                if hasattr(self, '_update_cloud_ui_state'):
+                    self._update_cloud_ui_state()
+                # 更新AI模型相关UI
+                if hasattr(self, 'ai_model_combo'):
+                    self._load_ai_models_async()
+                # 重置 AI 模式（默认关闭），并同步模式选择器与区域显示
+                if hasattr(self, 'ai_mode_var'):
+                    self.ai_mode_var.set(self.settings_manager.get_ai_mode())
+                if hasattr(self, '_apply_ai_mode_ui'):
+                    self._apply_ai_mode_ui()
                 log_info("设置已重置为默认值")
                 messagebox.showinfo("重置成功", "设置已成功重置为默认值")
             except Exception as e:
@@ -455,7 +813,17 @@ class SettingsPage(tk.Frame):
             messagebox.showwarning("输入错误", "请输入有效的数字")
 
     def _load_ai_models_async(self):
-        """异步加载可用的AI模型列表，避免阻塞UI"""
+        """异步加载可用的AI模型列表，避免阻塞UI
+
+        仅在「本地(Ollama)」模式下才探测并填充本地模型下拉框。
+        「关闭」与「云端」模式不触碰任何渠道、不重写 available_ai_models，
+        避免无谓的联网探测和把写死的旧模型列表重新提交回设置。
+        """
+        if self.settings_manager.get_ai_mode() != "local":
+            log_info("AI 功能非本地模式，跳过本地模型列表加载（不探测、不重写模型列表）")
+            self.after(0, lambda: self.ai_model_combo.config(state="disabled"))
+            return
+
         def load_models():
             try:
                 # 获取本地Ollama可用模型
@@ -631,40 +999,3 @@ class SettingsPage(tk.Frame):
         except Exception as e:
             log_info(f"测试模型时出错: {str(e)}")
             messagebox.showerror("测试失败", f"测试模型时出错: {str(e)}")
-
-    def _on_reset_settings(self):
-        """重置设置为默认值"""
-        if messagebox.askyesno("确认重置", "确定要将所有设置重置为默认值吗？"):
-            # 使用 SettingsManager API 重置为默认
-            try:
-                self.settings_manager.reset_to_default()
-                # 更新UI（使用 hasattr 以避免某些路径下未创建控件时报错）
-                self.auto_next_correct_var.set(self.settings_manager.get_setting("auto_next_correct", False))
-                self.auto_next_wrong_var.set(self.settings_manager.get_setting("auto_next_wrong", False))
-                self.example_enabled_var.set(self.settings_manager.get_setting("example_enabled", True))
-                self.voice_enabled_var.set(self.settings_manager.get_setting("voice_enabled", True))
-                if hasattr(self, 'tts_provider_var'):
-                    self.tts_provider_var.set(self.settings_manager.get_setting("tts_provider", "gTTS"))
-                if hasattr(self, 'tts_cache_enabled_var'):
-                    self.tts_cache_enabled_var.set(self.settings_manager.get_setting("tts_cache_enabled", True))
-                if hasattr(self, 'tts_cache_max_var'):
-                    self.tts_cache_max_var.set(self.settings_manager.get_setting("tts_cache_max_mb", 500))
-                if hasattr(self, 'translation_mode_combo'):
-                    # 把内部值映射回显示值
-                    display_map = {"ai_first": "AI 优先", "local_first": "本地优先", "local_only": "仅本地"}
-                    current = self.settings_manager.get_setting("translation_mode", "ai_first")
-                    self.translation_mode_combo.set(display_map.get(current, current))
-                if hasattr(self, 'auto_word_learning_combo'):
-                    self.auto_word_learning_combo.set('自动' if self.settings_manager.get_setting('auto_mode_word_learning','manual')=='auto' else '手动')
-                if hasattr(self, 'auto_translation_combo'):
-                    self.auto_translation_combo.set('自动' if self.settings_manager.get_setting('auto_mode_translation_practice','manual')=='auto' else '手动')
-                if hasattr(self, 'auto_review_combo'):
-                    self.auto_review_combo.set('自动' if self.settings_manager.get_setting('auto_mode_review','manual')=='auto' else '手动')
-                # 更新AI模型相关UI
-                if hasattr(self, 'ai_model_combo'):
-                    self._load_ai_models_async()
-                log_info("设置已重置为默认值")
-                messagebox.showinfo("重置成功", "设置已成功重置为默认值")
-            except Exception as e:
-                log_info(f"重置设置失败: {str(e)}")
-                messagebox.showerror("重置失败", f"重置设置时出错: {str(e)}")
