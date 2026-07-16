@@ -2,11 +2,28 @@
 
 ## v2.7.1 (2026-07-17)
 
-### 质量提升
-- 核心测试覆盖率提升（word_manager 12.9%→32%、dictation 4.3%→27%，全量 306 passed）；mypy 零错误并接入 pre-commit 门禁；关键路径异常日志升级为 warning/error。
-- `font_config` 重构为 `FontConfig` 数据类（`ui/font_config.py`），类型化默认值从根上消除 KeyError；11 个 UI 页面已迁移。
-- README 重写为技术架构导向文档。
-- 仓库清理：删除孤儿文件 `data/database.db`；删除 `main_window.py` 中无调用方的死方法 `_apply_decay`（潜伏 AttributeError）。
+### 关键可用性修复
+- 修复首次安装词库为空：默认词库创建、words 表创建、种子词库（1640 词）导入统一在同一事务连接内完成，全新安装首次启动即可正确灌入词库。
+- 修复单文件打包（Nuitka onefile）资源路径定位：改用 sys.argv[0] 解析真实安装目录并通过 LEXINOTE_APP_DIR 环境变量传递，图标与词库正确加载。
+
+### AI 能力与健壮性
+- 云端 API 地址自动补全 https:// 协议头；AI 不可用时应用基本可用（本地降级链路）。
+- 例句质量优化（禁止模板句，要求真实语境）；ai_mode（off/local/cloud）单开关，渠道互斥不跨渠道试探；修复云端流式 content 为 null 崩溃；离线降级完善。
+
+### 题目生成与答题体验
+- 引入真实题型蓝图 exam_specs（专升本/考研等），生成多样性（随机种子+变化角度）；解析语言统一英文；完形填空缺 title 字段自动兜底；阅读理解每次 1 篇+题型随机。
+- 完形填空、阅读理解改为 A/B/C/D 单选答题，阅读理解整页一次性展示，体验一致。
+
+### 质量与稳定性
+- 白盒测试从 157 用例扩展到 306 passed/0 failed，整体覆盖率约 57%；修复 4 处 UI 源码缺陷。
+- mypy 由 62 错误降至 0（清理 8 处真实类型 bug + 核心模块注解）；激活 pre-commit 门禁；核心模块异常分层治理。
+- FontConfig 数据类化，从根消除 KeyError。
+
+### 文档与结构
+- README 重写为技术架构导向；删除死代码 _apply_decay、孤儿 data/database.db；7 个文档移入 docs/；清理 cache 跟踪；版本号 v2.7.0 → v2.7.1。
+
+### 打包与发布
+- 安装包写入版本信息（文件版本 2.7.1.0、产品版本 2.7.1、公司 LexiNote Team、版权）；EULA 与隐私政策与 v2.7.1 实际行为一致，安装向导排版优化。
 
 ### 版本信息
 - 升级版本号到 v2.7.1
