@@ -1313,8 +1313,9 @@ class DictationManager:
                 try:
                     self.db_manager.add_progress_record(
                         word, is_correct, proficiency_change)
-                except Exception:
+                except Exception as e:
                     # 如果add_progress_record不可用，则回退为直接插入单条记录
+                    log_warning(f"add_progress_record不可用，回退为直接插入progress记录: {str(e)}")
                     # 使用已生成的timestamp，与dictation_history表保持一致
                     self.db_manager.execute_write(
                         "INSERT INTO progress (word, is_correct, proficiency_change, practice_date) VALUES (?, ?, ?, ?)",
@@ -1339,8 +1340,8 @@ class DictationManager:
                             )
                             if res:
                                 current_proficiency = res[0]['proficiency'] if res[0]['proficiency'] is not None else 0.0
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            log_warning(f"获取当前熟练度失败，使用默认值0.0: {str(e)}")
 
                         # 计算新熟练度
                         new_proficiency = max(

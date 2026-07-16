@@ -1308,7 +1308,7 @@ class WordManager:
                 'last_session': summary_stats['last_session']
             }
         except Exception as e:
-            log_info(f"获取学习进度失败: {str(e)}")
+            log_error(f"获取学习进度失败: {str(e)}")
             # 返回默认值
             return {
                 'total_learned': 0,
@@ -1336,9 +1336,9 @@ class WordManager:
                     (exercise_type, timestamp)
                 )
             except Exception as db_error:
-                log_info(f"记录练习会话失败: {str(db_error)}")
+                log_error(f"记录练习会话失败: {str(db_error)}")
         except Exception as e:
-            log_info(f"开始练习失败: {str(e)}")
+            log_error(f"开始练习失败: {str(e)}")
 
     def get_word_by_weight(self) -> Optional[str]:
         """根据单词权重获取单词（错误次数多的单词优先）
