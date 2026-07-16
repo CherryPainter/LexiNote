@@ -15,6 +15,7 @@ from ui.reading_comprehension_page import ReadingComprehensionPage
 from ui.ai_assistant_page import AIAssistantPage
 from ui.word_set_page import WordSetPage
 from ui.statistics_page import StatisticsPage
+from ui.font_config import FontConfig
 from word_manager import WordManager
 from core.learning import LearningManager
 from core.settings_manager import SettingsManager
@@ -76,12 +77,8 @@ class MainWindow:
         """设置中文字体"""
         # 在不同操作系统上尝试使用合适的中文字体
         self.font_families = ['SimHei', 'WenQuanYi Micro Hei', 'Heiti TC', 'Arial Unicode MS']
-        self.font_config = {
-            'header': ('SimHei', 16, 'bold'),
-            'normal': ('SimHei', 12),
-            'button': ('SimHei', 12),
-            'title': ('SimHei', 24, 'bold')
-        }
+        # 字体配置：统一收敛为 FontConfig，所有键均带默认值，杜绝 KeyError
+        self.font_config = FontConfig()
 
     def _create_ui(self):
         """创建用户界面"""

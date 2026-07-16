@@ -14,6 +14,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from logger import log_error, log_info
 from ui.components.scrollable_frame import create_scrollable_frame
+from ui.font_config import FontConfig
 
 
 class LearningPage(tk.Frame):
@@ -39,7 +40,7 @@ class LearningPage(tk.Frame):
         self.learning_manager = learning_manager
         self.word_manager = word_manager
         self.settings_manager = settings_manager
-        self.font_config = font_config or {'title': ("Arial", 48, "bold"), 'header': ("Arial", 24), 'normal': ("Arial", 12), 'button': ("Arial", 12)}
+        self.font_config = FontConfig.merge(font_config)
 
         # 学习状态
         self.current_batch = []  # 当前学习批次的单词列表

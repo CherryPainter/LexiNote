@@ -2,6 +2,8 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import json
 
+from ui.font_config import FontConfig
+
 class TranslationEditor(tk.Frame):
     """
     多词性多义项翻译编辑器组件
@@ -19,7 +21,7 @@ class TranslationEditor(tk.Frame):
         """
         super().__init__(parent)
 
-        self.font_config = font_config or {"normal": ("SimHei", 10)}
+        self.font_config = FontConfig.merge(font_config)
         self.height = height
 
         # 设置主框架大小策略

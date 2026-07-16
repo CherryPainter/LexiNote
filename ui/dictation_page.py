@@ -11,6 +11,7 @@ from audio_player import AudioPlayer
 from logger import log_info, log_wrong_word, log_error
 from core.dictation import DictationManager
 from ui.components.scrollable_frame import create_scrollable_frame
+from ui.font_config import FontConfig
 
 
 class DictationPage(tk.Frame):
@@ -23,8 +24,7 @@ class DictationPage(tk.Frame):
         self.word_manager = word_manager
         from core.settings_manager import SettingsManager
         self.settings_manager = settings_manager or SettingsManager()
-        self.font_config = font_config or {'header': ('SimHei', 16, 'bold'), 'normal': (
-            'SimHei', 12), 'button': ('SimHei', 12, 'bold')}
+        self.font_config = FontConfig.merge(font_config)
 
         # 初始化听写管理器
         self.dictation_manager = DictationManager(word_manager, self.settings_manager)

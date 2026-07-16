@@ -9,6 +9,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from logger import log_info, log_error
 from ui.components.loading_dialog import LoadingDialog
 from ui.components.scrollable_frame import create_scrollable_frame
+from ui.font_config import FontConfig
 
 
 class ReadingComprehensionPage(tk.Frame):
@@ -26,12 +27,8 @@ class ReadingComprehensionPage(tk.Frame):
         # 延迟初始化ReadingComprehensionModule，避免在页面加载时立即连接AI
         self.reading_module = None
 
-        # 设置中文字体
-        self.font_config = {
-            'header': ('SimHei', 14, 'bold'),
-            'normal': ('SimHei', 12),
-            'button': ('SimHei', 12)
-        }
+        # 设置中文字体（统一使用 FontConfig，自带全部默认值）
+        self.font_config = FontConfig()
 
         # 创建UI
         self._create_ui()

@@ -8,6 +8,7 @@ import threading
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from logger import log_info, log_error
+from ui.font_config import FontConfig
 
 
 class ReviewPage(tk.Frame):
@@ -19,7 +20,7 @@ class ReviewPage(tk.Frame):
         self.parent = parent
         self.settings_manager = settings_manager
         self.word_manager = word_manager
-        self.font_config = font_config or {'header': ('Arial', 24), 'title': ('Arial', 24), 'normal': ('Arial', 16), 'small': ('Arial', 12), 'button': ('Arial', 14)}
+        self.font_config = FontConfig.merge(font_config)
         self.audio_player = audio_player
         # 添加音频可用性标志
         self.audio_available = self.audio_player is not None

@@ -3,6 +3,7 @@ from tkinter import messagebox, ttk, filedialog
 import os
 
 from logger import log_error
+from ui.font_config import FontConfig
 
 
 class WordSetPage(tk.Frame):
@@ -13,7 +14,7 @@ class WordSetPage(tk.Frame):
         super().__init__(parent)
         self.parent = parent
         self.word_manager = word_manager
-        self.font_config = font_config
+        self.font_config = FontConfig.merge(font_config)
 
         # 当前选中的词库ID
         self.current_set_id = None

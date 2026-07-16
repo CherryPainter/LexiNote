@@ -10,6 +10,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from logger import log_info, log_wrong_word
 from audio_player import AudioPlayer
 from ui.components.scrollable_frame import create_scrollable_frame
+from ui.font_config import FontConfig
 
 
 class TranslationPage(tk.Frame):
@@ -21,16 +22,8 @@ class TranslationPage(tk.Frame):
         self.parent = parent
         self.settings_manager = settings_manager
         self.word_manager = word_manager
-        # 默认字体配置（补全 header / button，避免调用方未提供时 KeyError）
-        _default_font_config = {
-            'title': ('Arial', 24),
-            'header': ('Arial', 18),
-            'normal': ('Arial', 16),
-            'button': ('Arial', 14),
-            'small': ('Arial', 12),
-        }
-        # 合并：以默认为底，用传入的覆盖，保证缺键时也有兜底值
-        self.font_config = {**_default_font_config, **(font_config or {})}
+        # 字体配置：FontConfig 自带全部默认值，传入的字典仅用于覆盖
+        self.font_config = FontConfig.merge(font_config)
         self.current_word = ""
         self.current_translation = ""
 

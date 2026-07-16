@@ -14,6 +14,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from logger import log_error
 from ui.components.scrollable_frame import create_scrollable_frame
+from ui.font_config import FontConfig
 
 
 class StatisticsPage(tk.Frame):

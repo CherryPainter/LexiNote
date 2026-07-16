@@ -10,6 +10,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from logger import log_info, log_warning
 from core.ai_interface import AIManager
 from ui.components.scrollable_frame import create_scrollable_frame
+from ui.font_config import FontConfig
 
 
 class SettingsPage(tk.Frame):
@@ -37,11 +38,8 @@ class SettingsPage(tk.Frame):
 
         self.word_manager = word_manager
 
-        # 确保font_config有效
-        if font_config:
-            self.font_config = font_config
-        else:
-            self.font_config = {'normal': ('Arial', 12), 'header': ('Arial', 16, 'bold'), 'button': ('Arial', 12)}
+        # 字体配置：FontConfig 自带全部默认值，传入的字典仅用于覆盖
+        self.font_config = FontConfig.merge(font_config)
 
         # 创建UI组件
         self._create_widgets()

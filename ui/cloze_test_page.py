@@ -8,6 +8,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from ui.components.scrollable_frame import create_scrollable_frame
+from ui.font_config import FontConfig
 
 # 添加项目根目录到Python路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -31,12 +32,8 @@ class ClozeTestPage(tk.Frame):
         # 延迟初始化ClozeTestModule，避免在页面加载时立即连接AI
         self.cloze_module = None
 
-        # 设置中文字体
-        self.font_config = {
-            'header': ('SimHei', 14, 'bold'),
-            'normal': ('SimHei', 12),
-            'button': ('SimHei', 12)
-        }
+        # 设置中文字体（统一使用 FontConfig，自带全部默认值）
+        self.font_config = FontConfig()
 
         # 创建UI
         self._create_ui()
