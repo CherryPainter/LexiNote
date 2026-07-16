@@ -74,9 +74,6 @@ class DatabaseManager:
                 )
             ''')
 
-            # 先创建默认词库
-            self._create_default_word_set(conn=conn)
-
             # 检查并迁移现有的words表
             cursor.execute(
                 "SELECT name FROM sqlite_master WHERE type='table' AND name='words'")
@@ -137,6 +134,9 @@ class DatabaseManager:
                         FOREIGN KEY (set_id) REFERENCES word_sets(id)
                     )
                 ''')
+
+            # 先创建默认词库（此时 words 表已存在，UPDATE words 不会失败）
+            self._create_default_word_set(conn=conn)
 
             # 创建单词索引
             cursor.execute(
@@ -203,7 +203,7 @@ class DatabaseManager:
                 log_warning(f"创建索引时出错: {e}")
             # 从JSON导入现有数据（延迟执行，确保数据库结构完全创建）
             try:
-                self._import_from_json()
+                self._import_from_json(conn=conn)
             except Exception as e:
                 log_error(f"导入JSON数据失败: {str(e)}")
 
@@ -306,97 +306,106 @@ class DatabaseManager:
                 if 'auto_close' in locals() and auto_close:
                     conn.close()
 
-    def _import_from_json(self):
-        """从旧的JSON文件导入数据到SQLite"""
+    def _import_from_json(self, conn=None):
+        """从旧的JSON文件导入数据到SQLite
+
+        首次初始化时由 _init_database 传入同一事务连接，确保能看见尚未提交的
+        默认词库（否则新建的独立连接在 WAL 模式下看不到未提交数据，导致导入跳过）。
+        """
+        auto_close = False
         try:
-            # 检查是否已经导入过
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
+            if conn is None:
+                conn = sqlite3.connect(self.db_path)
+                cursor = conn.cursor()
+                auto_close = True
+            else:
+                cursor = conn.cursor()
+                auto_close = False
 
             # 检查表结构是否正确
-            try:
-                # 先获取默认词库ID
-                cursor.execute("SELECT id FROM word_sets WHERE name = '默认词库'")
-                result = cursor.fetchone()
-                if not result:
-                    log_error("默认词库不存在，无法导入数据")
-                    conn.close()
-                    return
-                default_set_id = result[0]
+            # 先获取默认词库ID
+            cursor.execute("SELECT id FROM word_sets WHERE name = '默认词库'")
+            result = cursor.fetchone()
+            if not result:
+                log_error("默认词库不存在，无法导入数据")
+                return
+            default_set_id = result[0]
 
-                # 检查words表结构
-                cursor.execute("PRAGMA table_info(words)")
-                columns = [col[1] for col in cursor.fetchall()]
+            # 检查words表结构
+            cursor.execute("PRAGMA table_info(words)")
+            columns = [col[1] for col in cursor.fetchall()]
 
-                if 'set_id' not in columns:
-                    log_error("words表没有set_id列，跳过导入")
-                    conn.close()
-                    return
+            if 'set_id' not in columns:
+                log_error("words表没有set_id列，跳过导入")
+                return
 
-                # 检查是否已经导入过数据
-                cursor.execute("SELECT COUNT(*) FROM words")
-                count = cursor.fetchone()[0]
+            # 检查是否已经导入过数据
+            cursor.execute("SELECT COUNT(*) FROM words")
+            count = cursor.fetchone()[0]
 
-                # 如果已经有数据，跳过导入
-                if count > 0:
-                    log_info(f"数据库已有{count}条单词记录，跳过导入")
-                    conn.close()
-                    return
+            # 如果已经有数据，跳过导入
+            if count > 0:
+                log_info(f"数据库已有{count}条单词记录，跳过导入")
+                return
 
-                # 导入单词数据
-                word_dict_file = os.path.join(self.data_dir, 'word_dict.json')
-                if os.path.exists(word_dict_file):
-                    import json
-                    with open(word_dict_file, 'r', encoding='utf-8') as f:
-                        word_dict = json.load(f)
+            # 导入单词数据
+            word_dict_file = os.path.join(self.data_dir, 'word_dict.json')
+            if os.path.exists(word_dict_file):
+                import json
+                with open(word_dict_file, 'r', encoding='utf-8') as f:
+                    word_dict = json.load(f)
 
-                        imported_count = 0
-                        for word, translation in word_dict.items():
-                            try:
-                                cursor.execute(
-                                    "INSERT OR IGNORE INTO words (set_id, word, translation) VALUES (?, ?, ?)",
-                                    (default_set_id, word, translation)
-                                )
-                                imported_count += cursor.rowcount
-                            except Exception as e:
-                                log_warning(f"导入单词 {word} 失败: {e}")
-                                continue
-
-                        log_info(f"成功导入 {imported_count} 个单词到默认词库")
-
-                        # 更新默认词库的单词数量
-                        if imported_count > 0:
+                    imported_count = 0
+                    for word, translation in word_dict.items():
+                        try:
                             cursor.execute(
-                                "UPDATE word_sets SET word_count = ? WHERE id = ?",
-                                (imported_count,
-                                 default_set_id))
+                                "INSERT OR IGNORE INTO words (set_id, word, translation) VALUES (?, ?, ?)",
+                                (default_set_id, word, translation)
+                            )
+                            imported_count += cursor.rowcount
+                        except Exception as e:
+                            log_warning(f"导入单词 {word} 失败: {e}")
+                            continue
 
-                # 导入设置数据
-                settings_file = os.path.join(self.data_dir, 'settings.json')
-                if os.path.exists(settings_file):
-                    import json
-                    with open(settings_file, 'r', encoding='utf-8') as f:
-                        settings = json.load(f)
+                    log_info(f"成功导入 {imported_count} 个单词到默认词库")
 
-                        for key, value in settings.items():
-                            try:
-                                cursor.execute(
-                                    "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",
-                                    (key, json.dumps(value))
-                                )
-                            except Exception as e:
-                                log_warning(f"导入设置 {key} 失败: {e}")
-                                continue
+                    # 更新默认词库的单词数量
+                    if imported_count > 0:
+                        cursor.execute(
+                            "UPDATE word_sets SET word_count = ? WHERE id = ?",
+                            (imported_count,
+                             default_set_id))
 
+            # 导入设置数据
+            settings_file = os.path.join(self.data_dir, 'settings.json')
+            if os.path.exists(settings_file):
+                import json
+                with open(settings_file, 'r', encoding='utf-8') as f:
+                    settings = json.load(f)
+
+                    for key, value in settings.items():
+                        try:
+                            cursor.execute(
+                                "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",
+                                (key, json.dumps(value))
+                            )
+                        except Exception as e:
+                            log_warning(f"导入设置 {key} 失败: {e}")
+                            continue
+
+            if auto_close:
                 conn.commit()
                 log_info("JSON数据导入成功")
-            except Exception as inner_e:
-                log_error(f"导入JSON数据时出错: {str(inner_e)}")
-                conn.rollback()
-            finally:
-                conn.close()
         except Exception as e:
             log_error(f"导入JSON数据失败: {str(e)}")
+            if auto_close and conn is not None:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+        finally:
+            if auto_close and conn is not None:
+                conn.close()
 
     def _start_write_worker(self):
         """启动延迟写入工作线程"""

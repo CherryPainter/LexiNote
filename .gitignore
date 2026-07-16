@@ -103,3 +103,9 @@ check_version_consistency.py
 .env.test.local
 .env.production.local
 .env.production
+
+# WorkBuddy 项目记忆（不纳入版本控制）
+.workbuddy/
+
+# Nuitka 编译崩溃报告（一次性产物）
+nuitka-crash-report.xml

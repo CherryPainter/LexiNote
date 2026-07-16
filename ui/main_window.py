@@ -35,18 +35,10 @@ class MainWindow:
 
         # 设置窗口图标
         try:
-            # 获取应用程序目录
-            if hasattr(sys, '_MEIPASS'):
-                # PyInstaller打包环境
-                base_path = sys._MEIPASS
-            elif os.path.exists(os.path.join(os.path.dirname(sys.executable), 'app.ico')):
-                # Nuitka打包环境（EXE所在目录）
-                base_path = os.path.dirname(sys.executable)
-            else:
-                # 开发环境
-                base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-            icon_path = os.path.join(base_path, 'app.ico')
+            # 优先使用程序安装目录（已由 main.py 切换并写入环境变量），
+            # 兼容 Nuitka onefile（sys.executable 指向临时解压目录，不可用）
+            _app_dir = os.environ.get("LEXINOTE_APP_DIR") or os.getcwd()
+            icon_path = os.path.join(_app_dir, 'app.ico')
             if os.path.exists(icon_path):
                 self.root.iconbitmap(icon_path)
                 log_info(f"已设置窗口图标: {icon_path}")
