@@ -13,14 +13,14 @@ LexiNote 是一个个人英语学习工具，帮助用户管理单词表、学�
 ```
 ├── .flake8
 ├── .gitignore
-├── API_DOCUMENTATION.md
-├── CHANGELOG.md
-├── CONTRIBUTING.md
-├── DEVELOPER_DOCS.md
+├── docs/API_DOCUMENTATION.md
+├── docs/CHANGELOG.md
+├── docs/CONTRIBUTING.md
+├── docs/DEVELOPER_DOCS.md
 ├── README.md
-├── RELEASE_NOTES.md
-├── SETTINGS.md
-├── TESTS.md
+├── docs/RELEASE_NOTES.md
+├── docs/SETTINGS.md
+├── docs/TESTS.md
 ├── app.ico
 ├── audio_cache.py
 ├── audio_player.py

@@ -4,7 +4,7 @@
 >
 > 版本 **v2.7.1** · Python 3.12+ · MIT License
 
-LexiNote 是一款单机英语学习客户端，围绕「以遗忘曲线驱动的自适应复习」构建，集成单词学习、听写、翻译、复习、完形填空、阅读理解等模块，并通过 Ollama / 云端 OpenAI 兼容接口提供智能判题与内容生成。本文档以**技术架构**为主线，功能操作细节见 [`SETTINGS.md`](SETTINGS.md) 与 [`DEVELOPER_DOCS.md`](DEVELOPER_DOCS.md)。
+LexiNote 是一款单机英语学习客户端，围绕「以遗忘曲线驱动的自适应复习」构建，集成单词学习、听写、翻译、复习、完形填空、阅读理解等模块，并通过 Ollama / 云端 OpenAI 兼容接口提供智能判题与内容生成。本文档以**技术架构**为主线，功能操作细节见 [`SETTINGS.md`](docs/SETTINGS.md) 与 [`DEVELOPER_DOCS.md`](docs/DEVELOPER_DOCS.md)。
 
 ---
 
@@ -320,4 +320,4 @@ mypy            # 读取 mypy.ini
 
 ## 许可证
 
-MIT License · 版本历史见 [`CHANGELOG.md`](CHANGELOG.md)
+MIT License · 版本历史见 [`CHANGELOG.md`](docs/CHANGELOG.md)
