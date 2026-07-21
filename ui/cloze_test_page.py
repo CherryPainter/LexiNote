@@ -1,13 +1,13 @@
 import tkinter as tk
 from tkinter import ttk
-from tkinter import messagebox, scrolledtext
+from tkinter import messagebox
 import os
 import sys
 
 # 添加项目根目录到Python路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from ui.components.scrollable_frame import create_scrollable_frame
+from ui.components.scrollable_frame import create_scrollable_frame, refresh_mousewheel
 from ui.font_config import FontConfig
 
 # 添加项目根目录到Python路径
@@ -67,13 +67,17 @@ class ClozeTestPage(tk.Frame):
         main_frame = tk.Frame(self)
         main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
 
-        # 顶部控制面板
+        # 顶部控制面板（分成「设置行」与「操作行」，避免横向空间不足时控件被截断）
         control_frame = tk.Frame(main_frame)
-        control_frame.pack(fill=tk.X, pady=(0, 20))
+        control_frame.pack(fill=tk.X, pady=(0, 16))
+
+        # 设置行：模式 / 难度 / 主题
+        settings_row = tk.Frame(control_frame)
+        settings_row.pack(side=tk.TOP, fill=tk.X)
 
         # 模式选择
-        mode_frame = tk.Frame(control_frame)
-        mode_frame.pack(side=tk.LEFT, padx=10)
+        mode_frame = tk.Frame(settings_row)
+        mode_frame.pack(side=tk.LEFT, padx=(0, 10))
 
         tk.Label(mode_frame, text="模式:", font=self.font_config['normal']).grid(row=0, column=0, sticky=tk.W)
         self.mode_var = tk.StringVar(value="auto")
@@ -85,7 +89,7 @@ class ClozeTestPage(tk.Frame):
                        font=self.font_config['normal']).grid(row=0, column=3, padx=5)
 
         # 难度选择
-        level_frame = tk.Frame(control_frame)
+        level_frame = tk.Frame(settings_row)
         level_frame.pack(side=tk.LEFT, padx=10)
 
         tk.Label(level_frame, text="难度:", font=self.font_config['normal']).grid(row=0, column=0, sticky=tk.W)
@@ -97,28 +101,33 @@ class ClozeTestPage(tk.Frame):
         level_combo.current(1)
 
         # 主题输入
-        topic_frame = tk.Frame(control_frame)
+        topic_frame = tk.Frame(settings_row)
         topic_frame.pack(side=tk.LEFT, padx=10, fill=tk.X, expand=True)
 
         tk.Label(topic_frame, text="主题:", font=self.font_config['normal']).grid(row=0, column=0, sticky=tk.W)
-        self.topic_entry = tk.Entry(topic_frame, font=self.font_config['normal'], width=30)
+        self.topic_entry = tk.Entry(topic_frame, font=self.font_config['normal'])
         self.topic_entry.grid(row=0, column=1, padx=5, sticky=tk.EW)
         self.topic_entry.insert(0, "通用")
 
+        # 操作行：开始按钮 + 状态
+        action_row = tk.Frame(control_frame)
+        action_row.pack(side=tk.TOP, fill=tk.X, pady=(8, 0))
+
         # 开始按钮
-        self.start_button = tk.Button(control_frame, text="开始新练习", command=self._start_new_test,
+        self.start_button = tk.Button(action_row, text="开始新练习", command=self._start_new_test,
                                        font=self.font_config['button'], bg="#4CAF50", fg="white",
                                        width=12, height=1)
-        self.start_button.pack(side=tk.RIGHT, padx=10)
+        self.start_button.pack(side=tk.LEFT, padx=(0, 10))
 
         # 状态标签
         self.status_var = tk.StringVar(value="就绪")
-        status_label = tk.Label(control_frame, textvariable=self.status_var, font=self.font_config['normal'])
+        status_label = tk.Label(action_row, textvariable=self.status_var, font=self.font_config['normal'])
         status_label.pack(side=tk.RIGHT, padx=10)
 
         # 内容区域 - 使用通用滚动框架为整个完型填空元素区添加滑动条
         content_scroll_frame, content_frame, _, _ = create_scrollable_frame(main_frame)
         content_scroll_frame.pack(fill=tk.BOTH, expand=True)
+        self.content_scroll_frame = content_scroll_frame
 
         # 标题显示
         title_frame = tk.Frame(content_frame)
@@ -134,14 +143,10 @@ class ClozeTestPage(tk.Frame):
                                        state=tk.DISABLED)
         self.delete_button.pack(side=tk.RIGHT, padx=10)
 
-        # 文章内容
-        self.article_text = scrolledtext.ScrolledText(content_frame, wrap=tk.WORD, font=self.font_config['normal'],
-                                                      height=15, bg="#f5f5f5", state=tk.DISABLED)
-        self.article_text.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
-
-        # 为文章内容添加鼠标滚轮支持
-        from ui.components.scrollable_frame import add_mousewheel_support
-        add_mousewheel_support(self.article_text, self.article_text)
+        # 文章内容（自适应高度，无自带滚动条，整页统一滚动）
+        self.article_text = tk.Text(content_frame, wrap=tk.WORD, font=self.font_config['normal'],
+                                    height=8, bg="#f5f5f5", state=tk.DISABLED, relief=tk.FLAT)
+        self.article_text.pack(fill=tk.X, expand=False, pady=(0, 10))
 
         # 选项区域
         options_frame = tk.LabelFrame(content_frame, text="选项", font=self.font_config['header'])
@@ -168,9 +173,26 @@ class ClozeTestPage(tk.Frame):
         result_frame = tk.LabelFrame(content_frame, text="结果", font=self.font_config['normal'])
         result_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
 
-        self.result_text = scrolledtext.ScrolledText(result_frame, wrap=tk.WORD, font=self.font_config['normal'],
-                                                    height=8, bg="#f0f0f0", state=tk.DISABLED)
-        self.result_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        self.result_text = tk.Text(result_frame, wrap=tk.WORD, font=self.font_config['normal'],
+                                    height=4, bg="#f0f0f0", state=tk.DISABLED, relief=tk.FLAT)
+        self.result_text.pack(fill=tk.X, expand=False, padx=5, pady=5)
+
+    def _fit_text_height(self, text_widget, max_height=40, min_height=4):
+        """根据内容行数自适应文本框高度（避免内部滚动条，整页统一滚动）"""
+        try:
+            lines = int(text_widget.index("end-1c").split(".")[0])
+        except Exception:
+            lines = 0
+        height = max(min_height, min(lines + 1, max_height))
+        text_widget.config(height=height)
+
+    def _set_text_content(self, text_widget, content, max_height=40, min_height=4):
+        """写入文本框内容并自适应高度（内容区域为只读）"""
+        text_widget.config(state=tk.NORMAL)
+        text_widget.delete(1.0, tk.END)
+        text_widget.insert(tk.END, content)
+        text_widget.config(state=tk.DISABLED)
+        self._fit_text_height(text_widget, max_height, min_height)
 
     def _update_status(self):
         """更新状态信息"""
@@ -229,10 +251,7 @@ class ClozeTestPage(tk.Frame):
 
                     # 显示文章内容
                     content = test_data.get('content', '')
-                    self.article_text.config(state=tk.NORMAL)
-                    self.article_text.delete(1.0, tk.END)
-                    self.article_text.insert(tk.END, content)
-                    self.article_text.config(state=tk.DISABLED)
+                    self._set_text_content(self.article_text, content, max_height=40, min_height=8)
 
                     # 显示选项
                     self._display_options(test_data.get('options', []))
@@ -246,18 +265,12 @@ class ClozeTestPage(tk.Frame):
                     log_error("未能获取测试数据")
                     messagebox.showerror("错误", "无法生成题目，请检查AI服务是否可用或尝试使用离线模式")
                     # 显示默认提示
-                    self.article_text.config(state=tk.NORMAL)
-                    self.article_text.delete(1.0, tk.END)
-                    self.article_text.insert(tk.END, "请点击'开始新练习'按钮生成题目")
-                    self.article_text.config(state=tk.DISABLED)
+                    self._set_text_content(self.article_text, "请点击'开始新练习'按钮生成题目", min_height=8)
             except Exception as e:
                 log_error(f"生成题目时出错: {str(e)}")
                 messagebox.showerror("错误", f"生成题目失败: {str(e)}")
                 # 显示默认提示
-                self.article_text.config(state=tk.NORMAL)
-                self.article_text.delete(1.0, tk.END)
-                self.article_text.insert(tk.END, "请点击'开始新练习'按钮生成题目")
-                self.article_text.config(state=tk.DISABLED)
+                self._set_text_content(self.article_text, "请点击'开始新练习'按钮生成题目", min_height=8)
                 # 检查是否是离线模式且没有题目
                 if mode == "offline" or (mode is None and not self.cloze_module.ai_service.is_ai_available()):
                     messagebox.showerror("错误", "离线模式下数据库中没有题目，请先联网生成内容！")
@@ -309,7 +322,8 @@ class ClozeTestPage(tk.Frame):
 
         self._update_selected_answers_label()
 
-        # 滚动区域会自动更新，无需手动调用
+        # 选项为动态生成的内容，重新绑定鼠标滚轮，保证整页可平滑滚动
+        refresh_mousewheel(self.content_scroll_frame)
 
     def _update_selected_answers_label(self):
         """更新已选答案显示"""
@@ -337,18 +351,8 @@ class ClozeTestPage(tk.Frame):
             is_correct, evaluation, explanation = self.cloze_module.submit_answer(user_answer)
 
             # 显示结果
-            self.result_text.config(state=tk.NORMAL)
-            self.result_text.delete(1.0, tk.END)
-
-            # 显示评估结果
-            self.result_text.insert(tk.END, "评估结果:\n")
-            self.result_text.insert(tk.END, f"{evaluation}\n\n")
-
-            # 显示解析
-            self.result_text.insert(tk.END, "解析:\n")
-            self.result_text.insert(tk.END, explanation)
-
-            self.result_text.config(state=tk.DISABLED)
+            result_parts = ["评估结果:\n", f"{evaluation}\n\n", "解析:\n", explanation]
+            self._set_text_content(self.result_text, "".join(result_parts), max_height=30, min_height=4)
 
             # 禁用提交按钮
             self.submit_button.config(state=tk.DISABLED)
@@ -373,9 +377,7 @@ class ClozeTestPage(tk.Frame):
         self.delete_button.config(state=tk.DISABLED)
 
         # 清空文章内容
-        self.article_text.config(state=tk.NORMAL)
-        self.article_text.delete(1.0, tk.END)
-        self.article_text.config(state=tk.DISABLED)
+        self._set_text_content(self.article_text, "", min_height=8)
 
         # 清空选项区域
         for widget in self.options_frame.winfo_children():
@@ -387,9 +389,7 @@ class ClozeTestPage(tk.Frame):
             self.selected_answers_label.config(text="已选答案：")
 
         # 清空结果显示
-        self.result_text.config(state=tk.NORMAL)
-        self.result_text.delete(1.0, tk.END)
-        self.result_text.config(state=tk.DISABLED)
+        self._set_text_content(self.result_text, "", min_height=4)
 
         # 禁用提交按钮
         self.submit_button.config(state=tk.DISABLED)

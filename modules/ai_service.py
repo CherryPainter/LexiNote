@@ -392,7 +392,7 @@ class AIService:
 2. 语言表达是否清晰准确
 3. 是否包含了所有关键信息
 
-Please answer in English. The evaluation result must be output in the following JSON format:
+请使用中文输出评估反馈。评估结果必须严格输出为如下 JSON 格式（不要任何额外说明）：
 {{
   "is_acceptable": true/false,
   "score": 0-100,

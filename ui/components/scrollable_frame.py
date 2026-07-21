@@ -1,7 +1,13 @@
 """
 滚动功能辅助模块
 
-提供通用的滚动区域实现，用于在Tkinter应用中创建可滚动的内容区域
+提供通用的滚动区域实现，用于在 Tkinter 应用中创建可滚动的内容区域。
+
+关键改进：
+- 鼠标滚轮绑定支持「动态添加的内容」：通过 refresh_mousewheel(scroll_frame)
+  在填充完选项 / 题目等内容后重新绑定，避免动态控件无法滚动。
+- 绑定幂等：重复绑定不会让滚动速度翻倍。
+- canvas 的 yscrollincrement 设为合理像素值，滚轮一次滚动一屏的一小段而非 1 像素。
 """
 import tkinter as tk
 
@@ -25,8 +31,8 @@ def create_scrollable_frame(parent, *args, **kwargs):
     scrollbar = tk.Scrollbar(scroll_frame)
     scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
-    # 创建Canvas作为滚动容器
-    canvas = tk.Canvas(scroll_frame, yscrollcommand=scrollbar.set)
+    # 创建 Canvas 作为滚动容器（yscrollincrement 决定每次滚轮滚动的像素量）
+    canvas = tk.Canvas(scroll_frame, yscrollcommand=scrollbar.set, yscrollincrement=30)
     canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
     # 配置滚动条
@@ -40,70 +46,88 @@ def create_scrollable_frame(parent, *args, **kwargs):
 
     # 定义配置回调函数
     def on_inner_configure(event):
-        """当内部框架配置改变时更新Canvas滚动区域"""
+        """当内部框架配置改变时更新 Canvas 滚动区域"""
         canvas.configure(scrollregion=canvas.bbox("all"))
-        # 确保Canvas窗口宽度与Canvas一致
+        # 确保 Canvas 窗口宽度与 Canvas 一致
         width = event.width if event else canvas.winfo_width()
         if width > 0:
             canvas.itemconfig(canvas_window, width=width)
 
     def on_canvas_configure(event):
-        """当Canvas配置改变时更新内部窗口宽度"""
+        """当 Canvas 配置改变时更新内部窗口宽度"""
         canvas.itemconfig(canvas_window, width=event.width)
 
     # 绑定事件
     inner_frame.bind("<Configure>", on_inner_configure)
     canvas.bind("<Configure>", on_canvas_configure)
 
-    # 自动添加鼠标滚轮支持 - 同时绑定到内部框架和Canvas
-    # 这样无论鼠标在内容区域还是Canvas上都能滚动
+    # 把 canvas 挂到 scroll_frame / inner_frame 上，便于后续 refresh_mousewheel 查找
+    scroll_frame._scroll_canvas = canvas
+    inner_frame._scroll_canvas = canvas
+
+    # 初始绑定（仅覆盖创建时已有的子组件；动态内容稍后通过 refresh_mousewheel 重新绑定）
     add_mousewheel_support(inner_frame, canvas)
-    add_mousewheel_support(canvas, canvas)
-
-    # 注意：Tkinter标准库不支持ChildAdded和ChildRemoved事件
-    # 以下代码被注释掉，因为会导致运行时错误
-    # 如果需要动态组件支持，可以考虑使用其他方法，如定时检查或手动调用重新绑定函数
-    # def on_inner_frame_change(event):
-    #     """当内部框架的子组件发生变化时，重新绑定鼠标滚轮事件"""
-    #     # 为新添加的组件重新绑定鼠标滚轮事件
-    #     add_mousewheel_support(inner_frame, canvas)
-
-    # inner_frame.bind("<ChildAdded>", on_inner_frame_change)
-    # inner_frame.bind("<ChildRemoved>", on_inner_frame_change)
 
     return scroll_frame, inner_frame, on_inner_configure, on_canvas_configure
 
 
 def add_mousewheel_support(widget, canvas):
-    """为窗口部件添加鼠标滚轮支持
+    """为窗口部件及其递归子组件添加鼠标滚轮支持（幂等，可重复调用）
 
     Args:
         widget: 要添加鼠标滚轮支持的窗口部件
-        canvas: 关联的Canvas组件
+        canvas: 关联的 Canvas 组件
     """
     def on_mousewheel(event):
-        """处理鼠标滚轮事件"""
-        # 根据系统调整滚动方向
+        """处理鼠标滚轮事件（Windows）"""
         delta = -1 * int(event.delta / 120)
         canvas.yview_scroll(delta, "units")
-        # 返回"break"以防止事件继续传播
+        # 返回 "break" 防止事件继续传播到其它绑定
         return "break"
 
-    # 绑定鼠标滚轮事件到指定部件
-    widget.bind("<MouseWheel>", on_mousewheel)  # Windows
-    widget.bind("<Button-4>", lambda e: canvas.yview_scroll(-1, "units"))  # Linux
-    widget.bind("<Button-5>", lambda e: canvas.yview_scroll(1, "units"))  # Linux
+    def on_linux_up(e):
+        canvas.yview_scroll(-1, "units")
+        return "break"
 
-    # 递归为所有子组件添加鼠标滚轮支持
-    # 这样无论鼠标在哪个子组件上滚动，都会触发Canvas滚动
+    def on_linux_down(e):
+        canvas.yview_scroll(1, "units")
+        return "break"
+
+    # 先解绑，避免重复绑定导致滚动速度叠加
+    for seq in ("<MouseWheel>", "<Button-4>", "<Button-5>"):
+        try:
+            widget.unbind(seq)
+        except Exception:
+            pass
+
+    widget.bind("<MouseWheel>", on_mousewheel)
+    widget.bind("<Button-4>", on_linux_up)
+    widget.bind("<Button-5>", on_linux_down)
+
+    # 递归为所有子组件添加鼠标滚轮支持（幂等）
     def bind_to_children(parent):
         for child in parent.winfo_children():
-            # 绑定到当前子组件
-            child.bind("<MouseWheel>", on_mousewheel)
-            child.bind("<Button-4>", lambda e: canvas.yview_scroll(-1, "units"))
-            child.bind("<Button-5>", lambda e: canvas.yview_scroll(1, "units"))
-            # 递归绑定到子组件的子组件
+            for seq, handler in (("<MouseWheel>", on_mousewheel),
+                                  ("<Button-4>", on_linux_up),
+                                  ("<Button-5>", on_linux_down)):
+                try:
+                    child.unbind(seq)
+                except Exception:
+                    pass
+                child.bind(seq, handler)
             bind_to_children(child)
 
-    # 绑定到所有子组件
     bind_to_children(widget)
+
+
+def refresh_mousewheel(scroll_frame):
+    """在动态添加内容（选项 / 题目等）后，重新把整棵组件树绑定到所属 canvas 的滚动。
+
+    Args:
+        scroll_frame: create_scrollable_frame 返回的第一个元素
+    """
+    canvas = getattr(scroll_frame, "_scroll_canvas", None)
+    if canvas is None:
+        return
+    # 对整个 scroll_frame 子树重新递归绑定（幂等，不会叠加速度）
+    add_mousewheel_support(scroll_frame, canvas)
