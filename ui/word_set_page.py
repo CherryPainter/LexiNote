@@ -4,6 +4,9 @@ import os
 
 from logger import log_error
 from ui.font_config import FontConfig
+from ui.theme import COLORS
+from ui.components.widgets import create_button, create_card
+from ui.components.toast import show_toast
 
 
 class WordSetPage(tk.Frame):
@@ -23,6 +26,9 @@ class WordSetPage(tk.Frame):
         self.current_page = 1
         self.items_per_page = 30  # 将每页显示数量改为30个单词
 
+        # 页面背景统一为侧栏底色，主内容区用 surface 浅卡片
+        self.configure(bg=COLORS['sidebar'])
+
         # 创建UI
         self._create_ui()
 
@@ -32,65 +38,60 @@ class WordSetPage(tk.Frame):
     def _create_ui(self):
         """创建用户界面"""
         # 主框架
-        main_frame = tk.Frame(self, bg='white')
+        main_frame = tk.Frame(self, bg=COLORS['surface'])
         main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 
         # 顶部操作栏
-        top_bar = tk.Frame(main_frame, bg='white')
+        top_bar = tk.Frame(main_frame, bg=COLORS['surface'])
         top_bar.pack(fill=tk.X, pady=(0, 10))
 
         # 导入词库按钮
-        import_btn = tk.Button(
+        import_btn = create_button(
             top_bar,
             text="📂 导入词库",
-            font=self.font_config['button'],
             command=self._import_word_set,
-            bg='#e0e0e0',
-            relief=tk.RAISED
+            style="neutral",
+            font_config=self.font_config
         )
         import_btn.pack(side=tk.LEFT, padx=5)
 
         # 创建词库按钮
-        create_btn = tk.Button(
+        create_btn = create_button(
             top_bar,
             text="➕ 创建词库",
-            font=self.font_config['button'],
             command=self._create_word_set,
-            bg='#e0e0e0',
-            relief=tk.RAISED
+            style="neutral",
+            font_config=self.font_config
         )
         create_btn.pack(side=tk.LEFT, padx=5)
 
         # 删除词库按钮
-        delete_set_btn = tk.Button(
+        delete_set_btn = create_button(
             top_bar,
             text="🗑️ 删除词库",
-            font=self.font_config['button'],
             command=self._delete_word_set,
-            bg='#e0e0e0',
-            relief=tk.RAISED
+            style="neutral",
+            font_config=self.font_config
         )
         delete_set_btn.pack(side=tk.LEFT, padx=5)
 
         # 导出词库按钮
-        export_btn = tk.Button(
+        export_btn = create_button(
             top_bar,
             text="📤 导出词库",
-            font=self.font_config['button'],
             command=self._export_word_set,
-            bg='#e0e0e0',
-            relief=tk.RAISED
+            style="neutral",
+            font_config=self.font_config
         )
         export_btn.pack(side=tk.LEFT, padx=5)
 
         # 刷新按钮
-        refresh_btn = tk.Button(
+        refresh_btn = create_button(
             top_bar,
             text="🔄 刷新",
-            font=self.font_config['button'],
             command=self._refresh,
-            bg='#e0e0e0',
-            relief=tk.RAISED
+            style="neutral",
+            font_config=self.font_config
         )
         refresh_btn.pack(side=tk.RIGHT, padx=5)
 
@@ -98,7 +99,7 @@ class WordSetPage(tk.Frame):
         ttk.Separator(main_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=(0, 10))
 
         # 左侧词库列表
-        left_frame = tk.Frame(main_frame, bg='white', width=200)
+        left_frame = tk.Frame(main_frame, bg=COLORS['surface'], width=200)
         left_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
 
         # 词库列表标题
@@ -106,7 +107,7 @@ class WordSetPage(tk.Frame):
             left_frame,
             text="词库列表",
             font=self.font_config['header'],
-            bg='white'
+            bg=COLORS['surface']
         )
         set_list_label.pack(pady=(0, 10))
 
@@ -131,11 +132,11 @@ class WordSetPage(tk.Frame):
         self.set_listbox.config(yscrollcommand=set_scrollbar.set)
 
         # 右侧单词列表
-        right_frame = tk.Frame(main_frame, bg='white')
+        right_frame = tk.Frame(main_frame, bg=COLORS['surface'])
         right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
 
         # 词库信息和搜索栏
-        info_search_frame = tk.Frame(right_frame, bg='white')
+        info_search_frame = tk.Frame(right_frame, bg=COLORS['surface'])
         info_search_frame.pack(fill=tk.X, pady=(0, 10))
 
         # 词库信息标签
@@ -143,72 +144,69 @@ class WordSetPage(tk.Frame):
             info_search_frame,
             text="请选择一个词库",
             font=self.font_config['normal'],
-            bg='white'
+            bg=COLORS['surface']
         )
         self.set_info_label.pack(side=tk.LEFT, padx=5)
 
         # 搜索框
-        search_frame = tk.Frame(info_search_frame, bg='white')
+        search_frame = tk.Frame(info_search_frame, bg=COLORS['surface'])
         search_frame.pack(side=tk.RIGHT, padx=5)
 
-        search_label = tk.Label(search_frame, text="搜索:", font=self.font_config['normal'], bg='white')
+        search_label = tk.Label(search_frame, text="搜索:", font=self.font_config['normal'], bg=COLORS['surface'])
         search_label.pack(side=tk.LEFT)
 
         self.search_entry = tk.Entry(search_frame, font=self.font_config['normal'], width=20)
         self.search_entry.pack(side=tk.LEFT, padx=5)
         self.search_entry.bind('<Return>', self._search_words)
 
-        search_btn = tk.Button(
+        search_btn = create_button(
             search_frame,
             text="🔍",
-            font=self.font_config['normal'],
             command=self._search_words,
+            style="neutral",
+            font_config=self.font_config,
             width=3
         )
         search_btn.pack(side=tk.LEFT)
 
         # 单词操作按钮
-        word_actions_frame = tk.Frame(right_frame, bg='white')
+        word_actions_frame = tk.Frame(right_frame, bg=COLORS['surface'])
         word_actions_frame.pack(fill=tk.X, pady=(0, 10))
 
-        add_word_btn = tk.Button(
+        add_word_btn = create_button(
             word_actions_frame,
             text="➕ 添加单词",
-            font=self.font_config['button'],
             command=self._add_word,
-            bg='#e0e0e0',
-            relief=tk.RAISED
+            style="neutral",
+            font_config=self.font_config
         )
         add_word_btn.pack(side=tk.LEFT, padx=5)
 
-        edit_word_btn = tk.Button(
+        edit_word_btn = create_button(
             word_actions_frame,
             text="✏️ 编辑单词",
-            font=self.font_config['button'],
             command=self._edit_word,
-            bg='#e0e0e0',
-            relief=tk.RAISED
+            style="neutral",
+            font_config=self.font_config
         )
         edit_word_btn.pack(side=tk.LEFT, padx=5)
 
-        delete_word_btn = tk.Button(
+        delete_word_btn = create_button(
             word_actions_frame,
             text="🗑️ 删除单词",
-            font=self.font_config['button'],
             command=self._delete_word,
-            bg='#e0e0e0',
-            relief=tk.RAISED
+            style="neutral",
+            font_config=self.font_config
         )
         delete_word_btn.pack(side=tk.LEFT, padx=5)
 
         # AI补全按钮
-        ai_complete_btn = tk.Button(
+        ai_complete_btn = create_button(
             word_actions_frame,
             text="🤖 AI补全",
-            font=self.font_config['button'],
             command=self._ai_complete_words,
-            bg='#e0e0e0',
-            relief=tk.RAISED
+            style="neutral",
+            font_config=self.font_config
         )
         ai_complete_btn.pack(side=tk.LEFT, padx=5)
 
@@ -241,20 +239,19 @@ class WordSetPage(tk.Frame):
         tree_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
         # 分页控制
-        pagination_frame = tk.Frame(right_frame, bg='white')
+        pagination_frame = tk.Frame(right_frame, bg=COLORS['surface'])
         pagination_frame.pack(fill=tk.X, pady=10)
 
         # 第一行：上一页、页码、下一页
-        page_buttons_frame = tk.Frame(pagination_frame, bg='white')
+        page_buttons_frame = tk.Frame(pagination_frame, bg=COLORS['surface'])
         page_buttons_frame.pack(fill=tk.X, pady=5)
 
-        self.prev_btn = tk.Button(
+        self.prev_btn = create_button(
             page_buttons_frame,
             text="上一页",
-            font=self.font_config['button'],
             command=self._prev_page,
-            bg='#e0e0e0',
-            relief=tk.RAISED
+            style="neutral",
+            font_config=self.font_config
         )
         self.prev_btn.pack(side=tk.LEFT, padx=5)
 
@@ -262,64 +259,60 @@ class WordSetPage(tk.Frame):
             page_buttons_frame,
             text="第 1 页",
             font=self.font_config['normal'],
-            bg='white'
+            bg=COLORS['surface']
         )
         self.page_label.pack(side=tk.LEFT, padx=5)
 
         # 下一页按钮
-        self.next_btn = tk.Button(
+        self.next_btn = create_button(
             page_buttons_frame,
             text="下一页",
-            font=self.font_config['button'],
             command=self._next_page,
-            bg='#e0e0e0',
-            relief=tk.RAISED
+            style="neutral",
+            font_config=self.font_config
         )
         self.next_btn.pack(side=tk.LEFT, padx=5)
 
         # 第二行：首页、跳转功能、末页
-        goto_frame = tk.Frame(pagination_frame, bg='white')
+        goto_frame = tk.Frame(pagination_frame, bg=COLORS['surface'])
         goto_frame.pack(fill=tk.X, pady=5)
 
         # 首页按钮
-        self.first_btn = tk.Button(
+        self.first_btn = create_button(
             goto_frame,
             text="首页",
-            font=self.font_config['button'],
             command=self._first_page,
-            bg='#e0e0e0',
-            relief=tk.RAISED
+            style="neutral",
+            font_config=self.font_config
         )
         self.first_btn.pack(side=tk.LEFT, padx=5)
 
         # 居中显示跳转功能
-        goto_label = tk.Label(goto_frame, text="第", font=self.font_config['normal'], bg='white')
+        goto_label = tk.Label(goto_frame, text="第", font=self.font_config['normal'], bg=COLORS['surface'])
         goto_label.pack(side=tk.LEFT, padx=(5, 0))
 
         self.goto_entry = tk.Entry(goto_frame, font=self.font_config['normal'], width=5)
         self.goto_entry.pack(side=tk.LEFT, padx=5)
 
-        goto_label2 = tk.Label(goto_frame, text="页", font=self.font_config['normal'], bg='white')
+        goto_label2 = tk.Label(goto_frame, text="页", font=self.font_config['normal'], bg=COLORS['surface'])
         goto_label2.pack(side=tk.LEFT)
 
-        goto_btn = tk.Button(
+        goto_btn = create_button(
             goto_frame,
             text="跳转",
-            font=self.font_config['button'],
             command=self._goto_page,
-            bg='#e0e0e0',
-            relief=tk.RAISED
+            style="neutral",
+            font_config=self.font_config
         )
         goto_btn.pack(side=tk.LEFT, padx=5)
 
         # 末页按钮
-        self.last_btn = tk.Button(
+        self.last_btn = create_button(
             goto_frame,
             text="末页",
-            font=self.font_config['button'],
             command=self._last_page,
-            bg='#e0e0e0',
-            relief=tk.RAISED
+            style="neutral",
+            font_config=self.font_config
         )
         self.last_btn.pack(side=tk.LEFT, padx=5)
 
@@ -379,7 +372,7 @@ class WordSetPage(tk.Frame):
                 ):
                     success, msg = self.word_manager.set_active_word_set(set_id)
                     if success:
-                        messagebox.showinfo("成功", msg)
+                        show_toast(self, msg, kind="success")
                         self._load_word_sets()  # 重新加载以显示选中状态
                     else:
                         messagebox.showerror("错误", msg)
@@ -493,15 +486,15 @@ class WordSetPage(tk.Frame):
             return
 
         # 获取用户输入的页码
-        page_str = self.goto_entry.get().strip()
+            page_str = self.goto_entry.get().strip()
         if not page_str:
-            messagebox.showwarning("提示", "请输入页码")
+            show_toast(self, "请输入页码", kind="warning")
             return
 
         try:
             target_page = int(page_str)
             if target_page < 1:
-                messagebox.showwarning("提示", "页码必须大于等于1")
+                show_toast(self, "页码必须大于等于1", kind="warning")
                 return
 
             # 计算总页数
@@ -513,7 +506,7 @@ class WordSetPage(tk.Frame):
             total_pages = (total_words + self.items_per_page - 1) // self.items_per_page
 
             if target_page > total_pages:
-                messagebox.showwarning("提示", f"页码不能超过总页数 {total_pages}")
+                show_toast(self, f"页码不能超过总页数 {total_pages}", kind="warning")
                 return
 
             if self.current_page != target_page:
@@ -522,7 +515,7 @@ class WordSetPage(tk.Frame):
                 self._load_words(keyword=keyword)
                 self.goto_entry.delete(0, tk.END)  # 清空输入框
         except ValueError:
-            messagebox.showwarning("提示", "请输入有效的页码")
+            show_toast(self, "请输入有效的页码", kind="warning")
 
     def _import_word_set(self):
         """导入词库"""
@@ -539,7 +532,7 @@ class WordSetPage(tk.Frame):
             success, msg = self.word_manager.import_word_set_from_json(file_path)
 
             if success:
-                messagebox.showinfo("成功", msg)
+                show_toast(self, msg, kind="success")
                 self._load_word_sets()
             elif msg == "overwrite":
                 # 询问是否覆盖
@@ -570,7 +563,7 @@ class WordSetPage(tk.Frame):
                         # 重新导入
                         success, msg = self.word_manager.import_word_set_from_json(file_path)
                         if success:
-                            messagebox.showinfo("成功", msg)
+                            show_toast(self, msg, kind="success")
                             self._load_word_sets()
                         else:
                             messagebox.showerror("错误", msg)
@@ -583,7 +576,7 @@ class WordSetPage(tk.Frame):
     def _export_word_set(self):
         """导出词库"""
         if not self.current_set_id:
-            messagebox.showwarning("提示", "请先选择一个词库")
+            show_toast(self, "请先选择一个词库", kind="warning")
             return
 
         try:
@@ -608,7 +601,7 @@ class WordSetPage(tk.Frame):
             # 导出词库
             success, msg = self.word_manager.export_word_set_to_json(self.current_set_id, file_path)
             if success:
-                messagebox.showinfo("成功", msg)
+                show_toast(self, msg, kind="success")
             else:
                 messagebox.showerror("错误", msg)
         except Exception as e:
@@ -628,7 +621,7 @@ class WordSetPage(tk.Frame):
 
             success, msg = self.word_manager.create_word_set(name.strip(), description or "")
             if success:
-                messagebox.showinfo("成功", msg)
+                show_toast(self, msg, kind="success")
                 self._load_word_sets()
             else:
                 messagebox.showerror("错误", msg)
@@ -639,7 +632,7 @@ class WordSetPage(tk.Frame):
     def _delete_word_set(self):
         """删除词库"""
         if not self.current_set_id:
-            messagebox.showwarning("提示", "请先选择一个词库")
+            show_toast(self, "请先选择一个词库", kind="warning")
             return
 
         try:
@@ -654,7 +647,7 @@ class WordSetPage(tk.Frame):
             ):
                 success, msg = self.word_manager.delete_word_set(self.current_set_id)
                 if success:
-                    messagebox.showinfo("成功", msg)
+                    show_toast(self, msg, kind="success")
                     self.current_set_id = None
                     self.set_info_label.config(text="请选择一个词库")
                     # 清空单词列表
@@ -670,7 +663,7 @@ class WordSetPage(tk.Frame):
     def _add_word(self):
         """添加单词"""
         if not self.current_set_id:
-            messagebox.showwarning("提示", "请先选择一个词库")
+            show_toast(self, "请先选择一个词库", kind="warning")
             return
 
         # 创建单词编辑对话框
@@ -680,7 +673,7 @@ class WordSetPage(tk.Frame):
         """编辑单词"""
         selection = self.word_tree.selection()
         if not selection:
-            messagebox.showwarning("提示", "请先选择一个单词")
+            show_toast(self, "请先选择一个单词", kind="warning")
             return
 
         # 获取单词ID
@@ -694,7 +687,7 @@ class WordSetPage(tk.Frame):
         """删除单词"""
         selection = self.word_tree.selection()
         if not selection:
-            messagebox.showwarning("提示", "请先选择一个单词")
+            show_toast(self, "请先选择一个单词", kind="warning")
             return
 
         # 获取单词信息
@@ -710,7 +703,7 @@ class WordSetPage(tk.Frame):
         ):
             success, msg = self.word_manager.delete_word(word_id)
             if success:
-                messagebox.showinfo("成功", msg)
+                show_toast(self, msg, kind="success")
                 # 重新加载单词列表
                 keyword = self.search_entry.get().strip() or None
                 self._load_words(keyword=keyword)
@@ -722,7 +715,7 @@ class WordSetPage(tk.Frame):
     def _ai_complete_words(self):
         """使用AI补全单词的详细属性"""
         if not self.current_set_id:
-            messagebox.showwarning("警告", "请先选择一个词库")
+            show_toast(self, "请先选择一个词库", kind="warning")
             return
 
         # 创建进度对话框
@@ -757,10 +750,12 @@ class WordSetPage(tk.Frame):
         progress_bar.pack(pady=10)
 
         # 关闭按钮（初始禁用）
-        close_btn = tk.Button(
+        close_btn = create_button(
             progress_window,
             text="关闭",
             command=progress_window.destroy,
+            style="ghost",
+            font_config=self.font_config,
             state=tk.DISABLED
         )
         close_btn.pack(pady=10)
@@ -879,7 +874,7 @@ class WordSetPage(tk.Frame):
             word = word_var.get().strip()
 
             if not word:
-                messagebox.showwarning("提示", "单词不能为空")
+                show_toast(self, "单词不能为空", kind="warning")
                 return
 
             try:
@@ -887,7 +882,7 @@ class WordSetPage(tk.Frame):
                 translation = translation_editor.get_translation()
 
                 if not translation:
-                    messagebox.showwarning("提示", "翻译不能为空")
+                    show_toast(self, "翻译不能为空", kind="warning")
                     return
 
                 if word_id:
@@ -927,20 +922,22 @@ class WordSetPage(tk.Frame):
             except Exception as e:
                 messagebox.showerror("错误", f"保存单词失败: {str(e)}")
 
-        save_btn = tk.Button(
+        save_btn = create_button(
             btn_frame,
             text="保存",
-            font=self.font_config['button'],
             command=save_word,
+            style="primary",
+            font_config=self.font_config,
             width=10
         )
         save_btn.pack(side=tk.LEFT, padx=20)
 
-        cancel_btn = tk.Button(
+        cancel_btn = create_button(
             btn_frame,
             text="取消",
-            font=self.font_config['button'],
             command=dialog.destroy,
+            style="ghost",
+            font_config=self.font_config,
             width=10
         )
         cancel_btn.pack(side=tk.LEFT, padx=10)
@@ -977,12 +974,12 @@ class WordSetPage(tk.Frame):
 
         tk.Label(word_frame, text=word['word'], font=(self.font_config['header'][0], 20, 'bold')).pack(side=tk.LEFT)
         if word.get('phonetic'):
-            tk.Label(word_frame, text=word['phonetic'], font=self.font_config['normal'], fg='#666').pack(side=tk.LEFT, padx=10)
+            tk.Label(word_frame, text=word['phonetic'], font=self.font_config['normal'], fg=COLORS['text_secondary']).pack(side=tk.LEFT, padx=10)
         if word.get('tag'):
-            tk.Label(word_frame, text=word['tag'], font=self.font_config['normal'], fg='#999').pack(side=tk.LEFT, padx=10)
+            tk.Label(word_frame, text=word['tag'], font=self.font_config['normal'], fg=COLORS['text_tertiary']).pack(side=tk.LEFT, padx=10)
 
         # 翻译
-        tk.Label(detail_frame, text="中文释义:", font=self.font_config['normal'], fg='#333').pack(anchor=tk.W, pady=5)
+        tk.Label(detail_frame, text="中文释义:", font=self.font_config['normal'], fg=COLORS['text_primary']).pack(anchor=tk.W, pady=5)
         # 获取原始翻译数据以展示词性
         raw_translation = self.word_manager.get_translation(word['word'], format_output=False)
         import json
@@ -1024,12 +1021,12 @@ class WordSetPage(tk.Frame):
 
         # 英文释义
         if word.get('meaning_en'):
-            tk.Label(detail_frame, text="英文释义:", font=self.font_config['normal'], fg='#333').pack(anchor=tk.W, pady=5)
+            tk.Label(detail_frame, text="英文释义:", font=self.font_config['normal'], fg=COLORS['text_primary']).pack(anchor=tk.W, pady=5)
             tk.Label(detail_frame, text=word['meaning_en'], font=self.font_config['normal']).pack(anchor=tk.W, pady=5)
 
         # 例句
         if word.get('example'):
-            tk.Label(detail_frame, text="例句:", font=self.font_config['normal'], fg='#333').pack(anchor=tk.W, pady=5)
+            tk.Label(detail_frame, text="例句:", font=self.font_config['normal'], fg=COLORS['text_primary']).pack(anchor=tk.W, pady=5)
             example_text = tk.Text(detail_frame, font=self.font_config['normal'], wrap=tk.WORD, height=3, width=50)
             example_text.pack(fill=tk.X, pady=5)
             example_text.insert(tk.END, word['example'])
@@ -1037,16 +1034,17 @@ class WordSetPage(tk.Frame):
 
         # 熟悉度
         familiarity = word.get('familiarity', 0)
-        tk.Label(detail_frame, text=f"熟悉度: {familiarity}/5", font=self.font_config['normal'], fg='#333').pack(anchor=tk.W, pady=10)
+        tk.Label(detail_frame, text=f"熟悉度: {familiarity}/5", font=self.font_config['normal'], fg=COLORS['text_primary']).pack(anchor=tk.W, pady=10)
 
         # 关闭按钮
         close_frame = tk.Frame(detail_frame)
         close_frame.pack(fill=tk.X, pady=20)
-        tk.Button(
+        create_button(
             close_frame,
             text="关闭",
-            font=self.font_config['button'],
             command=dialog.destroy,
+            style="ghost",
+            font_config=self.font_config,
             width=10
         ).pack(side=tk.BOTTOM)
 

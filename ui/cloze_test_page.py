@@ -8,6 +8,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from ui.components.scrollable_frame import create_scrollable_frame, refresh_mousewheel
+from ui.components.toast import show_toast
 from ui.font_config import FontConfig
 
 # 添加项目根目录到Python路径
@@ -260,7 +261,7 @@ class ClozeTestPage(tk.Frame):
                     self.submit_button.config(state=tk.NORMAL)
 
                     log_info(f"成功开始新的完形填空练习，ID: {test_data.get('id')}")
-                    messagebox.showinfo("提示", "题目已准备好，请开始答题！")
+                    show_toast(self, "题目已准备好，请开始答题！", kind="info")
                 else:
                     log_error("未能获取测试数据")
                     messagebox.showerror("错误", "无法生成题目，请检查AI服务是否可用或尝试使用离线模式")
@@ -337,12 +338,12 @@ class ClozeTestPage(tk.Frame):
         """提交答案"""
         try:
             if not self.blank_vars:
-                messagebox.showwarning("提示", "没有可提交的选项")
+                show_toast(self, "没有可提交的选项", kind="warning")
                 return
 
             selected = [var.get() for var in self.blank_vars]
             if any(v == "" for v in selected):
-                messagebox.showwarning("提示", "请为所有空格选择答案")
+                show_toast(self, "请为所有空格选择答案", kind="warning")
                 return
 
             user_answer = ",".join(selected)
@@ -359,9 +360,9 @@ class ClozeTestPage(tk.Frame):
 
             # 提示用户
             if is_correct:
-                messagebox.showinfo("恭喜", "全部答对了！")
+                show_toast(self, "全部答对了！", kind="success")
             else:
-                messagebox.showinfo("提示", "答题完成，请查看解析")
+                show_toast(self, "答题完成，请查看解析", kind="info")
 
         except Exception as e:
             log_error(f"提交答案失败: {str(e)}")
@@ -399,7 +400,7 @@ class ClozeTestPage(tk.Frame):
     def _on_delete_question(self):
         """处理删除题目的逻辑"""
         if not hasattr(self, 'current_test_id') or self.current_test_id is None:
-            messagebox.showwarning("提示", "没有可删除的题目")
+            show_toast(self, "没有可删除的题目", kind="warning")
             return
 
         # 弹出确认对话框
@@ -417,7 +418,7 @@ class ClozeTestPage(tk.Frame):
 
                 if success:
                     log_info(f"用户删除了完形填空题目，ID: {self.current_test_id}")
-                    messagebox.showinfo("成功", "题目已成功删除")
+                    show_toast(self, "题目已成功删除", kind="success")
                     # 清空界面
                     self._clear_ui()
                 else:

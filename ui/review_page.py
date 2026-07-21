@@ -9,6 +9,9 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from logger import log_info, log_error
 from ui.font_config import FontConfig
+from ui.theme import COLORS
+from ui.components.widgets import create_button
+from ui.components.toast import show_toast
 
 
 class ReviewPage(tk.Frame):
@@ -63,7 +66,7 @@ class ReviewPage(tk.Frame):
     def _create_ui(self):
         """创建用户界面"""
         # 主框架
-        self.main_frame = tk.Frame(self, bg='white')
+        self.main_frame = tk.Frame(self, bg=COLORS['surface'])
         self.main_frame.pack(expand=True, fill=tk.BOTH, padx=50, pady=30)
 
         # 标题
@@ -71,17 +74,17 @@ class ReviewPage(tk.Frame):
             self.main_frame,
             text="单词复习",
             font=self.font_config['header'],
-            bg='white'
+            bg=COLORS['surface']
         )
         title_label.pack(pady=20)
 
         # 过滤选项
-        filter_frame = tk.Frame(self.main_frame, bg='white')
+        filter_frame = tk.Frame(self.main_frame, bg=COLORS['surface'])
         filter_frame.pack(pady=10, fill=tk.X)
 
         self.filter_var = tk.StringVar(value="all")
 
-        tk.Label(filter_frame, text="过滤:", font=self.font_config['normal'], bg='white').pack(side=tk.LEFT, padx=10)
+        tk.Label(filter_frame, text="过滤:", font=self.font_config['normal'], bg=COLORS['surface']).pack(side=tk.LEFT, padx=10)
 
         all_radio = tk.Radiobutton(
             filter_frame,
@@ -89,7 +92,7 @@ class ReviewPage(tk.Frame):
             variable=self.filter_var,
             value="all",
             font=self.font_config['normal'],
-            bg='white',
+            bg=COLORS['surface'],
             command=self._on_filter_change
         )
         all_radio.pack(side=tk.LEFT, padx=10)
@@ -100,7 +103,7 @@ class ReviewPage(tk.Frame):
             variable=self.filter_var,
             value="familiar",
             font=self.font_config['normal'],
-            bg='white',
+            bg=COLORS['surface'],
             command=self._on_filter_change
         )
         familiar_radio.pack(side=tk.LEFT, padx=10)
@@ -111,13 +114,13 @@ class ReviewPage(tk.Frame):
             variable=self.filter_var,
             value="difficult",
             font=self.font_config['normal'],
-            bg='white',
+            bg=COLORS['surface'],
             command=self._on_filter_change
         )
         difficult_radio.pack(side=tk.LEFT, padx=10)
 
         # 单词卡片
-        self.card_frame = tk.Frame(self.main_frame, bg='#f5f5f5', bd=3, relief=tk.RAISED)
+        self.card_frame = tk.Frame(self.main_frame, bg=COLORS['surface_alt'], bd=3, relief=tk.RAISED)
         self.card_frame.pack(pady=30, fill=tk.BOTH, expand=True, padx=50)
 
         # 单词和音标显示
@@ -126,7 +129,7 @@ class ReviewPage(tk.Frame):
             self.card_frame,
             textvariable=self.word_var,
             font=self.font_config['header'],
-            bg='#f5f5f5',
+            bg=COLORS['surface_alt'],
             wraplength=600
         )
         self.word_label.pack(pady=(40, 5))
@@ -136,8 +139,8 @@ class ReviewPage(tk.Frame):
             self.card_frame,
             textvariable=self.phonetic_var,
             font=self.font_config['normal'],
-            bg='#f5f5f5',
-            fg='#999999',  # 灰色
+            bg=COLORS['surface_alt'],
+            fg=COLORS['text_tertiary'],  # 灰色
             wraplength=600
         )
         self.phonetic_label.pack(pady=(0, 10))
@@ -148,122 +151,114 @@ class ReviewPage(tk.Frame):
             self.card_frame,
             textvariable=self.translation_var,
             font=self.font_config['normal'],
-            bg='#f5f5f5',
-            fg='#666666',
+            bg=COLORS['surface_alt'],
+            fg=COLORS['text_secondary'],
             wraplength=600
         )
         self.translation_label.pack(pady=20)
 
         # 按钮区域
-        buttons_frame = tk.Frame(self.main_frame, bg='white')
+        buttons_frame = tk.Frame(self.main_frame, bg=COLORS['surface'])
         buttons_frame.pack(pady=30)
 
         # 控制按钮
-        control_buttons_frame = tk.Frame(buttons_frame, bg='white')
+        control_buttons_frame = tk.Frame(buttons_frame, bg=COLORS['surface'])
         control_buttons_frame.pack(side=tk.LEFT)
 
-        self.prev_button = tk.Button(
+        self.prev_button = create_button(
             control_buttons_frame,
             text="◀ 上一个",
-            font=self.font_config['button'],
-            width=12,
-            height=2,
             command=self._prev_word,
-            bg='#2196F3',
-            fg='white'
+            style="secondary",
+            font_config=self.font_config,
+            width=12,
+            height=2
         )
         self.prev_button.pack(side=tk.LEFT, padx=5)
 
-        self.show_button = tk.Button(
+        self.show_button = create_button(
             control_buttons_frame,
             text="👁️ 显示翻译",
-            font=self.font_config['button'],
-            width=12,
-            height=2,
             command=self._toggle_translation,
-            bg='#FF9800',
-            fg='white'
+            style="warning",
+            font_config=self.font_config,
+            width=12,
+            height=2
         )
         self.show_button.pack(side=tk.LEFT, padx=5)
 
-        self.next_button = tk.Button(
+        self.next_button = create_button(
             control_buttons_frame,
             text="下一个 ▶",
-            font=self.font_config['button'],
-            width=12,
-            height=2,
             command=self._next_word,
-            bg='#2196F3',
-            fg='white'
+            style="secondary",
+            font_config=self.font_config,
+            width=12,
+            height=2
         )
         self.next_button.pack(side=tk.LEFT, padx=5)
 
         # 发音和操作按钮
-        action_buttons_frame = tk.Frame(buttons_frame, bg='white')
+        action_buttons_frame = tk.Frame(buttons_frame, bg=COLORS['surface'])
         action_buttons_frame.pack(side=tk.LEFT, padx=20)
 
-        self.pronounce_button = tk.Button(
+        self.pronounce_button = create_button(
             action_buttons_frame,
             text="🔊 发音",
-            font=self.font_config['button'],
-            width=10,
-            height=2,
             command=self._play_pronunciation,
-            bg='#4CAF50',
-            fg='white'
+            style="primary",
+            font_config=self.font_config,
+            width=10,
+            height=2
         )
         self.pronounce_button.pack(side=tk.LEFT, padx=5)
 
-        self.familiar_button = tk.Button(
+        self.familiar_button = create_button(
             action_buttons_frame,
             text="✅ 标记熟悉",
-            font=self.font_config['button'],
-            width=12,
-            height=2,
             command=self._mark_as_familiar,
-            bg='#4CAF50',
-            fg='white'
+            style="primary",
+            font_config=self.font_config,
+            width=12,
+            height=2
         )
         self.familiar_button.pack(side=tk.LEFT, padx=5)
 
-        self.difficult_button = tk.Button(
+        self.difficult_button = create_button(
             action_buttons_frame,
             text="❌ 标记困难",
-            font=self.font_config['button'],
-            width=12,
-            height=2,
             command=self._mark_as_difficult,
-            bg='#F44336',
-            fg='white'
+            style="danger",
+            font_config=self.font_config,
+            width=12,
+            height=2
         )
         self.difficult_button.pack(side=tk.LEFT, padx=5)
 
         # 例句按钮
-        self.example_button = tk.Button(
+        self.example_button = create_button(
             action_buttons_frame,
             text="📝 显示例句",
-            font=self.font_config['button'],
-            width=12,
-            height=2,
             command=self._toggle_example,
-            bg='#2196F3',
-            fg='white'
+            style="secondary",
+            font_config=self.font_config,
+            width=12,
+            height=2
         )
         self.example_button.pack(side=tk.LEFT, padx=5)
 
         # 复习总结按钮
-        summary_frame = tk.Frame(self.main_frame, bg='white')
+        summary_frame = tk.Frame(self.main_frame, bg=COLORS['surface'])
         summary_frame.pack(pady=10)
 
-        self.summary_button = tk.Button(
+        self.summary_button = create_button(
             summary_frame,
             text="📊 复习总结",
-            font=self.font_config['button'],
-            width=15,
-            height=2,
             command=self._show_summary,
-            bg='#FF9800',
-            fg='white'
+            style="warning",
+            font_config=self.font_config,
+            width=15,
+            height=2
         )
         self.summary_button.pack()
 
@@ -273,8 +268,8 @@ class ReviewPage(tk.Frame):
             self.main_frame,
             textvariable=self.progress_var,
             font=self.font_config['normal'],
-            bg='white',
-            fg='#666666'
+            bg=COLORS['surface'],
+            fg=COLORS['text_secondary']
         )
         self.progress_label.pack(pady=10)
 
@@ -627,7 +622,7 @@ class ReviewPage(tk.Frame):
                         {word: self.word_manager.word_weights[word]}
                     )
 
-            messagebox.showinfo("成功", f"已将 '{word}' 标记为重点单词")
+            show_toast(self, f"已将 '{word}' 标记为重点单词", kind="success")
             log_info(f"标记重点单词: {word}")
         except Exception as e:
             log_error(f"标记重点单词失败: {str(e)}")
@@ -745,7 +740,7 @@ class ReviewPage(tk.Frame):
             summary_window = tk.Toplevel(self)
             summary_window.title("复习总结")
             summary_window.geometry("500x400")
-            summary_window.configure(bg='white')
+            summary_window.configure(bg=COLORS['surface'])
             if self.parent:
                 summary_window.transient(self.parent)
             summary_window.grab_set()
@@ -755,12 +750,12 @@ class ReviewPage(tk.Frame):
                 summary_window,
                 text="复习总结",
                 font=self.font_config['header'],
-                bg='white'
+                bg=COLORS['surface']
             )
             title_label.pack(pady=20)
 
             # 统计信息框架
-            stats_frame = tk.Frame(summary_window, bg='white')
+            stats_frame = tk.Frame(summary_window, bg=COLORS['surface'])
             stats_frame.pack(pady=20, padx=30, fill=tk.BOTH, expand=True)
 
             # 总单词数
@@ -769,7 +764,7 @@ class ReviewPage(tk.Frame):
                 stats_frame,
                 text=f"本次复习单词总数: {total_words}",
                 font=self.font_config['normal'],
-                bg='white'
+                bg=COLORS['surface']
             ).pack(anchor='w', pady=5)
 
             # 熟悉单词数
@@ -779,8 +774,8 @@ class ReviewPage(tk.Frame):
                 stats_frame,
                 text=f"熟悉单词: {familiar_count} ({familiar_percent:.1f}%)",
                 font=self.font_config['normal'],
-                bg='white',
-                fg='#4CAF50'
+                bg=COLORS['surface'],
+                fg=COLORS['primary']
             ).pack(anchor='w', pady=5)
 
             # 困难单词数
@@ -790,8 +785,8 @@ class ReviewPage(tk.Frame):
                 stats_frame,
                 text=f"困难单词: {difficult_count} ({difficult_percent:.1f}%)",
                 font=self.font_config['normal'],
-                bg='white',
-                fg='#F44336'
+                bg=COLORS['surface'],
+                fg=COLORS['error']
             ).pack(anchor='w', pady=5)
 
             # 获取熟悉度低于阈值的单词列表
@@ -803,8 +798,8 @@ class ReviewPage(tk.Frame):
                 stats_frame,
                 text="复习建议:",
                 font=self.font_config['normal'],
-                bg='white',
-                fg='#2196F3'
+                bg=COLORS['surface'],
+                fg=COLORS['info']
             ).pack(anchor='w', pady=(15, 5))
 
             if not difficult_words:
@@ -818,26 +813,25 @@ class ReviewPage(tk.Frame):
                 stats_frame,
                 text=advice,
                 font=self.font_config['normal'],
-                bg='white',
-                fg='#333333',
+                bg=COLORS['surface'],
+                fg=COLORS['text_primary'],
                 wraplength=400,
                 justify=tk.LEFT
             )
             advice_label.pack(anchor='w', pady=5)
 
             # 按钮
-            button_frame = tk.Frame(summary_window, bg='white')
+            button_frame = tk.Frame(summary_window, bg=COLORS['surface'])
             button_frame.pack(pady=20)
 
-            tk.Button(
+            create_button(
                 button_frame,
                 text="关闭",
-                font=self.font_config['button'],
-                width=15,
-                height=2,
                 command=summary_window.destroy,
-                bg='#9E9E9E',
-                fg='white'
+                style="ghost",
+                font_config=self.font_config,
+                width=15,
+                height=2
             ).pack(pady=10)
 
         except Exception as e:

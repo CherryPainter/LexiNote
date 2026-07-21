@@ -4,6 +4,8 @@
 # 音频相关
 gTTS==2.5.4
 playsound==1.2.2
+pyttsx3
+edge_tts
 
 # AI相关
 requests==2.32.3

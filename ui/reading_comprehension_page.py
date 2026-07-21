@@ -9,6 +9,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from logger import log_info, log_error
 from ui.components.loading_dialog import LoadingDialog
 from ui.components.scrollable_frame import create_scrollable_frame, refresh_mousewheel
+from ui.components.toast import show_toast
 from ui.font_config import FontConfig
 
 
@@ -228,7 +229,7 @@ class ReadingComprehensionPage(tk.Frame):
     def _on_delete_question(self):
         """处理删除题目的逻辑"""
         if not hasattr(self, 'current_test_id') or self.current_test_id is None:
-            messagebox.showwarning("提示", "没有可删除的题目")
+            show_toast(self, "没有可删除的题目", kind="warning")
             return
 
         # 弹出确认对话框
@@ -246,7 +247,7 @@ class ReadingComprehensionPage(tk.Frame):
 
                 if success:
                     log_info(f"用户删除了阅读理解题目，ID: {self.current_test_id}")
-                    messagebox.showinfo("成功", "题目已成功删除")
+                    show_toast(self, "题目已成功删除", kind="success")
                     # 清空界面
                     self._clear_ui()
                 else:
@@ -321,7 +322,7 @@ class ReadingComprehensionPage(tk.Frame):
                     self.submit_button.config(state=tk.NORMAL)
 
                     log_info(f"成功开始新的阅读理解练习，ID: {test_data.get('id')}")
-                    messagebox.showinfo("提示", "题目已准备好，请开始答题！")
+                    show_toast(self, "题目已准备好，请开始答题！", kind="info")
                 else:
                     # 检查是否是离线模式且没有题目
                     if mode == "offline" or (mode is None and not self.reading_module.ai_service.is_ai_available()):
@@ -437,7 +438,7 @@ class ReadingComprehensionPage(tk.Frame):
         """提交全部答案（选择题与主观题统一收集后提交）"""
         try:
             if not hasattr(self, 'question_inputs') or not self.question_inputs:
-                messagebox.showwarning("提示", "没有可提交的题目")
+                show_toast(self, "没有可提交的题目", kind="warning")
                 return
 
             # 按每题类型收集答案
@@ -449,7 +450,7 @@ class ReadingComprehensionPage(tk.Frame):
                     user_answers.append(inp.get("1.0", tk.END).strip())
 
             if any(a == "" for a in user_answers):
-                messagebox.showwarning("提示", "请回答所有题目后再提交")
+                show_toast(self, "请回答所有题目后再提交", kind="warning")
                 return
 
             self.user_answers = user_answers
@@ -474,7 +475,7 @@ class ReadingComprehensionPage(tk.Frame):
                         lines.append("评估：" + evaluation)
                     self.question_result_labels[i].config(text="\n".join(lines), fg=color)
 
-            messagebox.showinfo("总分", f"测试完成！\n总分：{total_score:.1f}/100")
+            show_toast(self, f"测试完成！总分：{total_score:.1f}/100", kind="success")
 
             # 禁用提交按钮
             self.submit_button.config(state=tk.DISABLED)

@@ -10,8 +10,11 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from audio_player import AudioPlayer
 from logger import log_info, log_wrong_word, log_error
 from core.dictation import DictationManager
-from ui.components.scrollable_frame import create_scrollable_frame
+from ui.components.scrollable_frame import create_scrollable_frame, refresh_mousewheel
 from ui.font_config import FontConfig
+from ui.theme import COLORS
+from ui.components.widgets import create_button
+from ui.components.toast import show_toast
 
 
 class DictationPage(tk.Frame):
@@ -19,7 +22,7 @@ class DictationPage(tk.Frame):
 
     def __init__(self, parent, word_manager, settings_manager=None, font_config=None):
         """初始化听写页面"""
-        super().__init__(parent, bg='white')
+        super().__init__(parent, bg=COLORS['surface'])
         self.parent = parent
         self.word_manager = word_manager
         from core.settings_manager import SettingsManager
@@ -35,10 +38,10 @@ class DictationPage(tk.Frame):
         # 检查音频播放功能
         self.audio_available = self.audio_player.is_available()
         if not self.audio_available:
-            messagebox.showwarning("音频功能", "音频播放功能不可用。正在尝试安装必要组件...")
+            show_toast(self, "音频播放功能不可用。正在尝试安装必要组件...", kind="warning")
             # 尝试安装依赖
             if not self.audio_player.install_requirements():
-                messagebox.showinfo("提示", "将继续运行，但无法播放音频。")
+                show_toast(self, "将继续运行，但无法播放音频。", kind="info")
 
         # 当前状态
         self.current_word = None
@@ -70,6 +73,7 @@ class DictationPage(tk.Frame):
         # 主框架 - 使用通用滚动框架
         content_scroll_frame, self.main_frame, _, _ = create_scrollable_frame(self, padx=50, pady=30)
         content_scroll_frame.pack(expand=True, fill=tk.BOTH)
+        self.content_scroll_frame = content_scroll_frame
 
         # 显示模式选择界面
         self._show_mode_selection()
@@ -85,12 +89,12 @@ class DictationPage(tk.Frame):
             self.main_frame,
             text="听写模式选择",
             font=self.font_config['header'],
-            bg='white'
+            bg=COLORS['surface']
         )
         title_label.pack(pady=30)
 
         # 模式选择区域
-        mode_frame = tk.Frame(self.main_frame, bg='white')
+        mode_frame = tk.Frame(self.main_frame, bg=COLORS['surface'])
         mode_frame.pack(pady=20, fill=tk.X, expand=True)
 
         # 模式选择
@@ -98,7 +102,7 @@ class DictationPage(tk.Frame):
             mode_frame,
             text="选择听写模式:",
             font=self.font_config['normal'],
-            bg='white',
+            bg=COLORS['surface'],
             anchor='w'
         )
         mode_label.pack(fill=tk.X, padx=50, pady=(10, 5))
@@ -106,7 +110,7 @@ class DictationPage(tk.Frame):
         # 单选按钮变量
         self.mode_var = tk.StringVar(value="single")
 
-        single_mode_frame = tk.Frame(mode_frame, bg='white')
+        single_mode_frame = tk.Frame(mode_frame, bg=COLORS['surface'])
         single_mode_frame.pack(fill=tk.X, padx=50, pady=5)
 
         single_radio = tk.Radiobutton(
@@ -115,7 +119,7 @@ class DictationPage(tk.Frame):
             variable=self.mode_var,
             value="single",
             font=self.font_config['normal'],
-            bg='white',
+            bg=COLORS['surface'],
             anchor='w'
         )
         single_radio.pack(side=tk.LEFT)
@@ -124,8 +128,8 @@ class DictationPage(tk.Frame):
             single_mode_frame,
             text="一次练习一个单词",
             font=self.font_config['normal'],
-            bg='white',
-            fg='#666666'
+            bg=COLORS['surface'],
+            fg=COLORS['text_secondary']
         )
         single_desc.pack(side=tk.LEFT, padx=10)
 
@@ -136,12 +140,12 @@ class DictationPage(tk.Frame):
             text="自动跳转到下一个单词",
             variable=self.auto_next_var,
             font=self.font_config['normal'],
-            bg='white',
+            bg=COLORS['surface'],
             anchor='w'
         )
         self.auto_next_checkbox.pack(side=tk.LEFT, padx=20)
 
-        queue_mode_frame = tk.Frame(mode_frame, bg='white')
+        queue_mode_frame = tk.Frame(mode_frame, bg=COLORS['surface'])
         queue_mode_frame.pack(fill=tk.X, padx=50, pady=5)
 
         queue_radio = tk.Radiobutton(
@@ -150,7 +154,7 @@ class DictationPage(tk.Frame):
             variable=self.mode_var,
             value="queue",
             font=self.font_config['normal'],
-            bg='white',
+            bg=COLORS['surface'],
             anchor='w'
         )
         queue_radio.pack(side=tk.LEFT)
@@ -159,8 +163,8 @@ class DictationPage(tk.Frame):
             queue_mode_frame,
             text="连续练习多个单词，有时间限制",
             font=self.font_config['normal'],
-            bg='white',
-            fg='#666666'
+            bg=COLORS['surface'],
+            fg=COLORS['text_secondary']
         )
         queue_desc.pack(side=tk.LEFT, padx=10)
 
@@ -169,7 +173,7 @@ class DictationPage(tk.Frame):
             mode_frame,
             text="单词来源:",
             font=self.font_config['normal'],
-            bg='white',
+            bg=COLORS['surface'],
             anchor='w'
         )
         source_label.pack(fill=tk.X, padx=50, pady=(20, 5))
@@ -177,14 +181,14 @@ class DictationPage(tk.Frame):
         # 来源选择下拉菜单
         self.source_var = tk.StringVar(value="today")
 
-        source_frame = tk.Frame(mode_frame, bg='white')
+        source_frame = tk.Frame(mode_frame, bg=COLORS['surface'])
         source_frame.pack(fill=tk.X, padx=50, pady=5)
 
         source_label2 = tk.Label(
             source_frame,
             text="选择来源:",
             font=self.font_config['normal'],
-            bg='white',
+            bg=COLORS['surface'],
             anchor='w'
         )
         source_label2.pack(side=tk.LEFT, padx=5)
@@ -201,13 +205,13 @@ class DictationPage(tk.Frame):
         source_option.current(0)
 
         # 队列大小设置（仅队列模式显示）
-        self.batch_frame = tk.Frame(mode_frame, bg='white')
+        self.batch_frame = tk.Frame(mode_frame, bg=COLORS['surface'])
 
         batch_label = tk.Label(
             self.batch_frame,
             text="队列大小:",
             font=self.font_config['normal'],
-            bg='white'
+            bg=COLORS['surface']
         )
         batch_label.pack(side=tk.LEFT, padx=5)
 
@@ -221,13 +225,13 @@ class DictationPage(tk.Frame):
         batch_entry.pack(side=tk.LEFT, padx=5)
 
         # 时间限制设置（仅队列模式显示）
-        self.time_frame = tk.Frame(mode_frame, bg='white')
+        self.time_frame = tk.Frame(mode_frame, bg=COLORS['surface'])
 
         time_label = tk.Label(
             self.time_frame,
             text="每个单词时限(秒):",
             font=self.font_config['normal'],
-            bg='white'
+            bg=COLORS['surface']
         )
         time_label.pack(side=tk.LEFT, padx=5)
 
@@ -241,14 +245,14 @@ class DictationPage(tk.Frame):
         time_entry.pack(side=tk.LEFT, padx=5)
 
         # 难度级别选择
-        difficulty_frame = tk.Frame(mode_frame, bg='white')
+        difficulty_frame = tk.Frame(mode_frame, bg=COLORS['surface'])
         difficulty_frame.pack(fill=tk.X, padx=50, pady=10)
 
         difficulty_label = tk.Label(
             difficulty_frame,
             text="难度级别:",
             font=self.font_config['normal'],
-            bg='white'
+            bg=COLORS['surface']
         )
         difficulty_label.pack(side=tk.LEFT, padx=5)
 
@@ -265,18 +269,17 @@ class DictationPage(tk.Frame):
         difficulty_option.current(1)
 
         # 按钮区域
-        buttons_frame = tk.Frame(self.main_frame, bg='white')
+        buttons_frame = tk.Frame(self.main_frame, bg=COLORS['surface'])
         buttons_frame.pack(pady=40)
 
-        start_button = tk.Button(
+        start_button = create_button(
             buttons_frame,
             text="开始听写",
-            font=self.font_config['button'],
-            width=20,
-            height=2,
             command=self._start_dictation,
-            bg='#4CAF50',
-            fg='white'
+            style="primary",
+            font_config=self.font_config,
+            width=20,
+            height=2
         )
         start_button.pack(pady=10)
 
@@ -285,6 +288,12 @@ class DictationPage(tk.Frame):
 
         # 初始化显示状态
         self._on_mode_change()
+
+        # 动态内容构建后重新绑定滚动滚轮
+        try:
+            refresh_mousewheel(self.content_scroll_frame)
+        except Exception:
+            pass
 
     def _on_mode_change(self, *args):
         """当模式变化时更新UI"""
@@ -353,19 +362,19 @@ class DictationPage(tk.Frame):
             try:
                 self.batch_size = int(self.batch_var.get())
                 if self.batch_size <= 0 or self.batch_size > 50:
-                    messagebox.showwarning("参数错误", "队列大小应在1-50之间")
+                    show_toast(self, "队列大小应在1-50之间", kind="warning")
                     return
             except ValueError:
-                messagebox.showwarning("参数错误", "请输入有效的队列大小")
+                show_toast(self, "请输入有效的队列大小", kind="warning")
                 return
 
             try:
                 self.time_limit = int(self.time_var.get())
                 if self.time_limit <= 0 or self.time_limit > 300:
-                    messagebox.showwarning("参数错误", "时间限制应在1-300秒之间")
+                    show_toast(self, "时间限制应在1-300秒之间", kind="warning")
                     return
             except ValueError:
-                messagebox.showwarning("参数错误", "请输入有效的时间限制")
+                show_toast(self, "请输入有效的时间限制", kind="warning")
                 return
 
         # 创建练习界面
@@ -444,9 +453,10 @@ class DictationPage(tk.Frame):
                 return False
 
             # 其他来源直接提示用户选择其他来源
-            messagebox.showinfo(
-                "无可用单词",
-                f"当前选择的来源 '{source_name}' 没有可用的单词。\n\n请在来源下拉中选择其他来源后重试。"
+            show_toast(
+                self,
+                f"当前选择的来源 '{source_name}' 没有可用的单词，请在来源下拉中选择其他来源后重试。",
+                kind="info"
             )
             return False
         except Exception as e:
@@ -465,7 +475,7 @@ class DictationPage(tk.Frame):
             self.main_frame,
             text="听写练习" if self.current_mode == "single" else f"队列听写 ({self.batch_size}个单词)",
             font=self.font_config['header'],
-            bg='white'
+            bg=COLORS['surface']
         )
         title_label.pack(pady=20)
 
@@ -477,8 +487,8 @@ class DictationPage(tk.Frame):
                 self.main_frame,
                 textvariable=self.progress_var,
                 font=self.font_config['normal'],
-                bg='white',
-                fg='#333333'
+                bg=COLORS['surface'],
+                fg=COLORS['text_primary']
             )
             progress_label.pack(pady=5)
 
@@ -490,8 +500,8 @@ class DictationPage(tk.Frame):
                 self.main_frame,
                 textvariable=self.timer_var,
                 font=self.font_config['normal'],
-                bg='white',
-                fg='#ff6600'
+                bg=COLORS['surface'],
+                fg=COLORS['warning']
             )
             timer_label.pack(pady=5)
 
@@ -500,38 +510,35 @@ class DictationPage(tk.Frame):
             self.main_frame,
             text="请点击播放按钮听单词发音，然后在下方输入单词",
             font=self.font_config['normal'],
-            bg='white',
-            fg='#666666'
+            bg=COLORS['surface'],
+            fg=COLORS['text_secondary']
         )
         hint_label.pack(pady=10)
 
         # 播放区域
-        play_frame = tk.Frame(self.main_frame, bg='white')
+        play_frame = tk.Frame(self.main_frame, bg=COLORS['surface'])
         play_frame.pack(pady=30)
 
-        self.play_button = tk.Button(
+        self.play_button = create_button(
             play_frame,
             text="🔊 播放发音",
-            font=self.font_config['button'],
-            width=20,
-            height=3,
             command=self._play_pronunciation,
-            bg='#4CAF50',
-            fg='white',
-            relief=tk.RAISED,
-            bd=2
+            style="primary",
+            font_config=self.font_config,
+            width=20,
+            height=3
         )
         self.play_button.pack()
 
         # 输入区域
-        input_frame = tk.Frame(self.main_frame, bg='white')
+        input_frame = tk.Frame(self.main_frame, bg=COLORS['surface'])
         input_frame.pack(pady=20)
 
         input_label = tk.Label(
             input_frame,
             text="请输入单词:",
             font=self.font_config['normal'],
-            bg='white'
+            bg=COLORS['surface']
         )
         input_label.pack(anchor='w', pady=5)
 
@@ -548,56 +555,52 @@ class DictationPage(tk.Frame):
 
 
         # 按钮区域
-        buttons_frame = tk.Frame(self.main_frame, bg='white')
+        buttons_frame = tk.Frame(self.main_frame, bg=COLORS['surface'])
         buttons_frame.pack(pady=30)
 
-        self.check_button = tk.Button(
+        self.check_button = create_button(
             buttons_frame,
             text="✓ 检查",
-            font=self.font_config['button'],
-            width=15,
-            height=2,
             command=self._check_answer,
-            bg='#2196F3',
-            fg='white'
+            style="secondary",
+            font_config=self.font_config,
+            width=15,
+            height=2
         )
         self.check_button.pack(side=tk.LEFT, padx=10)
 
-        self.skip_button = tk.Button(
+        self.skip_button = create_button(
             buttons_frame,
             text="⏭️ 跳过",
-            font=self.font_config['button'],
-            width=15,
-            height=2,
             command=self._skip_word,
-            bg='#FF9800',
-            fg='white'
+            style="warning",
+            font_config=self.font_config,
+            width=15,
+            height=2
         )
         self.skip_button.pack(side=tk.LEFT, padx=10)
 
         # 退出按钮
-        self.exit_button = tk.Button(
+        self.exit_button = create_button(
             buttons_frame,
             text="❌ 退出",
-            font=self.font_config['button'],
-            width=15,
-            height=2,
             command=self._exit_dictation,
-            bg='#f44336',
-            fg='white'
+            style="danger",
+            font_config=self.font_config,
+            width=15,
+            height=2
         )
         self.exit_button.pack(side=tk.LEFT, padx=10)
 
         # 下一个按钮（默认不显示，仅在手动模式下使用）
-        self.next_button = tk.Button(
+        self.next_button = create_button(
             buttons_frame,
             text="🔄 下一个",
-            font=self.font_config['button'],
-            width=15,
-            height=2,
             command=self._next_word,
-            bg='#9C27B0',
-            fg='white'
+            style="purple",
+            font_config=self.font_config,
+            width=15,
+            height=2
         )
 
         # 根据全局设置决定是否显示手动的下一个按钮（手动时显示）
@@ -615,7 +618,7 @@ class DictationPage(tk.Frame):
             self.main_frame,
             textvariable=self.result_var,
             font=self.font_config['normal'],
-            bg='white',
+            bg=COLORS['surface'],
             wraplength=600
         )
         self.result_label.pack(pady=20)
@@ -627,12 +630,18 @@ class DictationPage(tk.Frame):
             self.main_frame,
             textvariable=self.status_var,
             font=self.font_config['normal'],
-            bg='#f0f0f0',
+            bg=COLORS['sidebar'],
             anchor='w',
             bd=1,
             relief=tk.SUNKEN
         )
         self.status_bar.pack(side=tk.BOTTOM, fill=tk.X, pady=10)
+
+        # 动态内容构建后重新绑定滚动滚轮
+        try:
+            refresh_mousewheel(self.content_scroll_frame)
+        except Exception:
+            pass
 
     def _exit_dictation(self):
         """退出听写练习，返回模式选择界面"""
@@ -669,7 +678,7 @@ class DictationPage(tk.Frame):
         stats_window = tk.Toplevel(self)
         stats_window.title("听写统计信息")
         stats_window.geometry("600x400")
-        stats_window.configure(bg='white')
+        stats_window.configure(bg=COLORS['surface'])
 
         # 创建滚动框架
         from ui.components.scrollable_frame import create_scrollable_frame
@@ -681,7 +690,7 @@ class DictationPage(tk.Frame):
             content_frame,
             text="听写统计信息",
             font=self.font_config['header'],
-            bg='white'
+            bg=COLORS['surface']
         )
         title_label.pack(pady=20)
 
@@ -690,7 +699,7 @@ class DictationPage(tk.Frame):
             content_frame,
             text=f"总练习次数: {stats.get('total_sessions', 0)}次",
             font=self.font_config['normal'],
-            bg='white'
+            bg=COLORS['surface']
         )
         total_label.pack(pady=5, padx=20, anchor='w')
 
@@ -699,7 +708,7 @@ class DictationPage(tk.Frame):
             content_frame,
             text=f"总练习单词数: {stats.get('total_words', 0)}个",
             font=self.font_config['normal'],
-            bg='white'
+            bg=COLORS['surface']
         )
         words_label.pack(pady=5, padx=20, anchor='w')
 
@@ -709,7 +718,7 @@ class DictationPage(tk.Frame):
             content_frame,
             text=f"平均正确率: {avg_accuracy * 100:.1f}%",
             font=self.font_config['normal'],
-            bg='white'
+            bg=COLORS['surface']
         )
         accuracy_label.pack(pady=5, padx=20, anchor='w')
 
@@ -718,7 +727,7 @@ class DictationPage(tk.Frame):
             mistakes_label = tk.Label(
                 content_frame,
                 text="最常错单词:",
-                bg='white',
+                bg=COLORS['surface'],
                 font=('SimHei', 12, 'bold')
             )
             mistakes_label.pack(pady=(15, 5), padx=20, anchor='w')
@@ -728,23 +737,22 @@ class DictationPage(tk.Frame):
                 content_frame,
                 text=mistakes_text,
                 font=self.font_config['normal'],
-                bg='white',
-                fg='#f44336',
+                bg=COLORS['surface'],
+                fg=COLORS['error'],
                 wraplength=550,
                 justify=tk.LEFT
             )
             mistakes_words_label.pack(pady=5, padx=20, anchor='w')
 
         # 关闭按钮
-        close_button = tk.Button(
+        close_button = create_button(
             content_frame,
             text="关闭",
-            font=self.font_config['button'],
-            width=15,
-            height=2,
             command=stats_window.destroy,
-            bg='#f44336',
-            fg='white'
+            style="danger",
+            font_config=self.font_config,
+            width=15,
+            height=2
         )
         close_button.pack(pady=30)
 
@@ -774,7 +782,7 @@ class DictationPage(tk.Frame):
                     if not result and self.audio_available:
                         messagebox.showerror("播放失败", "无法播放单词发音，请检查网络连接。")
                     elif not self.audio_available:
-                        messagebox.showinfo("提示", f"当前单词: {self.current_word}")
+                        show_toast(self, f"当前单词: {self.current_word}", kind="info")
                     else:
                         # 更新状态栏为已播放，但不显示单词内容
                         try:
@@ -872,7 +880,7 @@ class DictationPage(tk.Frame):
 
         # 显示超时信息
         self.result_var.set("⏰ 超时！正确答案: " + self.current_word)
-        self.result_label.config(fg='#FF5722')
+        self.result_label.config(fg=COLORS['error'])
         log_info("超时单词: " + self.current_word)
 
         # 记录到本次练习结果
@@ -978,7 +986,7 @@ class DictationPage(tk.Frame):
             self.main_frame,
             text="听写完成！",
             font=self.font_config['header'],
-            bg='white'
+            bg=COLORS['surface']
         )
         title_label.pack(pady=30)
 
@@ -1028,26 +1036,32 @@ class DictationPage(tk.Frame):
             # 显示操作按钮
             self._show_summary_buttons()
 
+            # 动态内容构建后重新绑定滚动滚轮
+            try:
+                refresh_mousewheel(self.content_scroll_frame)
+            except Exception:
+                pass
+
     def _create_summary_frame(self, session_stats):
         """创建总结框架和基本信息"""
         # 创建总结信息框架
-        self.summary_frame = tk.Frame(self.main_frame, bg='white')
+        self.summary_frame = tk.Frame(self.main_frame, bg=COLORS['surface'])
         self.summary_frame.pack(pady=20, padx=50, fill=tk.X)
 
         # 会话基本信息卡片
-        session_card = tk.LabelFrame(self.summary_frame, text="会话信息", font=self.font_config['normal'], bg='white')
+        session_card = tk.LabelFrame(self.summary_frame, text="会话信息", font=self.font_config['normal'], bg=COLORS['surface'])
         session_card.pack(fill=tk.X, pady=10, padx=5)
 
         session_label = tk.Label(
             session_card,
             text=f"{self.current_mode}模式 - {self.current_source}来源 - {self.difficulty_var.get()}难度",
             font=self.font_config['normal'],
-            bg='white'
+            bg=COLORS['surface']
         )
         session_label.pack(anchor='w', pady=5, padx=5)
 
         # 统计信息卡片
-        stats_card = tk.LabelFrame(self.summary_frame, text="统计数据", font=self.font_config['normal'], bg='white')
+        stats_card = tk.LabelFrame(self.summary_frame, text="统计数据", font=self.font_config['normal'], bg=COLORS['surface'])
         stats_card.pack(fill=tk.X, pady=10, padx=5)
 
         # 正确率 - 使用session_stats中的数据，因为此时summary_data可能还没准备好
@@ -1062,7 +1076,7 @@ class DictationPage(tk.Frame):
             stats_card,
             text=f"正确率: {accuracy * 100:.1f}% ({correct}/{total})",
             font=self.font_config['normal'],
-            bg='white'
+            bg=COLORS['surface']
         )
         accuracy_label.pack(pady=5, anchor='w', padx=5)
 
@@ -1072,7 +1086,7 @@ class DictationPage(tk.Frame):
                 stats_card,
                 text=f"会话时长: {session_stats['duration']}秒",
                 font=self.font_config['normal'],
-                bg='white'
+                bg=COLORS['surface']
             )
             duration_label.pack(pady=5, anchor='w', padx=5)
 
@@ -1120,7 +1134,7 @@ class DictationPage(tk.Frame):
         missed_words = self.summary_data['missed']
 
         if missed_words:
-            missed_card = tk.LabelFrame(self.summary_frame, text="需要复习的单词", font=self.font_config['normal'], bg='white')
+            missed_card = tk.LabelFrame(self.summary_frame, text="需要复习的单词", font=self.font_config['normal'], bg=COLORS['surface'])
             missed_card.pack(fill=tk.X, pady=10, padx=5)
 
             missed_text = "、".join(missed_words)
@@ -1128,22 +1142,22 @@ class DictationPage(tk.Frame):
                 missed_card,
                 text=missed_text,
                 font=self.font_config['normal'],
-                bg='white',
-                fg='#f44336',
+                bg=COLORS['surface'],
+                fg=COLORS['error'],
                 wraplength=600,
                 justify=tk.LEFT
             )
             missed_words_label.pack(pady=5, anchor='w', padx=5)
         else:
-            perfect_card = tk.LabelFrame(self.summary_frame, text="恭喜", font=self.font_config['normal'], bg='white')
+            perfect_card = tk.LabelFrame(self.summary_frame, text="恭喜", font=self.font_config['normal'], bg=COLORS['surface'])
             perfect_card.pack(fill=tk.X, pady=10, padx=5)
 
             perfect_label = tk.Label(
                 perfect_card,
                 text="太棒了！全部正确！",
                 font=self.font_config['normal'],
-                bg='white',
-                fg='#4CAF50'
+                bg=COLORS['surface'],
+                fg=COLORS['primary']
             )
             perfect_label.pack(pady=10, anchor='w', padx=5)
 
@@ -1158,7 +1172,7 @@ class DictationPage(tk.Frame):
             self.summary_frame,
             text="学习建议:",
             font=self.font_config['normal'],
-            bg='white',
+            bg=COLORS['surface'],
             anchor='w'
         )
         suggestion_label.pack(pady=(15, 5), anchor='w', padx=5)
@@ -1184,7 +1198,7 @@ class DictationPage(tk.Frame):
             self.summary_frame,
             text="学习建议:",
             font=self.font_config['normal'],
-            bg='white',
+            bg=COLORS['surface'],
             anchor='w'
         )
         suggestion_label.pack(pady=(15, 5), anchor='w', padx=5)
@@ -1207,31 +1221,29 @@ class DictationPage(tk.Frame):
     def _show_summary_buttons(self):
         """显示总结页面的按钮"""
         # 按钮区域
-        buttons_frame = tk.Frame(self.main_frame, bg='white')
+        buttons_frame = tk.Frame(self.main_frame, bg=COLORS['surface'])
         buttons_frame.pack(pady=40)
 
-        review_button = tk.Button(
+        review_button = create_button(
             buttons_frame,
             text="复习错词",
-            font=self.font_config['button'],
+            command=self._review_missed_words,
+            style="warning",
+            font_config=self.font_config,
             width=15,
             height=2,
-            command=self._review_missed_words,
-            bg='#FF9800',
-            fg='white',
             state=tk.NORMAL if self.summary_data['missed'] else tk.DISABLED
         )
         review_button.pack(side=tk.LEFT, padx=10)
 
-        new_button = tk.Button(
+        new_button = create_button(
             buttons_frame,
             text="重新开始",
-            font=self.font_config['button'],
-            width=15,
-            height=2,
             command=self._show_mode_selection,
-            bg='#4CAF50',
-            fg='white'
+            style="primary",
+            font_config=self.font_config,
+            width=15,
+            height=2
         )
         new_button.pack(side=tk.LEFT, padx=10)
 
@@ -1254,7 +1266,7 @@ class DictationPage(tk.Frame):
         user_input = self.word_entry.get().strip()
 
         if not user_input:
-            messagebox.showwarning("提示", "请输入单词后再检查。")
+            show_toast(self, "请输入单词后再检查。", kind="warning")
             return
 
         # 停止计时器
@@ -1288,14 +1300,14 @@ class DictationPage(tk.Frame):
         # 显示结果
         if is_correct:
             self.result_var.set(f"✓ 正确！")
-            self.result_label.config(fg='#4CAF50')
+            self.result_label.config(fg=COLORS['primary'])
             log_info(f"听写正确: {self.current_word}")
         else:
             # 使用兼容方法获取翻译（get_translation 接受单个参数）
             translation = self.word_manager.get_word_translation(self.current_word) or ""
             self.result_var.set(
                 f"✗ 错误！正确答案: {self.current_word} ({translation})")
-            self.result_label.config(fg='#f44336')
+            self.result_label.config(fg=COLORS['error'])
             # 记录并追踪错误单词
             try:
                 if hasattr(self.word_manager, 'add_wrong_word'):
@@ -1355,7 +1367,7 @@ class DictationPage(tk.Frame):
         self.dictation_manager.skip_current_word(self.current_word, time_spent)
 
         self.result_var.set("⏭️ 已跳过: " + self.current_word)
-        self.result_label.config(fg='#FF9800')
+        self.result_label.config(fg=COLORS['warning'])
         log_info("跳过单词: " + self.current_word)
 
         # 记录到本次练习结果

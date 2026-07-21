@@ -13,8 +13,11 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from logger import log_error, log_info
-from ui.components.scrollable_frame import create_scrollable_frame
+from ui.components.scrollable_frame import create_scrollable_frame, refresh_mousewheel
 from ui.font_config import FontConfig
+from ui.theme import COLORS
+from ui.components.widgets import create_button
+from ui.components.toast import show_toast
 
 
 class LearningPage(tk.Frame):
@@ -63,10 +66,10 @@ class LearningPage(tk.Frame):
         创建页面组件
         """
         # 设置页面背景
-        self.configure(bg="#f0f0f0")
+        self.configure(bg=COLORS['sidebar'])
 
         # 创建进度条框架
-        progress_frame = tk.Frame(self, bg="#f0f0f0", padx=20, pady=10)
+        progress_frame = tk.Frame(self, bg=COLORS['sidebar'], padx=20, pady=10)
         progress_frame.pack(fill=tk.X, side=tk.TOP)
 
         # 进度标签
@@ -74,16 +77,16 @@ class LearningPage(tk.Frame):
             progress_frame,
             text="进度: 0/0",
             font=("Arial", 12),
-            bg="#f0f0f0",
-            fg="#333333"
+            bg=COLORS['sidebar'],
+            fg=COLORS['text_primary']
         )
         self.progress_label.pack(side=tk.LEFT)
 
         # 批次大小选择
-        batch_frame = tk.Frame(progress_frame, bg="#f0f0f0")
+        batch_frame = tk.Frame(progress_frame, bg=COLORS['sidebar'])
         batch_frame.pack(side=tk.RIGHT)
 
-        tk.Label(batch_frame, text="批次大小:", font=("Arial", 10), bg="#f0f0f0").pack(side=tk.LEFT, padx=5)
+        tk.Label(batch_frame, text="批次大小:", font=("Arial", 10), bg=COLORS['sidebar']).pack(side=tk.LEFT, padx=5)
 
         self.batch_size_var = tk.StringVar(value="10")
         batch_size_options = ["5", "10", "15", "20", "30"]
@@ -97,28 +100,27 @@ class LearningPage(tk.Frame):
         batch_size_combo.pack(side=tk.LEFT, padx=5)
 
         # 开始学习按钮
-        self.start_button = tk.Button(
+        self.start_button = create_button(
             batch_frame,
             text="开始学习",
             command=self.start_learning,
-            font=("Arial", 10),
-            bg="#4CAF50",
-            fg="white",
-            relief=tk.RAISED,
-            padx=10,
-            pady=5
+            style="primary",
+            width=12
         )
         self.start_button.pack(side=tk.LEFT, padx=10)
 
         # 创建单词卡片框架 - 使用通用滚动框架
         content_scroll_frame, card_frame, _, _ = create_scrollable_frame(self, padx=40, pady=20)
         content_scroll_frame.pack(fill=tk.BOTH, expand=True)
+        self.content_scroll_frame = content_scroll_frame
 
-        # 设置内部框架样式
+        # 设置内部框架样式（统一卡片高程：浅底 + 细边框）
         card_frame.configure(
-            bg="white",
-            relief=tk.RAISED,
-            bd=2,
+            bg=COLORS['surface_alt'],
+            relief=tk.FLAT,
+            bd=1,
+            highlightthickness=1,
+            highlightbackground=COLORS['border'],
             padx=40,
             pady=60
         )
@@ -128,8 +130,8 @@ class LearningPage(tk.Frame):
             card_frame,
             text="请点击开始学习",
             font=self.font_config.get('title', ("Arial", 48, "bold")),
-            bg="white",
-            fg="#333333"
+            bg=COLORS['surface_alt'],
+            fg=COLORS['text_primary']
         )
         self.word_label.pack(pady=(20, 5))
 
@@ -138,8 +140,8 @@ class LearningPage(tk.Frame):
             card_frame,
             text="",
             font=self.font_config.get('normal', ("Arial", 18)),
-            bg="white",
-            fg="#999999",  # 灰色
+            bg=COLORS['surface_alt'],
+            fg=COLORS['text_tertiary'],  # 灰色
         )
         self.phonetic_label.pack(pady=(0, 15))
 
@@ -148,13 +150,13 @@ class LearningPage(tk.Frame):
             card_frame,
             text="",
             font=self.font_config.get('header', ("Arial", 24)),
-            bg="white",
-            fg="#666666"
+            bg=COLORS['surface_alt'],
+            fg=COLORS['text_secondary']
         )
         self.definition_label.pack(pady=20)
 
         # 例句框架
-        self.example_frame = tk.Frame(card_frame, bg="#f9f9f9", bd=1, relief=tk.SUNKEN)
+        self.example_frame = tk.Frame(card_frame, bg=COLORS['surface_alt2'], bd=1, relief=tk.SUNKEN)
         self.example_frame.pack(fill=tk.X, pady=15, padx=20, side=tk.BOTTOM)
 
         # 例句显示标签
@@ -162,8 +164,8 @@ class LearningPage(tk.Frame):
             self.example_frame,
             text="",
             font=self.font_config.get('normal', ("Arial", 12)),
-            bg="#f9f9f9",
-            fg="#333333",
+            bg=COLORS['surface_alt2'],
+            fg=COLORS['text_primary'],
             wraplength=600,
             justify=tk.LEFT,
             padx=15,
@@ -172,65 +174,49 @@ class LearningPage(tk.Frame):
         self.example_label.pack(fill=tk.X)
 
         # 发音播放按钮
-        self.pronounce_button = tk.Button(
+        self.pronounce_button = create_button(
             card_frame,
             text="🔊 播放发音",
             command=self.play_pronunciation,
-            font=self.font_config.get('button', ("Arial", 12)),
-            bg="#2196F3",
-            fg="white",
-            relief=tk.RAISED,
-            padx=20,
-            pady=10,
+            style="secondary",
+            font_config=self.font_config,
             state=tk.DISABLED
         )
         self.pronounce_button.pack(pady=20)
 
         # 创建操作按钮框架
-        action_frame = tk.Frame(self, bg="#f0f0f0", pady=20)
+        action_frame = tk.Frame(self, bg=COLORS['sidebar'], pady=20)
         action_frame.pack(fill=tk.X, side=tk.BOTTOM)
 
         # 例句按钮
-        self.example_button = tk.Button(
+        self.example_button = create_button(
             action_frame,
             text="📝 显示例句",
             command=self.toggle_example,
-            font=self.font_config.get('button', ("Arial", 12)),
-            bg="#2196F3",
-            fg="white",
-            relief=tk.RAISED,
-            padx=15,
-            pady=10,
+            style="secondary",
+            font_config=self.font_config,
             state=tk.DISABLED
         )
         self.example_button.pack(side=tk.LEFT, padx=10)
 
         # 需复习按钮
-        self.review_button = tk.Button(
+        self.review_button = create_button(
             action_frame,
             text="需复习",
             command=self.mark_review,
-            font=self.font_config.get('button', ("Arial", 14)),
-            bg="#FF9800",
-            fg="white",
-            relief=tk.RAISED,
-            padx=40,
-            pady=15,
+            style="warning",
+            font_config=self.font_config,
             state=tk.DISABLED
         )
         self.review_button.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=20)
 
         # 已掌握按钮
-        self.mastered_button = tk.Button(
+        self.mastered_button = create_button(
             action_frame,
             text="已掌握",
             command=self.mark_mastered,
-            font=self.font_config.get('button', ("Arial", 14)),
-            bg="#4CAF50",
-            fg="white",
-            relief=tk.RAISED,
-            padx=40,
-            pady=15,
+            style="primary",
+            font_config=self.font_config,
             state=tk.DISABLED
         )
         self.mastered_button.pack(side=tk.RIGHT, expand=True, fill=tk.X, padx=20)
@@ -255,7 +241,7 @@ class LearningPage(tk.Frame):
             # 获取当前激活词库信息
             active_set = self.word_manager.get_active_word_set()
             if not active_set:
-                messagebox.showwarning("提示", "请先在词库管理中选择一个词库")
+                show_toast(self, "请先在词库管理中选择一个词库", kind="warning")
                 return
 
             # 获取学习单词
@@ -265,14 +251,14 @@ class LearningPage(tk.Frame):
                 # 直接从word_manager获取单词
                 words = self.word_manager.get_words_from_active_set()
                 if not words:
-                    messagebox.showinfo("提示", f"词库 '{active_set['name']}' 中没有单词")
+                    show_toast(self, f"词库 '{active_set['name']}' 中没有单词", kind="warning")
                     return
                 # 取指定数量的单词
                 import random
                 self.current_batch = random.sample(words, min(batch_size, len(words)))
 
             if not self.current_batch:
-                messagebox.showinfo("提示", f"词库 '{active_set['name']}' 中没有可学习的单词")
+                show_toast(self, f"词库 '{active_set['name']}' 中没有可学习的单词", kind="warning")
                 return
 
             # 开始学习第一个单词
@@ -336,9 +322,15 @@ class LearningPage(tk.Frame):
             if hasattr(self, 'example_button'):
                 self.example_button.config(text="📝 显示例句")
 
-            # 如果例句功能启用且有单词管理器，异步获取例句
+            # 如果例句功能启用且有单词管理器，异步补全例句 + 音标
             if self.word_manager and self.settings_manager and self.settings_manager.get_setting("example_enabled", True):
-                threading.Thread(target=self._fetch_example_async, daemon=True).start()
+                threading.Thread(target=self._fetch_details_async, daemon=True).start()
+
+        # 动态内容（单词卡 / 异步例句）填充后，重新绑定滚动滚轮
+        try:
+            refresh_mousewheel(self.content_scroll_frame)
+        except Exception:
+            pass
 
     def _update_progress(self):
         """
@@ -400,7 +392,7 @@ class LearningPage(tk.Frame):
 
                     if not result:
                         try:
-                            messagebox.showinfo("提示", "发音播放失败，请检查网络连接")
+                            show_toast(self, "发音播放失败，请检查网络连接", kind="warning")
                         except Exception:
                             pass
 
@@ -536,40 +528,57 @@ class LearningPage(tk.Frame):
         if not isinstance(event.widget, (tk.Entry, ttk.Combobox)):
             self.play_pronunciation()
 
-    def _fetch_example_async(self):
+    def _fetch_details_async(self):
+        """异步补全当前单词详情：音标 + 例句（顺带补全，一次获取更多信息）。
+
+        直接复用 WordManager.complete_word_details_single —— 即项目原有的综合 AI
+        补全功能（一次 AI 调用返回音标/释义/词性/例句的完整 JSON），而非按字段逐个补。
+        仅对数据库中缺失的字段发起请求，补全后回写数据库。
         """
-        异步获取单词例句
-        """
-        log_info(f"_fetch_example_async called, current_word: {self.current_word}, word_manager: {self.word_manager}")
+        log_info(f"_fetch_details_async called, current_word: {self.current_word}")
         if self.current_word and self.word_manager:
             # 确保传递的是单词字符串而不是字典
             word_str = self.current_word['word'] if isinstance(self.current_word, dict) else self.current_word
-            log_info(f"_fetch_example_async: calling get_word_example with word_str={word_str}")
-            # 使用WordManager的异步API获取例句
-            self.word_manager.get_word_example(
+            # 调用现有 AI 补全功能：一次综合请求拿全字段
+            self.word_manager.complete_word_details_single(
                 word_str,
                 async_mode=True,
-                callback=self._on_example_fetched
+                callback=self._on_details_fetched
             )
 
-    def _on_example_fetched(self, example):
-        """
-        例句获取完成后的回调处理
+    def _on_details_fetched(self, attributes):
+        """例句 + 音标补全完成后的回调。
 
         Args:
-            example: 获取到的例句文本
+            attributes: dict，可能含 'example' / 'example_translation' / 'phonetic'
         """
-        log_info(f"_on_example_fetched called, example: {example}")
+        log_info(f"_on_details_fetched called, attributes keys: {list(attributes.keys()) if attributes else None}")
         try:
-            self.current_example = example
-            log_info(f"_on_example_fetched: current_example updated to {example}, is_example_visible={self.is_example_visible}")
-            # 如果用户已经点击显示例句，自动更新UI
-            if self.is_example_visible:
-                log_info(f"_on_example_fetched: updating example_label with text={example}")
-                self.master.after(0, lambda: self.example_label.config(text=example))
+            if not attributes:
+                return
+            # 刷新音标（补齐学习页缺失的音标，并同步内存以便下次直接显示）
+            phonetic = (attributes.get('phonetic') or '').strip()
+            if phonetic and isinstance(self.current_word, dict):
+                self.current_word['phonetic'] = phonetic
+                self.master.after(0, lambda p=phonetic: (
+                    self.phonetic_label.config(text=p),
+                    self.phonetic_label.pack(pady=(0, 15))
+                ))
+            # 组装例句文本
+            example = attributes.get('example', '') or ''
+            example_translation = attributes.get('example_translation', '') or ''
+            if example and example_translation:
+                formatted = f"🌍 {example}\n📝 {example_translation}"
+            elif example:
+                formatted = f"🌍 {example}"
+            else:
+                formatted = ""
+            if formatted:
+                self.current_example = formatted
+                if self.is_example_visible:
+                    self.master.after(0, lambda f=formatted: self.example_label.config(text=f))
         except Exception as e:
-            log_error(f"_on_example_fetched error: {str(e)}")
-            pass  # 忽略UI更新错误
+            log_error(f"_on_details_fetched error: {str(e)}")
 
     def toggle_example(self):
         """
@@ -589,32 +598,10 @@ class LearningPage(tk.Frame):
                 self.is_example_visible = True
                 self.master.after(0, lambda: self.example_button.config(text="📝 隐藏例句"))
             elif self.word_manager and self.settings_manager and self.settings_manager.get_setting("example_enabled", True):
-                # 如果还没有例句，异步获取（先检查数据库，没有则AI补全）
+                # 异步补全（例句 + 音标），结果在回调 _on_details_fetched 中显示
                 self.master.after(0, lambda: self.example_label.config(text="正在获取例句..."))
                 self.is_example_visible = True
-
-                # 异步获取例句的回调函数
-                def on_example_ready(example):
-                    try:
-                        self.current_example = example
-                        self.master.after(0, lambda: self.example_label.config(
-                            text=example if example else "无法获取例句"
-                        ))
-                        self.master.after(0, lambda: self.example_button.config(
-                            text="📝 隐藏例句"
-                        ))
-                    except Exception:
-                        pass  # 忽略UI更新错误
-
-                try:
-                    # 调用重构后的get_word_example方法（自动处理数据库检查和AI补全）
-                    self.word_manager.get_word_example(
-                        word_str,
-                        async_mode=True,
-                        callback=on_example_ready
-                    )
-                except Exception:
-                    pass  # 忽略获取例句时的错误
+                self._fetch_details_async()
         else:
             # 隐藏例句
             log_info(f"toggle_example: hiding example")

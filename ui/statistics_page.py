@@ -13,7 +13,9 @@ import math
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from logger import log_error
-from ui.components.scrollable_frame import create_scrollable_frame
+from ui.components.scrollable_frame import create_scrollable_frame, refresh_mousewheel
+from ui.theme import COLORS
+from ui.components.widgets import create_card
 from ui.font_config import FontConfig
 
 
@@ -53,21 +55,23 @@ class StatisticsPage(tk.Frame):
         创建页面组件
         """
         # 设置页面背景
-        self.configure(bg="#f0f0f0")
+        self.configure(bg=COLORS['sidebar'])
 
         # 创建标题
         title_label = tk.Label(
             self,
             text="学习统计",
             font=self.font_config.get('header', ("Arial", 24)),
-            bg="#f0f0f0",
-            fg="#333333"
+            bg=COLORS['sidebar'],
+            fg=COLORS['text_primary']
         )
         title_label.pack(pady=20)
 
         # 创建滚动框架
         content_scroll_frame, content_frame, _, _ = create_scrollable_frame(self, padx=40, pady=20)
         content_scroll_frame.pack(fill=tk.BOTH, expand=True)
+        # 保存引用，数据加载后刷新滚轮绑定（Treeview 异步填充后也能滚动）
+        self.content_scroll_frame = content_scroll_frame
 
         # 创建综合统计卡片
         self._create_summary_stats_card(content_frame)
@@ -88,7 +92,7 @@ class StatisticsPage(tk.Frame):
         """
         创建综合统计卡片
         """
-        card = tk.Frame(parent, bg="white", relief=tk.RAISED, bd=2, padx=20, pady=20)
+        card = create_card(parent, padx=20, pady=20)
         card.pack(fill=tk.X, pady=10)
 
         # 标题
@@ -96,13 +100,13 @@ class StatisticsPage(tk.Frame):
             card,
             text="综合统计",
             font=("Arial", 18, "bold"),
-            bg="white",
-            fg="#333333"
+            bg=COLORS['surface_alt'],
+            fg=COLORS['text_primary']
         )
         title.pack(anchor=tk.W, pady=(0, 15))
 
         # 创建统计网格
-        grid_frame = tk.Frame(card, bg="white")
+        grid_frame = tk.Frame(card, bg=COLORS['surface_alt'])
         grid_frame.pack(fill=tk.X)
 
         # 统计项标签和值
@@ -125,8 +129,8 @@ class StatisticsPage(tk.Frame):
                 grid_frame,
                 text=label_text,
                 font=("Arial", 12),
-                bg="white",
-                fg="#666666"
+                bg=COLORS['surface_alt'],
+                fg=COLORS['text_secondary']
             )
             label.grid(row=row*2, column=col, padx=20, pady=(0, 5), sticky=tk.W)
 
@@ -135,8 +139,8 @@ class StatisticsPage(tk.Frame):
                 grid_frame,
                 text="--",
                 font=("Arial", 14, "bold"),
-                bg="white",
-                fg="#333333"
+                bg=COLORS['surface_alt'],
+                fg=COLORS['text_primary']
             )
             value.grid(row=row*2+1, column=col, padx=20, pady=(0, 15), sticky=tk.W)
 
@@ -147,7 +151,7 @@ class StatisticsPage(tk.Frame):
         """
         创建本周学习趋势卡片
         """
-        card = tk.Frame(parent, bg="white", relief=tk.RAISED, bd=2, padx=20, pady=20)
+        card = create_card(parent, padx=20, pady=20)
         card.pack(fill=tk.X, pady=10)
 
         # 标题
@@ -155,8 +159,8 @@ class StatisticsPage(tk.Frame):
             card,
             text="本周学习趋势",
             font=("Arial", 18, "bold"),
-            bg="white",
-            fg="#333333"
+            bg=COLORS['surface_alt'],
+            fg=COLORS['text_primary']
         )
         title.pack(anchor=tk.W, pady=(0, 15))
 
@@ -168,7 +172,7 @@ class StatisticsPage(tk.Frame):
         """
         创建熟练度分布卡片
         """
-        card = tk.Frame(parent, bg="white", relief=tk.RAISED, bd=2, padx=20, pady=20)
+        card = create_card(parent, padx=20, pady=20)
         card.pack(fill=tk.X, pady=10)
 
         # 标题
@@ -176,8 +180,8 @@ class StatisticsPage(tk.Frame):
             card,
             text="熟练度分布",
             font=("Arial", 18, "bold"),
-            bg="white",
-            fg="#333333"
+            bg=COLORS['surface_alt'],
+            fg=COLORS['text_primary']
         )
         title.pack(anchor=tk.W, pady=(0, 15))
 
@@ -186,31 +190,31 @@ class StatisticsPage(tk.Frame):
         self.proficiency_canvas.pack(fill=tk.X)
 
         # 熟练度图例
-        legend_frame = tk.Frame(card, bg="white")
+        legend_frame = tk.Frame(card, bg=COLORS['surface_alt'])
         legend_frame.pack(fill=tk.X, pady=10)
 
         proficiencies = [
-            ("未学习", "#e0e0e0"),
-            ("不熟悉", "#FF9800"),
-            ("一般", "#2196F3"),
-            ("熟练", "#4CAF50")
+            ("未学习", COLORS["border"]),
+            ("不熟悉", COLORS["warning"]),
+            ("一般", COLORS["info"]),
+            ("熟练", COLORS["primary"])
         ]
 
         for i, (label, color) in enumerate(proficiencies):
-            legend_item = tk.Frame(legend_frame, bg="white")
+            legend_item = tk.Frame(legend_frame, bg=COLORS['surface_alt'])
             legend_item.pack(side=tk.LEFT, padx=20)
 
             color_box = tk.Frame(legend_item, width=20, height=20, bg=color)
             color_box.pack(side=tk.LEFT, padx=5)
 
-            label = tk.Label(legend_item, text=label, font=("Arial", 12), bg="white")
+            label = tk.Label(legend_item, text=label, font=("Arial", 12), bg=COLORS['surface_alt'])
             label.pack(side=tk.LEFT)
 
     def _create_word_set_stats_card(self, parent):
         """
         创建词库统计卡片
         """
-        card = tk.Frame(parent, bg="white", relief=tk.RAISED, bd=2, padx=20, pady=20)
+        card = create_card(parent, padx=20, pady=20)
         card.pack(fill=tk.X, pady=10)
 
         # 标题
@@ -218,8 +222,8 @@ class StatisticsPage(tk.Frame):
             card,
             text="词库统计",
             font=("Arial", 18, "bold"),
-            bg="white",
-            fg="#333333"
+            bg=COLORS['surface_alt'],
+            fg=COLORS['text_primary']
         )
         title.pack(anchor=tk.W, pady=(0, 15))
 
@@ -240,7 +244,7 @@ class StatisticsPage(tk.Frame):
         """
         创建最近学习记录卡片
         """
-        card = tk.Frame(parent, bg="white", relief=tk.RAISED, bd=2, padx=20, pady=20)
+        card = create_card(parent, padx=20, pady=20)
         card.pack(fill=tk.X, pady=10)
 
         # 标题
@@ -248,8 +252,8 @@ class StatisticsPage(tk.Frame):
             card,
             text="最近学习记录",
             font=("Arial", 18, "bold"),
-            bg="white",
-            fg="#333333"
+            bg=COLORS['surface_alt'],
+            fg=COLORS['text_primary']
         )
         title.pack(anchor=tk.W, pady=(0, 15))
 
@@ -293,6 +297,9 @@ class StatisticsPage(tk.Frame):
             # 加载最近学习记录
             self._load_recent_progress()
 
+            # 数据（含 Treeview 行）填充后重新绑定滚轮，确保可滚动
+            refresh_mousewheel(self.content_scroll_frame)
+
         except Exception as e:
             log_error(f"加载统计数据失败: {str(e)}")
             messagebox.showerror("错误", f"加载统计数据失败: {str(e)}")
@@ -335,7 +342,7 @@ class StatisticsPage(tk.Frame):
                 canvas_width / 2, canvas_height / 2,
                 text="暂无学习数据",
                 font=("Arial", 14),
-                fill="#666666"
+                fill=COLORS['text_secondary']
             )
             return
 
@@ -368,13 +375,13 @@ class StatisticsPage(tk.Frame):
             y = canvas_height - padding - (practices_ratio * plot_height)
 
             # 绘制数据点
-            self.weekly_trend_canvas.create_oval(x - 4, y - 4, x + 4, y + 4, fill="#2196F3", outline="#1976D2")
+            self.weekly_trend_canvas.create_oval(x - 4, y - 4, x + 4, y + 4, fill=COLORS['info'], outline=COLORS['info_hover'])
 
             # 绘制线条
             if i > 0:
                 prev_x = padding + (i - 1) * point_width
                 prev_y = canvas_height - padding - (weekly_stats[i-1]['practices'] / max_practices) * plot_height
-                self.weekly_trend_canvas.create_line(prev_x, prev_y, x, y, width=2, fill="#2196F3")
+                self.weekly_trend_canvas.create_line(prev_x, prev_y, x, y, width=2, fill=COLORS['info'])
 
             # 绘制日期标签
             date = stat['date'].split('-')[-2:]
@@ -382,7 +389,7 @@ class StatisticsPage(tk.Frame):
             self.weekly_trend_canvas.create_text(x, canvas_height - padding + 20, text=date_str, font=("Arial", 10))
 
             # 绘制数值标签
-            self.weekly_trend_canvas.create_text(x, y - 15, text=str(stat['practices']), font=("Arial", 10), fill="#333333")
+            self.weekly_trend_canvas.create_text(x, y - 15, text=str(stat['practices']), font=("Arial", 10), fill=COLORS['text_primary'])
 
     def _load_proficiency_distribution(self):
         """
@@ -419,10 +426,10 @@ class StatisticsPage(tk.Frame):
 
         # 定义颜色
         colors = {
-            "未学习": "#e0e0e0",
-            "不熟悉": "#FF9800",
-            "一般": "#2196F3",
-            "熟练": "#4CAF50"
+            "未学习": COLORS["border"],
+            "不熟悉": COLORS["warning"],
+            "一般": COLORS["info"],
+            "熟练": COLORS["primary"]
         }
 
         # 绘制饼图

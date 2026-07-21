@@ -5,9 +5,12 @@
 
 关键改进：
 - 鼠标滚轮绑定支持「动态添加的内容」：通过 refresh_mousewheel(scroll_frame)
-  在填充完选项 / 题目等内容后重新绑定，避免动态控件无法滚动。
+  在填充完选项 / 题目 / 表格数据等内容后重新绑定，避免动态控件无法滚动。
 - 绑定幂等：重复绑定不会让滚动速度翻倍。
 - canvas 的 yscrollincrement 设为合理像素值，滚轮一次滚动一屏的一小段而非 1 像素。
+- 创建后自动做多次延迟 refresh（after_idle / 250ms / 800ms），覆盖「数据异步加载、
+  控件动态出现」导致的滚动失效——鼠标悬停在 canvas 空白区或后加载的 Treeview 上
+  也能正常滚动。
 """
 import tkinter as tk
 
@@ -68,6 +71,15 @@ def create_scrollable_frame(parent, *args, **kwargs):
     # 初始绑定（仅覆盖创建时已有的子组件；动态内容稍后通过 refresh_mousewheel 重新绑定）
     add_mousewheel_support(inner_frame, canvas)
 
+    # 自动延迟刷新：覆盖创建之后才出现的动态内容（异步加载的表格数据、动态生成的
+    # 题目/选项、模式切换后显示/隐藏的区块等）。绑定是幂等的，重复调用不会叠加速度。
+    def _delayed_refresh():
+        refresh_mousewheel(scroll_frame)
+
+    scroll_frame.after_idle(_delayed_refresh)
+    scroll_frame.after(250, _delayed_refresh)
+    scroll_frame.after(800, _delayed_refresh)
+
     return scroll_frame, inner_frame, on_inner_configure, on_canvas_configure
 
 
@@ -121,7 +133,11 @@ def add_mousewheel_support(widget, canvas):
 
 
 def refresh_mousewheel(scroll_frame):
-    """在动态添加内容（选项 / 题目等）后，重新把整棵组件树绑定到所属 canvas 的滚动。
+    """在动态添加内容（选项 / 题目 / 表格数据等）后，重新把整棵组件树绑定到所属
+    canvas 的滚动。
+
+    对整个 scroll_frame 子树（含 canvas 空白区、后加载的 Treeview）递归重绑，
+    幂等不叠加速度。
 
     Args:
         scroll_frame: create_scrollable_frame 返回的第一个元素

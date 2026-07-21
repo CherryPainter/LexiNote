@@ -1,5 +1,6 @@
 import os
 import tempfile
+import asyncio
 from gtts import gTTS
 from playsound import playsound
 from logger import log_info, log_error
@@ -48,71 +49,144 @@ class AudioPlayer:
 
         Returns:
             bool: 播放是否成功
+
+        说明：仅使用 edge-tts（微软 Edge 神经语音，免费、无需 API key、国内通常可达、
+        音质好）作为发音后端。不再使用 gTTS（连 Google 端点，国内不可达、每次白等超时），
+        也不做离线 pyttsx3 兜底。edge-tts 未安装或连接失败时直接返回 False。
         """
         if not word:
             log_error("播放失败：单词为空")
             return False
 
-        if not self.is_available():
-            log_error("播放失败：音频播放功能不可用")
+        # 仅使用 edge-tts 发音
+        if self._play_edge_tts(word, lang):
+            return True
+
+        log_error(f"播放单词发音失败: {word}")
+        return False
+
+    def _play_offline(self, word: str, lang: str = 'en') -> bool:
+        """离线发音：使用系统语音引擎（pyttsx3 / SAPI5），完全不依赖网络。
+
+        Args:
+            word: 要播放发音的文本
+            lang: 语言代码（'en' 或 'zh-cn' 等）
+
+        Returns:
+            bool: 离线发音是否成功
+        """
+        try:
+            import pyttsx3
+        except Exception:
+            # 未安装离线语音引擎，静默回退（由调用方决定如何提示）
             return False
 
         try:
-            # 先检查缓存：优先使用全局 CacheManager
-            cached_file = None
+            engine = pyttsx3.init()
+            # 尽量匹配语言对应的语音（英文/中文）
+            try:
+                voices = engine.getProperty('voices') or []
+                target = 'zh' if str(lang).startswith('zh') else 'en'
+                for v in voices:
+                    vid = (getattr(v, 'id', '') or '').lower()
+                    if target == 'zh' and ('zh' in vid or 'chinese' in vid or 'china' in vid):
+                        engine.setProperty('voice', v.id)
+                        break
+                    if target == 'en' and ('en' in vid or 'english' in vid):
+                        engine.setProperty('voice', v.id)
+                        break
+            except Exception:
+                pass
+            engine.say(word)
+            engine.runAndWait()
+            log_info(f"离线播放单词发音: {word} (lang={lang})")
+            return True
+        except Exception as e:
+            log_error(f"离线发音失败: {word}, 错误: {str(e)}")
+            return False
+
+    def _run_async(self, coro):
+        """在同步上下文中运行协程。Tkinter 回调内无 asyncio 事件循环，直接 asyncio.run；
+        万一已有 running loop（防御性），则临时新建 loop 执行后再关闭。"""
+        try:
+            asyncio.run(coro)
+        except RuntimeError as e:
+            if "already running" in str(e):
+                loop = asyncio.new_event_loop()
+                try:
+                    loop.run_until_complete(coro)
+                finally:
+                    loop.close()
+            else:
+                raise
+
+    def _play_edge_tts(self, word: str, lang: str = 'en') -> bool:
+        """在线发音（edge-tts）：微软 Edge 神经语音，免费、无需 API key、国内通常可达、
+        音质优于系统离线语音。失败（未安装/网络不通）时返回 False，由调用方继续回退。
+
+        Args:
+            word: 要发音的文本
+            lang: 语言代码（'en' / 'zh-cn' 等）
+
+        Returns:
+            bool: 发音是否成功
+        """
+        try:
+            import edge_tts  # noqa
+        except Exception:
+            # 未安装 edge-tts：明确提示，方便用户排查（否则界面只是无声）
+            log_error("发音失败：未安装 edge-tts，请执行 pip install edge-tts")
+            return False
+
+        # 根据语言选择神经语音
+        if str(lang).startswith('zh'):
+            voice = 'zh-CN-XiaoxiaoNeural'
+        else:
+            voice = 'en-US-AriaNeural'
+
+        # 缓存 key 加 edge- 前缀，避免与 gTTS 缓存冲突
+        cache_voice = f"edge-{lang}"
+
+        try:
+            # 优先命中缓存
             if self.cache_manager:
                 try:
-                    cached_file = self.cache_manager.get_tts_cache(word, voice=lang)
+                    cached_file = self.cache_manager.get_tts_cache(word, voice=cache_voice)
+                    if cached_file:
+                        playsound(cached_file)
+                        log_info(f"从缓存播放（edge-tts）: {word}")
+                        return True
                 except Exception:
-                    cached_file = None
-            else:
-                cached_file = self.cache.get_cached_file(word, lang)
+                    pass
 
-            if cached_file:
-                playsound(cached_file)
-                log_info(f"从缓存播放单词发音: {word}")
-                return True
-
-            # 如果缓存中没有，生成新的音频文件
-            temp_file = os.path.join(
-                self.temp_dir,
-                f"temp_{abs(hash(word))}.mp3"
-            )
+            temp_file = os.path.join(self.temp_dir, f"edge_{abs(hash(word))}_{lang}.mp3")
             self.temp_files.append(temp_file)
 
-            # 使用gTTS生成语音
-            tts = gTTS(text=word, lang=lang, slow=False)
-            tts.save(temp_file)
+            async def _gen():
+                communicate = edge_tts.Communicate(word, voice)
+                await communicate.save(temp_file)
 
-            # 添加到缓存（优先使用全局 CacheManager）
+            self._run_async(_gen())
+
+            # 校验是否生成了有效音频
+            if not (os.path.exists(temp_file) and os.path.getsize(temp_file) > 0):
+                return False
+
+            # 写入缓存（优先全局 CacheManager）
             cached_file = None
             if self.cache_manager:
                 try:
-                    # 读取临时文件字节并交给 CacheManager
                     with open(temp_file, 'rb') as f:
                         audio_bytes = f.read()
-                    cached_file = self.cache_manager.set_tts_cache(word, audio_bytes, voice=lang)
-                except Exception as e:
-                    log_error(f"将音频添加到全局缓存失败: {str(e)}")
-                    cached_file = None
-            else:
-                try:
-                    cached_file = self.cache.add_to_cache(word, lang, temp_file)
+                    cached_file = self.cache_manager.set_tts_cache(word, audio_bytes, voice=cache_voice)
                 except Exception:
                     cached_file = None
 
-            if cached_file:
-                # 使用缓存的文件播放
-                playsound(cached_file)
-            else:
-                # 如果缓存失败，使用临时文件
-                playsound(temp_file)
-
-            log_info(f"播放单词发音: {word}")
+            playsound(cached_file or temp_file)
+            log_info(f"edge-tts 播放单词发音: {word} (voice={voice})")
             return True
-
         except Exception as e:
-            log_error(f"播放单词发音失败: {word}, 错误: {str(e)}")
+            log_info(f"edge-tts 发音不可用（{word}），继续回退: {str(e)}")
             return False
 
     def play_chinese_pronunciation(self, text):
@@ -127,15 +201,20 @@ class AudioPlayer:
         return self.play_pronunciation(text, lang='zh-cn')
 
     def is_available(self):
-        """检查音频播放功能是否可用"""
+        """检查音频播放功能是否可用：playsound 存在且任一发音后端（gTTS/edge-tts/pyttsx3）可用。"""
         try:
-            # 尝试导入必要的库
-            import gtts  # noqa
             import playsound  # noqa
-            return True
         except ImportError:
-            log_error("音频播放功能不可用：缺少必要的库")
+            log_error("音频播放功能不可用：缺少 playsound")
             return False
+        for mod in ("gtts", "edge_tts", "pyttsx3"):
+            try:
+                __import__(mod)
+                return True
+            except ImportError:
+                continue
+        log_error("音频播放功能不可用：缺少 gTTS/edge-tts/pyttsx3")
+        return False
 
     def install_requirements(self):
         """安装必要的依赖
@@ -152,6 +231,12 @@ class AudioPlayer:
 
             # 安装playsound
             subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'playsound'])
+
+            # 安装pyttsx3（离线发音回退，使用系统语音引擎，无需联网）
+            subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'pyttsx3'])
+
+            # 安装edge-tts（微软 Edge 神经语音，免费、无需 API key、国内可达）
+            subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'edge-tts'])
 
             log_info("成功安装音频播放依赖")
             return True

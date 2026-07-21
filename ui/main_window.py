@@ -1,4 +1,5 @@
 import tkinter as tk
+import tkinter.ttk as ttk
 import sys
 import os
 
@@ -16,6 +17,7 @@ from ui.ai_assistant_page import AIAssistantPage
 from ui.word_set_page import WordSetPage
 from ui.statistics_page import StatisticsPage
 from ui.font_config import FontConfig
+from ui.theme import COLORS, SPACING
 from word_manager import WordManager
 from core.learning import LearningManager
 from core.settings_manager import SettingsManager
@@ -74,6 +76,9 @@ class MainWindow:
 
     def _create_ui(self):
         """创建用户界面"""
+        # 注册全局 ttk 主题（Treeview 等），保证与自定义按钮视觉一致
+        self._setup_global_styles()
+
         # 创建主框架
         self.main_frame = tk.Frame(self.root)
         self.main_frame.pack(fill=tk.BOTH, expand=True)
@@ -84,53 +89,132 @@ class MainWindow:
         # 创建内容区域
         self._create_content_area()
 
+        # 底部状态栏（非模态反馈 + 提示）
+        self.status_bar = tk.Label(
+            self.root,
+            text="提示：从左侧选择学习模式开始练习",
+            bg=COLORS["surface_alt"],
+            fg=COLORS["text_secondary"],
+            anchor=tk.W,
+            font=self.font_config["small"],
+            padx=SPACING["lg"],
+            pady=SPACING["sm"],
+        )
+        self.status_bar.pack(side=tk.BOTTOM, fill=tk.X)
+
         # 显示欢迎页面
         self._show_welcome_page()
 
+    def _setup_global_styles(self):
+        """为 ttk 组件（Treeview 等）注册全局主题，统一视觉语言。"""
+        style = ttk.Style()
+        style.configure(
+            "Treeview",
+            background=COLORS["surface"],
+            foreground=COLORS["text_primary"],
+            fieldbackground=COLORS["surface"],
+            bordercolor=COLORS["border"],
+            relief=tk.FLAT,
+            rowheight=28,
+        )
+        style.configure(
+            "Treeview.Heading",
+            background=COLORS["surface_alt"],
+            foreground=COLORS["text_primary"],
+            relief=tk.FLAT,
+            borderwidth=1,
+        )
+        style.map(
+            "Treeview",
+            background=[("selected", COLORS["info_tint"])],
+            foreground=[("selected", COLORS["text_primary"])],
+        )
+
+    def show_status(self, message: str, kind: str = "info", revert: int = 4000):
+        """在底部状态栏显示提示，revert 毫秒后恢复默认提示。"""
+        tint = {
+            "info": COLORS["surface_alt"],
+            "success": COLORS["primary_tint"],
+            "warning": COLORS["warning_tint"],
+            "error": COLORS["error_tint"],
+        }.get(kind, COLORS["surface_alt"])
+        self.status_bar.config(text=message, bg=tint)
+        if revert > 0:
+            self.root.after(revert, lambda: self.status_bar.config(
+                text="提示：从左侧选择学习模式开始练习", bg=COLORS["surface_alt"]))
+
+    def _set_active_nav(self, page_key: str):
+        """切换侧边栏选中态：重置全部，高亮当前页。"""
+        for key, btn in self._nav_buttons.items():
+            active = (key == page_key)
+            btn._is_active = active
+            if active:
+                btn.config(bg=COLORS["primary"], fg=COLORS["text_on_primary"],
+                           highlightbackground=COLORS["primary"])
+            else:
+                btn.config(bg=COLORS["sidebar_btn"], fg=COLORS["text_primary"],
+                           highlightbackground=COLORS["sidebar_btn"])
+
     def _create_sidebar(self):
-        """创建侧边导航栏"""
-        self.sidebar = tk.Frame(self.main_frame, width=200, bg='#f0f0f0', bd=2, relief=tk.SUNKEN)
+        """创建侧边导航栏（使用设计 Token，带选中态与焦点环）"""
+        self.sidebar = tk.Frame(self.main_frame, width=200, bg=COLORS["sidebar"],
+                                bd=0, relief=tk.FLAT)
         self.sidebar.pack(side=tk.LEFT, fill=tk.Y)
 
         # 标题
-        title_label = tk.Label(self.sidebar, text="LexiNote", font=self.font_config['title'], bg='#f0f0f0')
-        title_label.pack(pady=20)
+        title_label = tk.Label(self.sidebar, text="LexiNote", font=self.font_config['title'],
+                               bg=COLORS["sidebar"], fg=COLORS["text_primary"])
+        title_label.pack(pady=SPACING["xl"])
 
-        # 导航按钮
-        nav_buttons = [
-            ("📚 单词学习", self._show_learning_page),
-            ("📝 听写练习", self._show_dictation_page),
-            ("🌐 翻译练习", self._show_translation_page),
-            ("📊 单词复习", self._show_review_page),
-            ("🔤 完形填空", self._show_cloze_test_page),
-            ("📖 阅读理解", self._show_reading_comprehension_page),
-            ("📁 词库管理", self._show_word_set_page),
-            ("🤖 AI助手", self._show_ai_assistant_page),
-            ("📈 学习统计", self._show_statistics),
-            ("⚙️ 设置", self._show_settings_page)
+        # 导航按钮：(显示文字, 对应 page_key, 点击回调)
+        # 注意：emoji 图标暂保留（与你“代码禁 emoji”规则存冲突，待产品决策）
+        nav_items = [
+            ("📚 单词学习", "learning", self._show_learning_page),
+            ("📝 听写练习", "dictation", self._show_dictation_page),
+            ("🌐 翻译练习", "translation", self._show_translation_page),
+            ("📊 单词复习", "review", self._show_review_page),
+            ("🔤 完形填空", "cloze_test", self._show_cloze_test_page),
+            ("📖 阅读理解", "reading_comprehension", self._show_reading_comprehension_page),
+            ("📁 词库管理", "word_set", self._show_word_set_page),
+            ("🤖 AI助手", "ai_assistant", self._show_ai_assistant_page),
+            ("📈 学习统计", "statistics", self._show_statistics),
+            ("⚙️ 设置", "settings", self._show_settings_page)
         ]
 
-        for text, command in nav_buttons:
-            button = tk.Button(
+        self._nav_buttons: dict[str, tk.Button] = {}
+        for text, key, command in nav_items:
+            btn = tk.Button(
                 self.sidebar,
                 text=text,
                 font=self.font_config['button'],
                 width=20,
                 height=2,
                 command=command,
-                bg='#e0e0e0',
-                relief=tk.RAISED,
-                bd=1
+                bg=COLORS["sidebar_btn"],
+                fg=COLORS["text_primary"],
+                relief=tk.FLAT,
+                bd=0,
+                activebackground=COLORS["sidebar_btn_hover"],
+                cursor="hand2",
+                takefocus=True,
+                highlightthickness=2,
+                highlightcolor=COLORS["info"],
+                highlightbackground=COLORS["sidebar_btn"],
             )
-            button.pack(pady=5, padx=10)
+            btn._is_active = False
+            btn.pack(pady=SPACING["xs"], padx=SPACING["md"])
 
-            # 添加悬停效果
-            button.bind('<Enter>', lambda e, b=button: b.config(bg='#d0d0d0'))
-            button.bind('<Leave>', lambda e, b=button: b.config(bg='#e0e0e0'))
+            # 悬停：仅非选中态切换底色
+            btn.bind('<Enter>', lambda e, b=btn: b.config(
+                bg=COLORS["sidebar_btn_hover"]) if not b._is_active else None)
+            btn.bind('<Leave>', lambda e, b=btn: b.config(
+                bg=COLORS["sidebar_btn"]) if not b._is_active else None)
+
+            self._nav_buttons[key] = btn
 
     def _create_content_area(self):
         """创建内容区域"""
-        self.content_area = tk.Frame(self.main_frame, bg='white')
+        self.content_area = tk.Frame(self.main_frame, bg=COLORS["surface"])
         self.content_area.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
 
     def _clear_content_area(self):
@@ -175,10 +259,14 @@ class MainWindow:
         self.current_page = page
         self.current_page.pack(fill=tk.BOTH, expand=True)
 
+        self._set_active_nav(page_key)
         log_info("切换到设置页面")
 
     def _show_welcome_page(self):
         """显示欢迎页面"""
+        # 欢迎页不属于任何导航项，清除选中态
+        self._set_active_nav("")
+
         # 节流检查：如果当前页面已经是欢迎页面，则不执行任何操作
         if hasattr(self, 'current_page'):
             # 检查当前页面是否是欢迎页面的Frame
@@ -190,7 +278,7 @@ class MainWindow:
 
         self._clear_content_area()
 
-        welcome_frame = tk.Frame(self.content_area, bg='white')
+        welcome_frame = tk.Frame(self.content_area, bg=COLORS["surface"])
         welcome_frame.pack(expand=True, fill=tk.BOTH)
 
         # 设置当前页面为欢迎页面的Frame
@@ -200,7 +288,8 @@ class MainWindow:
             welcome_frame,
             text="欢迎使用 LexiNote",
             font=self.font_config['title'],
-            bg='white'
+            bg=COLORS["surface"],
+            fg=COLORS["text_primary"]
         )
         title_label.pack(pady=50)
 
@@ -208,13 +297,14 @@ class MainWindow:
             welcome_frame,
             text="您的个人英语学习助手",
             font=self.font_config['header'],
-            bg='white'
+            bg=COLORS["surface"],
+            fg=COLORS["text_secondary"]
         )
         subtitle_label.pack(pady=20)
 
         # 显示进度信息
         progress = self.word_manager.get_progress()
-        progress_frame = tk.Frame(welcome_frame, bg='white')
+        progress_frame = tk.Frame(welcome_frame, bg=COLORS["surface"])
         progress_frame.pack(pady=30)
 
         stats = [
@@ -228,7 +318,8 @@ class MainWindow:
                 progress_frame,
                 text=stat,
                 font=self.font_config['normal'],
-                bg='white'
+                bg=COLORS["surface"],
+                fg=COLORS["text_primary"]
             )
             stat_label.pack(pady=10)
 
@@ -236,8 +327,8 @@ class MainWindow:
             welcome_frame,
             text="请从左侧选择学习模式开始练习",
             font=self.font_config['normal'],
-            fg='#666666',
-            bg='white'
+            fg=COLORS["text_secondary"],
+            bg=COLORS["surface"]
         )
         hint_label.pack(pady=20)
 
@@ -270,6 +361,7 @@ class MainWindow:
         self.current_page = page
         self.current_page.pack(fill=tk.BOTH, expand=True)
 
+        self._set_active_nav(page_key)
         log_info(f"切换到听写练习页面，今日已学习 {len(today_words)} 个单词")
 
     def _show_translation_page(self):
@@ -300,6 +392,7 @@ class MainWindow:
         self.current_page = page
         self.current_page.pack(fill=tk.BOTH, expand=True)
 
+        self._set_active_nav(page_key)
         log_info("切换到翻译练习页面")
 
     def _show_review_page(self):
@@ -331,6 +424,7 @@ class MainWindow:
         self.current_page = page
         self.current_page.pack(fill=tk.BOTH, expand=True)
 
+        self._set_active_nav(page_key)
         log_info("切换到单词复习页面")
 
     def _show_learning_page(self):
@@ -368,6 +462,7 @@ class MainWindow:
         self.current_page = page
         self.current_page.pack(fill=tk.BOTH, expand=True)
 
+        self._set_active_nav(page_key)
         log_info("切换到学习模式页面")
 
     def _show_cloze_test_page(self):
@@ -397,6 +492,7 @@ class MainWindow:
         self.current_page.pack(fill=tk.BOTH, expand=True)
 
         # 先记录页面切换日志，再执行初始化操作
+        self._set_active_nav(page_key)
         log_info("切换到完形填空页面")
 
         # 调用页面的on_show方法
@@ -430,6 +526,7 @@ class MainWindow:
         self.current_page.pack(fill=tk.BOTH, expand=True)
 
         # 先记录页面切换日志，再执行初始化操作
+        self._set_active_nav(page_key)
         log_info("切换到阅读理解页面")
 
         # 调用页面的on_show方法
@@ -468,6 +565,7 @@ class MainWindow:
         if hasattr(self.current_page, 'on_enter'):
             self.current_page.on_enter()
 
+        self._set_active_nav(page_key)
         log_info("切换到学习统计页面")
 
     def _show_ai_assistant_page(self):
@@ -497,6 +595,7 @@ class MainWindow:
         self.current_page.pack(fill=tk.BOTH, expand=True)
 
         # 先记录页面切换日志，再执行初始化操作
+        self._set_active_nav(page_key)
         log_info("切换到AI助手页面")
 
         # 调用页面的on_show方法
@@ -530,6 +629,7 @@ class MainWindow:
         self.current_page = page
         self.current_page.pack(fill=tk.BOTH, expand=True)
 
+        self._set_active_nav(page_key)
         log_info("切换到词库管理页面")
 
 def main():

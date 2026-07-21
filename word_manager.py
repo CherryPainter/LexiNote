@@ -624,6 +624,158 @@ class WordManager:
         log_info(f"AI补全单词完成，成功补全 {completed_count}/{total} 个单词")
         return completed_count
 
+    def _complete_single_word_details(self, word_data):
+        """补全单个单词的缺失详细属性（综合 AI 补全核心逻辑，批量与单词语共用）。
+
+        仅对数据库中为空的字段调用一次 AI（get_word_details_sync，返回完整 JSON：
+        phonetic / tag / meaning_en / example / example_translation / meaning_zh），
+        补全后回写数据库。
+
+        Args:
+            word_data: 单词字典，需含 'word'、'id' 及待补全字段。
+        Returns:
+            tuple: (completed: bool, update_data: dict)  表示是否成功补全至少一个字段
+        """
+        if self.ai_manager is None:
+            return (False, {})
+        try:
+            word = word_data['word']
+            word_id = word_data['id']
+            ai_response = self.ai_manager.get_word_details_sync(word)
+
+            import json
+            import re
+            json_str = ai_response
+            json_match = re.search(
+                r'```json\s*(.*?)\s*```', ai_response, re.DOTALL)
+            if json_match:
+                json_str = json_match.group(1)
+            else:
+                json_match = re.search(r'\{.*?\}', ai_response, re.DOTALL)
+                if json_match:
+                    json_str = json_match.group(0)
+            json_str = json_str.replace('\\_', '_')
+            details = json.loads(json_str)
+
+            update_data = {}
+            if (word_data['phonetic'] is None or word_data['phonetic'] == '') \
+                    and details.get('phonetic'):
+                update_data['phonetic'] = details['phonetic']
+            if (word_data['tag'] is None or word_data['tag'] == '') \
+                    and details.get('tag'):
+                update_data['tag'] = details['tag']
+            if (word_data['meaning_en'] is None or word_data['meaning_en'] == '') \
+                    and details.get('meaning_en'):
+                update_data['meaning_en'] = details['meaning_en']
+            if (word_data['example'] is None or word_data['example'] == '') \
+                    and details.get('example'):
+                update_data['example'] = details['example']
+            if (word_data['example_translation'] is None or word_data['example_translation'] == '') \
+                    and details.get('example_translation'):
+                update_data['example_translation'] = details['example_translation']
+
+            if details.get('meaning_zh'):
+                translation_struct = []
+                meanings = details['meaning_zh']
+                if isinstance(meanings, str):
+                    meanings = [meanings]
+                elif not isinstance(meanings, list):
+                    meanings = [str(meanings)]
+                tag = details.get('tag', '')
+                if tag and '/' in tag:
+                    pos_list = tag.split('/')
+                    meanings_per_pos = len(meanings) // len(pos_list)
+                    remainder = len(meanings) % len(pos_list)
+                    start_idx = 0
+                    for idx, pos in enumerate(pos_list):
+                        count = meanings_per_pos + (1 if idx < remainder else 0)
+                        pos_meanings = meanings[start_idx:start_idx + count]
+                        start_idx += count
+                        translation_struct.append(
+                            {'pos': pos.strip(), 'meaning_zh': pos_meanings})
+                else:
+                    translation_struct.append(
+                        {'pos': tag.strip(), 'meaning_zh': meanings})
+                update_data['translation'] = json.dumps(
+                    translation_struct, ensure_ascii=False)
+
+            if update_data:
+                success, msg = self.update_word(word_id, **update_data)
+                if success:
+                    log_info(f"AI补全单词 '{word}' 成功: {update_data}")
+                    return True, update_data
+                log_error(f"AI补全单词 '{word}' 失败: {msg}")
+                return False, update_data
+            return False, {}
+        except json.JSONDecodeError:
+            log_error(f"解析AI响应失败 (单词: {word_data['word']}): {ai_response}")
+            return False, {}
+        except Exception as e:
+            log_error(f"AI补全单词 '{word_data['word']}' 失败: {str(e)}")
+            return False, {}
+
+    def complete_word_details_single(self, word, async_mode=False, callback=None):
+        """补全单个单词的详细属性（学习页调用：一次综合 AI 调用拿全字段）。
+
+        复用 _complete_single_word_details 的综合补全逻辑（音标/释义/词性/例句），
+        仅在数据库缺失字段时调用 AI，补全后回写数据库，并回调返回合并后的详情字典。
+        相比按字段逐个补全，单次 AI 请求更高效，并顺带回填更多字段。
+
+        Args:
+            word: 单词
+            async_mode: 是否异步执行（不阻塞 UI 线程）
+            callback: 回调，接收合并详情 dict（含 'phonetic'/'example'/'example_translation' 等）
+        Returns:
+            同步模式返回合并详情 dict；异步模式返回 None
+        """
+        def run():
+            try:
+                if not self.is_ai_available() or not self.ai_manager:
+                    log_warning("AI功能不可用，无法补全单词属性")
+                    if callback:
+                        callback({})
+                    return {}
+                if not self._check_throttle_limit():
+                    log_info(f"AI调用受节流限制，稍后重试: {word}")
+                    if callback:
+                        callback({})
+                    return {}
+
+                words = self.get_words_from_active_set(keyword=word)
+                word_obj = None
+                for w in words:
+                    if w['word'].lower() == word.lower():
+                        word_obj = w
+                        break
+                if not word_obj:
+                    log_error(f"单词不存在于当前词库: {word}")
+                    if callback:
+                        callback({})
+                    return {}
+
+                completed, update_data = self._complete_single_word_details(word_obj)
+
+                # 合并已有字段与新补全字段，供 UI 直接显示
+                merged = {}
+                for key in ('phonetic', 'example', 'example_translation'):
+                    if word_obj.get(key):
+                        merged[key] = word_obj[key]
+                merged.update({k: v for k, v in update_data.items()
+                               if k in ('phonetic', 'example', 'example_translation')})
+                if callback:
+                    callback(merged)
+                return merged
+            except Exception as e:
+                log_error(f"补全单词详情失败: {word}, {str(e)}")
+                if callback:
+                    callback({})
+                return {}
+
+        if async_mode:
+            threading.Thread(target=run, daemon=True).start()
+            return None
+        return run()
+
     def get_translation(
             self, word: str, format_output: bool = True) -> Optional[Union[str, List[Dict[str, Any]]]]:
         """获取单词翻译（带缓存）

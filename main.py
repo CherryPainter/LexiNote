@@ -22,7 +22,7 @@ os.chdir(_app_dir)
 os.environ["LEXINOTE_APP_DIR"] = _app_dir
 
 # 版本信息
-VERSION = "v2.7.2"
+VERSION = "v2.7.3"
 
 from logger import log_info, log_error
 

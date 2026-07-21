@@ -9,7 +9,10 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from logger import log_info, log_warning
 from core.ai_interface import AIManager
-from ui.components.scrollable_frame import create_scrollable_frame
+from ui.components.scrollable_frame import create_scrollable_frame, refresh_mousewheel
+from ui.theme import COLORS
+from ui.components.widgets import create_button, create_card
+from ui.components.toast import show_toast
 from ui.font_config import FontConfig
 
 
@@ -49,28 +52,29 @@ class SettingsPage(tk.Frame):
     def _create_widgets(self):
         """创建页面组件"""
         # 设置页面背景
-        self.configure(bg="#f0f0f0")
+        self.configure(bg=COLORS['sidebar'])
 
         # 使用统一的滚动框架实现
         scroll_frame, main_frame, _, _ = create_scrollable_frame(self, padx=30, pady=20)
         scroll_frame.pack(fill=tk.BOTH, expand=True)
+        self.content_scroll_frame = scroll_frame
 
         # 标题
         title_label = tk.Label(
             main_frame,
             text="应用设置",
             font=self.font_config['header'],
-            bg="#f0f0f0",
-            fg="#333333"
+            bg=COLORS['sidebar'],
+            fg=COLORS['text_primary']
         )
         title_label.pack(pady=20)
 
         # 创建居中容器框架
-        center_frame = tk.Frame(main_frame, bg="#f0f0f0")
+        center_frame = tk.Frame(main_frame, bg=COLORS['sidebar'])
         center_frame.pack(fill=tk.BOTH, expand=True, pady=10)
 
         # 创建设置卡片，不再设置固定宽度
-        settings_card = tk.Frame(center_frame, bg="white", bd=2, relief=tk.RAISED)
+        settings_card = create_card(center_frame)
         settings_card.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
 
         # 自动切换设置
@@ -78,7 +82,7 @@ class SettingsPage(tk.Frame):
             settings_card,
             text="自动切换设置",
             font=self.font_config['normal'],
-            bg="white",
+            bg=COLORS['surface'],
             padx=20,
             pady=15
         )
@@ -94,7 +98,7 @@ class SettingsPage(tk.Frame):
             variable=self.auto_next_correct_var,
             command=self._on_auto_next_correct_change,
             font=self.font_config['normal'],
-            bg="white",
+            bg=COLORS['surface'],
             anchor=tk.W
         )
         auto_next_correct_checkbox.pack(fill=tk.X, pady=5)
@@ -109,13 +113,13 @@ class SettingsPage(tk.Frame):
             variable=self.auto_next_wrong_var,
             command=self._on_auto_next_wrong_change,
             font=self.font_config['normal'],
-            bg="white",
+            bg=COLORS['surface'],
             anchor=tk.W
         )
         auto_next_wrong_checkbox.pack(fill=tk.X, pady=5)
 
         # 新增：模块自动切换（手动/自动）控制
-        module_auto_frame = tk.Frame(auto_next_frame, bg="white")
+        module_auto_frame = tk.Frame(auto_next_frame, bg=COLORS['surface'])
         module_auto_frame.pack(fill=tk.X, pady=10)
 
         # helper to create a labeled combobox
@@ -153,7 +157,7 @@ class SettingsPage(tk.Frame):
             settings_card,
             text="功能设置",
             font=self.font_config['normal'],
-            bg="white",
+            bg=COLORS['surface'],
             padx=20,
             pady=15
         )
@@ -169,7 +173,7 @@ class SettingsPage(tk.Frame):
             variable=self.example_enabled_var,
             command=self._on_example_enabled_change,
             font=self.font_config['normal'],
-            bg="white",
+            bg=COLORS['surface'],
             anchor=tk.W
         )
         example_enabled_checkbox.pack(fill=tk.X, pady=5)
@@ -184,7 +188,7 @@ class SettingsPage(tk.Frame):
             variable=self.voice_enabled_var,
             command=self._on_voice_enabled_change,
             font=self.font_config['normal'],
-            bg="white",
+            bg=COLORS['surface'],
             anchor=tk.W
         )
         voice_enabled_checkbox.pack(fill=tk.X, pady=5)
@@ -199,7 +203,7 @@ class SettingsPage(tk.Frame):
             variable=self.ai_summary_enabled_var,
             command=self._on_ai_summary_enabled_change,
             font=self.font_config['normal'],
-            bg="white",
+            bg=COLORS['surface'],
             anchor=tk.W
         )
         ai_summary_enabled_checkbox.pack(fill=tk.X, pady=5)
@@ -209,7 +213,7 @@ class SettingsPage(tk.Frame):
             settings_card,
             text="翻译判定模式",
             font=self.font_config['normal'],
-            bg="white",
+            bg=COLORS['surface'],
             padx=20,
             pady=15
         )
@@ -257,18 +261,18 @@ class SettingsPage(tk.Frame):
             settings_card,
             text="AI模型设置",
             font=self.font_config['normal'],
-            bg="white",
+            bg=COLORS['surface'],
             padx=20,
             pady=15
         )
         ai_model_frame.pack(fill=tk.X, padx=20, pady=15)
 
         # AI 总开关/模式：关闭 / 本地(Ollama) / 云端（渠道互斥，不跨渠道试探）
-        mode_frame = tk.Frame(ai_model_frame, bg="white")
+        mode_frame = tk.Frame(ai_model_frame, bg=COLORS['surface'])
         mode_frame.pack(fill=tk.X, pady=(0, 10))
 
         mode_label = tk.Label(
-            mode_frame, text="AI 功能模式：", font=self.font_config['normal'], bg="white"
+            mode_frame, text="AI 功能模式：", font=self.font_config['normal'], bg=COLORS['surface']
         )
         mode_label.pack(anchor=tk.W, pady=(0, 5))
 
@@ -291,7 +295,7 @@ class SettingsPage(tk.Frame):
             tk.Radiobutton(
                 mode_frame, text=text, value=m, variable=self.ai_mode_var,
                 command=_on_ai_mode_change, font=self.font_config['normal'],
-                bg="white", anchor=tk.W
+                bg=COLORS['surface'], anchor=tk.W
             ).pack(fill=tk.X, padx=10)
 
         # 初始化AI管理器
@@ -302,7 +306,7 @@ class SettingsPage(tk.Frame):
             ai_model_frame,
             text="本地模型 (Ollama)",
             font=self.font_config['normal'],
-            bg="white",
+            bg=COLORS['surface'],
             padx=15,
             pady=10
         )
@@ -313,7 +317,7 @@ class SettingsPage(tk.Frame):
             self.local_ai_frame,
             text="当前使用模型:",
             font=self.font_config['normal'],
-            bg="white"
+            bg=COLORS['surface']
         )
         model_label.pack(anchor=tk.W, pady=(0, 5))
 
@@ -336,49 +340,46 @@ class SettingsPage(tk.Frame):
             if selected_model:
                 self.settings_manager.set_ai_model(selected_model)
                 log_info(f"AI模型已切换为: {selected_model}")
-                messagebox.showinfo("切换成功", f"已成功切换到模型: {selected_model}\n应用重启后生效")
+                show_toast(self, f"已成功切换到模型: {selected_model}（重启后生效）", kind="success")
 
         self.ai_model_combo.bind('<<ComboboxSelected>>', _on_model_change)
         self.ai_model_combo.pack(fill=tk.X, pady=5)
 
         # 模型管理按钮框架
-        model_buttons_frame = tk.Frame(self.local_ai_frame, bg="white")
+        model_buttons_frame = tk.Frame(self.local_ai_frame, bg=COLORS['surface'])
         model_buttons_frame.pack(fill=tk.X, pady=10)
 
         # 添加模型按钮
-        add_model_button = tk.Button(
+        add_model_button = create_button(
             model_buttons_frame,
-            text="添加模型",
-            command=self._on_add_model,
-            font=self.font_config['button'],
-            bg="#4CAF50",
-            fg="white",
+            "添加模型",
+            self._on_add_model,
+            style="primary",
+            font_config=self.font_config,
             padx=10,
             pady=5
         )
         add_model_button.pack(side=tk.LEFT, padx=5)
 
         # 测试模型按钮
-        test_model_button = tk.Button(
+        test_model_button = create_button(
             model_buttons_frame,
-            text="测试模型",
-            command=self._on_test_model,
-            font=self.font_config['button'],
-            bg="#2196F3",
-            fg="white",
+            "测试模型",
+            self._on_test_model,
+            style="secondary",
+            font_config=self.font_config,
             padx=10,
             pady=5
         )
         test_model_button.pack(side=tk.LEFT, padx=5)
 
         # 刷新模型列表按钮
-        refresh_models_button = tk.Button(
+        refresh_models_button = create_button(
             model_buttons_frame,
-            text="刷新模型列表",
-            command=self._refresh_ai_models,
-            font=self.font_config['button'],
-            bg="#FF9800",
-            fg="white",
+            "刷新模型列表",
+            self._refresh_ai_models,
+            style="warning",
+            font_config=self.font_config,
             padx=10,
             pady=5
         )
@@ -389,7 +390,7 @@ class SettingsPage(tk.Frame):
             ai_model_frame,
             text="连接云端模型",
             font=self.font_config['normal'],
-            bg="white",
+            bg=COLORS['surface'],
             padx=15,
             pady=10
         )
@@ -406,7 +407,7 @@ class SettingsPage(tk.Frame):
             variable=self.cloud_enabled_var,
             command=self._on_cloud_enabled_change,
             font=self.font_config['normal'],
-            bg="white",
+            bg=COLORS['surface'],
             anchor=tk.W
         )
         cloud_enable_checkbox.pack(fill=tk.X, pady=5)
@@ -416,7 +417,7 @@ class SettingsPage(tk.Frame):
             cloud_frame,
             text="API地址:",
             font=self.font_config['normal'],
-            bg="white"
+            bg=COLORS['surface']
         )
         api_url_label.pack(anchor=tk.W, pady=(5, 0))
         self.cloud_api_url_var = tk.StringVar(
@@ -434,8 +435,8 @@ class SettingsPage(tk.Frame):
             cloud_frame,
             text="例如: https://api.openai.com/v1/chat/completions",
             font=(self.font_config['normal'][0], 9),
-            bg="white",
-            fg="#888888"
+            bg=COLORS['surface'],
+            fg=COLORS['text_tertiary']
         )
         api_url_hint.pack(anchor=tk.W)
 
@@ -444,7 +445,7 @@ class SettingsPage(tk.Frame):
             cloud_frame,
             text="API密钥:",
             font=self.font_config['normal'],
-            bg="white"
+            bg=COLORS['surface']
         )
         api_key_label.pack(anchor=tk.W, pady=(5, 0))
         self.cloud_api_key_var = tk.StringVar(
@@ -465,7 +466,7 @@ class SettingsPage(tk.Frame):
             cloud_frame,
             text="模型名称:",
             font=self.font_config['normal'],
-            bg="white"
+            bg=COLORS['surface']
         )
         cloud_model_label.pack(anchor=tk.W, pady=(5, 0))
         self.cloud_model_name_var = tk.StringVar(
@@ -483,34 +484,32 @@ class SettingsPage(tk.Frame):
             cloud_frame,
             text="例如: gpt-4o, gpt-3.5-turbo, claude-3-sonnet",
             font=(self.font_config['normal'][0], 9),
-            bg="white",
-            fg="#888888"
+            bg=COLORS['surface'],
+            fg=COLORS['text_tertiary']
         )
         cloud_model_hint.pack(anchor=tk.W)
 
         # 云端模型操作按钮
-        cloud_buttons_frame = tk.Frame(cloud_frame, bg="white")
+        cloud_buttons_frame = tk.Frame(cloud_frame, bg=COLORS['surface'])
         cloud_buttons_frame.pack(fill=tk.X, pady=10)
 
-        save_cloud_button = tk.Button(
+        save_cloud_button = create_button(
             cloud_buttons_frame,
-            text="保存云端配置",
-            command=self._on_save_cloud_config,
-            font=self.font_config['button'],
-            bg="#4CAF50",
-            fg="white",
+            "保存云端配置",
+            self._on_save_cloud_config,
+            style="primary",
+            font_config=self.font_config,
             padx=10,
             pady=5
         )
         save_cloud_button.pack(side=tk.LEFT, padx=5)
 
-        test_cloud_button = tk.Button(
+        test_cloud_button = create_button(
             cloud_buttons_frame,
-            text="测试云端连接",
-            command=self._on_test_cloud_connection,
-            font=self.font_config['button'],
-            bg="#2196F3",
-            fg="white",
+            "测试云端连接",
+            self._on_test_cloud_connection,
+            style="secondary",
+            font_config=self.font_config,
             padx=10,
             pady=5
         )
@@ -522,16 +521,15 @@ class SettingsPage(tk.Frame):
         self._apply_ai_mode_ui()
 
         # 重置设置按钮，居中显示
-        button_frame = tk.Frame(center_frame, bg="#f0f0f0")
+        button_frame = tk.Frame(center_frame, bg=COLORS['sidebar'])
         button_frame.pack(pady=20)
 
-        reset_button = tk.Button(
+        reset_button = create_button(
             button_frame,
-            text="重置为默认设置",
-            command=self._on_reset_settings,
-            font=self.font_config['button'],
-            bg="#f44336",
-            fg="white",
+            "重置为默认设置",
+            self._on_reset_settings,
+            style="danger",
+            font_config=self.font_config,
             padx=20,
             pady=10
         )
@@ -542,8 +540,8 @@ class SettingsPage(tk.Frame):
             center_frame,
             text="设置将自动保存",
             font=(self.font_config['normal'][0], 10, 'italic'),
-            bg="#f0f0f0",
-            fg="#666666"
+            bg=COLORS['sidebar'],
+            fg=COLORS['text_secondary']
         )
         save_hint.pack(pady=10)
 
@@ -593,6 +591,9 @@ class SettingsPage(tk.Frame):
             self.cloud_frame.pack(fill=tk.X, pady=(15, 5))
         # off：两者均隐藏
 
+        # 显示/隐藏区块改变了内容高度，刷新滚轮绑定确保可滚动
+        refresh_mousewheel(self.content_scroll_frame)
+
     def _on_cloud_enabled_change(self):
         """处理云端模型启用状态变更（同步切换 AI 模式）"""
         enabled = self.cloud_enabled_var.get()
@@ -633,13 +634,13 @@ class SettingsPage(tk.Frame):
             # 如果启用云端，验证必填项
             if enabled:
                 if not api_url:
-                    messagebox.showwarning("配置不完整", "请填写API地址")
+                    show_toast(self, "请填写API地址", kind="warning")
                     return
                 if not api_key:
-                    messagebox.showwarning("配置不完整", "请填写API密钥")
+                    show_toast(self, "请填写API密钥", kind="warning")
                     return
                 if not model_name:
-                    messagebox.showwarning("配置不完整", "请填写模型名称")
+                    show_toast(self, "请填写模型名称", kind="warning")
                     return
 
             # 保存配置
@@ -649,7 +650,7 @@ class SettingsPage(tk.Frame):
 
             if success:
                 log_info("云端模型配置已保存")
-                messagebox.showinfo("保存成功", "云端模型配置已保存")
+                show_toast(self, "云端模型配置已保存", kind="success")
                 # 立即刷新 AIManager 单例配置，使云端/本地切换在已运行的程序中即时生效
                 try:
                     # 保存时确保 AI 模式与云端开关一致
@@ -685,7 +686,7 @@ class SettingsPage(tk.Frame):
             model_name = self.cloud_model_name_var.get().strip()
 
             if not api_url or not api_key or not model_name:
-                messagebox.showwarning("配置不完整", "请填写完整的API地址、密钥和模型名称")
+                show_toast(self, "请填写完整的API地址、密钥和模型名称", kind="warning")
                 return
 
             # 显示加载提示
@@ -723,7 +724,7 @@ class SettingsPage(tk.Frame):
 
                     if response.status_code == 200:
                         log_info(f"云端模型 {model_name} 连接测试成功")
-                        messagebox.showinfo("测试成功", f"云端模型 {model_name} 连接成功！")
+                        self.after(0, lambda: show_toast(self, f"云端模型 {model_name} 连接成功！", kind="success"))
                     else:
                         log_info(f"云端模型连接测试失败，状态码: {response.status_code}")
                         messagebox.showerror("测试失败", f"连接失败，状态码: {response.status_code}\n请检查配置信息")
@@ -787,7 +788,7 @@ class SettingsPage(tk.Frame):
                 if hasattr(self, '_apply_ai_mode_ui'):
                     self._apply_ai_mode_ui()
                 log_info("设置已重置为默认值")
-                messagebox.showinfo("重置成功", "设置已成功重置为默认值")
+                show_toast(self, "设置已成功重置为默认值", kind="success")
             except Exception as e:
                 log_info(f"重置设置失败: {str(e)}")
                 messagebox.showerror("重置失败", f"重置设置时出错: {str(e)}")
@@ -808,7 +809,7 @@ class SettingsPage(tk.Frame):
             self.settings_manager.set_setting("tts_cache_max_mb", val)
             log_info(f"TTS 缓存上限已更新为: {val} MB")
         except Exception:
-            messagebox.showwarning("输入错误", "请输入有效的数字")
+            show_toast(self, "请输入有效的数字", kind="warning")
 
     def _load_ai_models_async(self):
         """异步加载可用的AI模型列表，避免阻塞UI
@@ -930,7 +931,7 @@ class SettingsPage(tk.Frame):
                             self._load_ai_models_async()
 
                             log_info(f"成功添加AI模型: {model_name}")
-                            messagebox.showinfo("添加成功", f"已成功添加并测试模型: {model_name}")
+                            self.after(0, lambda: show_toast(self, f"已成功添加并测试模型: {model_name}", kind="success"))
                         else:
                             messagebox.showerror("测试失败", f"模型 {model_name} 不可用，请检查模型名称和Ollama服务是否正常运行")
                     except Exception as e:
@@ -949,7 +950,7 @@ class SettingsPage(tk.Frame):
         try:
             selected_model = self.ai_model_var.get()
             if not selected_model:
-                messagebox.showwarning("提示", "请先选择一个模型")
+                show_toast(self, "请先选择一个模型", kind="warning")
                 return
 
             # 显示加载提示
@@ -985,7 +986,7 @@ class SettingsPage(tk.Frame):
 
                     if is_available:
                         log_info(f"模型 {selected_model} 测试通过")
-                        messagebox.showinfo("测试成功", f"模型 {selected_model} 可用")
+                        self.after(0, lambda: show_toast(self, f"模型 {selected_model} 可用", kind="success"))
                     else:
                         messagebox.showerror("测试失败", f"模型 {selected_model} 不可用")
                 except Exception as e:

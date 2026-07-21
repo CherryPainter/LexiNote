@@ -11,6 +11,10 @@ from modules.ai_service import AIService
 from core.text_formatter import TextFormatter
 from logger import log_info, log_error
 
+from ui.theme import COLORS
+from ui.components.widgets import create_button
+from ui.components.toast import show_toast
+
 
 class AIAssistantPage(tk.Frame):
     """AI英语学习助手页面"""
@@ -22,7 +26,7 @@ class AIAssistantPage(tk.Frame):
             parent: 父窗口组件
             main_window: 主窗口实例
         """
-        super().__init__(parent, bg='white')
+        super().__init__(parent, bg=COLORS['sidebar'])
         self.parent = parent
         self.main_window = main_window
         self.font_config = main_window.font_config
@@ -54,7 +58,7 @@ class AIAssistantPage(tk.Frame):
     def _create_ui(self):
         """创建用户界面"""
         # 主框架
-        main_frame = tk.Frame(self, bg='white')
+        main_frame = tk.Frame(self, bg=COLORS['sidebar'])
         main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
 
         # 标题
@@ -62,7 +66,7 @@ class AIAssistantPage(tk.Frame):
             main_frame,
             text="AI英语学习助手",
             font=self.font_config['title'],
-            bg='white'
+            bg=COLORS['sidebar']
         )
         title_label.pack(pady=20)
 
@@ -72,17 +76,17 @@ class AIAssistantPage(tk.Frame):
             main_frame,
             textvariable=self.status_var,
             font=self.font_config['normal'],
-            bg='white',
-            fg='#666'
+            bg=COLORS['sidebar'],
+            fg=COLORS['text_secondary']
         )
         status_label.pack(pady=10)
 
         # 功能区域
-        content_frame = tk.Frame(main_frame, bg='white')
+        content_frame = tk.Frame(main_frame, bg=COLORS['sidebar'])
         content_frame.pack(fill=tk.BOTH, expand=True, pady=10)
 
         # 左侧配置面板
-        config_frame = tk.Frame(content_frame, width=250, bg='white')
+        config_frame = tk.Frame(content_frame, width=250, bg=COLORS['sidebar'])
         config_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
 
         # 任务类型选择
@@ -90,7 +94,7 @@ class AIAssistantPage(tk.Frame):
             config_frame,
             text="选择任务类型:",
             font=self.font_config['normal'],
-            bg='white'
+            bg=COLORS['sidebar']
         )
         task_label.pack(anchor='w', pady=(10, 5))
 
@@ -109,11 +113,11 @@ class AIAssistantPage(tk.Frame):
             config_frame,
             text="难度级别:",
             font=self.font_config['normal'],
-            bg='white'
+            bg=COLORS['sidebar']
         )
         difficulty_label.pack(anchor='w', pady=(10, 5))
 
-        difficulty_frame = tk.Frame(config_frame, bg='white')
+        difficulty_frame = tk.Frame(config_frame, bg=COLORS['sidebar'])
         difficulty_frame.pack(anchor='w')
 
         self.difficulty_var = tk.StringVar(value="高中")
@@ -133,7 +137,7 @@ class AIAssistantPage(tk.Frame):
             config_frame,
             text="请输入您的问题或内容:",
             font=self.font_config['normal'],
-            bg='white'
+            bg=COLORS['sidebar']
         )
         input_label.pack(anchor='w', pady=(10, 5))
 
@@ -148,20 +152,19 @@ class AIAssistantPage(tk.Frame):
         self.input_text.pack(pady=5, fill=tk.BOTH, expand=True)
 
         # 生成按钮
-        self.generate_button = tk.Button(
+        self.generate_button = create_button(
             config_frame,
             text="获取AI辅导",
-            font=self.font_config['button'],
-            width=20,
             command=self._on_generate,
-            bg='#4CAF50',
-            fg='white',
+            style="primary",
+            font_config=self.font_config,
+            width=20,
             state=tk.DISABLED
         )
         self.generate_button.pack(pady=15)
 
         # 右侧结果显示区域
-        result_frame = tk.Frame(content_frame, bg='white')
+        result_frame = tk.Frame(content_frame, bg=COLORS['surface'])
         result_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
 
         # 结果标题
@@ -169,7 +172,7 @@ class AIAssistantPage(tk.Frame):
             result_frame,
             text="AI辅导结果:",
             font=self.font_config['normal'],
-            bg='white'
+            bg=COLORS['surface']
         )
         result_title.pack(anchor='w', pady=(0, 5))
 
@@ -183,14 +186,15 @@ class AIAssistantPage(tk.Frame):
         self.result_text.pack(fill=tk.BOTH, expand=True)
 
         # 清空按钮
-        button_frame = tk.Frame(result_frame, bg='white')
+        button_frame = tk.Frame(result_frame, bg=COLORS['surface'])
         button_frame.pack(side=tk.RIGHT, pady=10)
 
-        self.clear_button = tk.Button(
+        self.clear_button = create_button(
             button_frame,
             text="清空结果",
-            font=self.font_config['button'],
-            command=self._clear_result
+            command=self._clear_result,
+            style="ghost",
+            font_config=self.font_config
         )
         self.clear_button.pack(side=tk.RIGHT)
 
@@ -201,7 +205,7 @@ class AIAssistantPage(tk.Frame):
                 is_available = self.ai_service.is_ai_available()
                 if is_available:
                     self.status_var.set("AI连接正常，您可以开始学习了！")
-                    self.generate_button.config(state=tk.NORMAL, bg='#4CAF50')
+                    self.generate_button.config(state=tk.NORMAL)
                     log_info("AI助手连接正常")
                 else:
                     # 不可用：区分“主动关闭”与“所选渠道未就绪”
@@ -210,7 +214,7 @@ class AIAssistantPage(tk.Frame):
                         self.status_var.set("AI 功能未启用，请在设置中开启本地或云端模式")
                     else:
                         self.status_var.set("AI连接失败，请确认所选渠道（Ollama/云端）可用")
-                    self.generate_button.config(state=tk.DISABLED, bg='#cccccc')
+                    self.generate_button.config(state=tk.DISABLED, bg=COLORS['sidebar_btn'])
                     log_warning(f"AI助手连接失败（模式: {mode}）")
             except Exception as e:
                 self.status_var.set(f"检查连接时出错: {str(e)}")
@@ -226,7 +230,7 @@ class AIAssistantPage(tk.Frame):
         user_input = self.input_text.get("1.0", tk.END).strip()
 
         if not user_input:
-            messagebox.showwarning("提示", "请输入您的问题或内容")
+            show_toast(self, "请输入您的问题或内容", kind="warning")
             return
 
         # 禁用按钮，防止重复点击

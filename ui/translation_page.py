@@ -9,8 +9,11 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from logger import log_info, log_wrong_word
 from audio_player import AudioPlayer
-from ui.components.scrollable_frame import create_scrollable_frame
+from ui.components.scrollable_frame import create_scrollable_frame, refresh_mousewheel
 from ui.font_config import FontConfig
+from ui.theme import COLORS
+from ui.components.widgets import create_button
+from ui.components.toast import show_toast
 
 
 class TranslationPage(tk.Frame):
@@ -57,18 +60,19 @@ class TranslationPage(tk.Frame):
         # 主框架 - 使用通用滚动框架
         content_scroll_frame, self.main_frame, _, _ = create_scrollable_frame(self, padx=50, pady=30)
         content_scroll_frame.pack(expand=True, fill=tk.BOTH)
+        self.content_scroll_frame = content_scroll_frame
 
         # 标题
         title_label = tk.Label(
             self.main_frame,
             text="翻译练习",
             font=self.font_config['header'],
-            bg='white'
+            bg=COLORS['surface']
         )
         title_label.pack(pady=20)
 
         # 翻译方向选择
-        direction_frame = tk.Frame(self.main_frame, bg='white')
+        direction_frame = tk.Frame(self.main_frame, bg=COLORS['surface'])
         direction_frame.pack(pady=10)
 
         self.direction_var = tk.BooleanVar(value=True)  # True: 英译中, False: 中译英
@@ -79,7 +83,7 @@ class TranslationPage(tk.Frame):
             variable=self.direction_var,
             value=True,
             font=self.font_config['normal'],
-            bg='white',
+            bg=COLORS['surface'],
             command=self._on_direction_change
         )
         en_to_zh_radio.pack(side=tk.LEFT, padx=20)
@@ -90,7 +94,7 @@ class TranslationPage(tk.Frame):
             variable=self.direction_var,
             value=False,
             font=self.font_config['normal'],
-            bg='white',
+            bg=COLORS['surface'],
             command=self._on_direction_change
         )
         zh_to_en_radio.pack(side=tk.LEFT, padx=20)
@@ -102,13 +106,13 @@ class TranslationPage(tk.Frame):
             self.main_frame,
             textvariable=self.hint_var,
             font=self.font_config['normal'],
-            bg='white',
-            fg='#666666'
+            bg=COLORS['surface'],
+            fg=COLORS['text_secondary']
         )
         self.hint_label.pack(pady=10)
 
         # 单词显示区域
-        word_frame = tk.Frame(self.main_frame, bg='#f5f5f5', bd=2, relief=tk.SUNKEN)
+        word_frame = tk.Frame(self.main_frame, bg=COLORS['surface_alt'], bd=2, relief=tk.SUNKEN)
         word_frame.pack(pady=30, fill=tk.X, padx=50)
 
         self.word_var = tk.StringVar()
@@ -116,7 +120,7 @@ class TranslationPage(tk.Frame):
             word_frame,
             textvariable=self.word_var,
             font=self.font_config['header'],
-            bg='#f5f5f5',
+            bg=COLORS['surface_alt'],
             wraplength=600
         )
         self.word_label.pack(pady=(20, 5))
@@ -126,14 +130,14 @@ class TranslationPage(tk.Frame):
             word_frame,
             textvariable=self.phonetic_var,
             font=self.font_config['normal'],
-            bg='#f5f5f5',
-            fg='#999999',  # 灰色
+            bg=COLORS['surface_alt'],
+            fg=COLORS['text_tertiary'],  # 灰色
             wraplength=600
         )
         self.phonetic_label.pack(pady=(0, 10))
 
         # 例句框架
-        self.example_frame = tk.Frame(self.main_frame, bg="#f9f9f9", bd=1, relief=tk.SUNKEN)
+        self.example_frame = tk.Frame(self.main_frame, bg=COLORS['surface_alt2'], bd=1, relief=tk.SUNKEN)
         self.example_frame.pack(fill=tk.X, pady=15, padx=50, side=tk.BOTTOM)
 
         # 例句显示标签
@@ -141,8 +145,8 @@ class TranslationPage(tk.Frame):
             self.example_frame,
             text="",
             font=self.font_config['normal'],
-            bg="#f9f9f9",
-            fg="#333333",
+            bg=COLORS['surface_alt2'],
+            fg=COLORS['text_primary'],
             wraplength=600,
             justify=tk.LEFT,
             padx=15,
@@ -151,14 +155,14 @@ class TranslationPage(tk.Frame):
         self.example_label.pack(fill=tk.X)
 
         # 输入区域
-        input_frame = tk.Frame(self.main_frame, bg='white')
+        input_frame = tk.Frame(self.main_frame, bg=COLORS['surface'])
         input_frame.pack(pady=20)
 
         input_label = tk.Label(
             input_frame,
             text="请输入翻译:",
             font=self.font_config['normal'],
-            bg='white'
+            bg=COLORS['surface']
         )
         input_label.pack(anchor='w', pady=5)
 
@@ -178,67 +182,62 @@ class TranslationPage(tk.Frame):
         self.translation_text.bind('<Control-Return>', lambda event: self._check_translation())
 
         # 按钮区域
-        buttons_frame = tk.Frame(self.main_frame, bg='white')
+        buttons_frame = tk.Frame(self.main_frame, bg=COLORS['surface'])
         buttons_frame.pack(pady=30)
 
-        self.pronounce_button = tk.Button(
+        self.pronounce_button = create_button(
             buttons_frame,
             text="🔊 发音",
-            font=self.font_config['button'],
-            width=12,
-            height=2,
             command=self._play_pronunciation,
-            bg="#4CAF50",
-            fg="white"
+            style="primary",
+            font_config=self.font_config,
+            width=12,
+            height=2
         )
         self.pronounce_button.pack(side=tk.LEFT, padx=10)
 
-        self.example_button = tk.Button(
+        self.example_button = create_button(
             buttons_frame,
             text="📝 显示例句",
-            font=self.font_config['button'],
-            width=15,
-            height=2,
             command=self._toggle_example,
-            bg="#2196F3",
-            fg="white"
+            style="secondary",
+            font_config=self.font_config,
+            width=15,
+            height=2
         )
         self.example_button.pack(side=tk.LEFT, padx=10)
 
-        self.check_button = tk.Button(
+        self.check_button = create_button(
             buttons_frame,
             text="✓ 检查",
-            font=self.font_config['button'],
-            width=15,
-            height=2,
             command=self._check_translation,
-            bg='#2196F3',
-            fg='white'
+            style="secondary",
+            font_config=self.font_config,
+            width=15,
+            height=2
         )
         self.check_button.pack(side=tk.LEFT, padx=10)
 
-        self.skip_button = tk.Button(
+        self.skip_button = create_button(
             buttons_frame,
             text="⏭️ 跳过",
-            font=self.font_config['button'],
-            width=15,
-            height=2,
             command=self._skip_translation,
-            bg='#FF9800',
-            fg='white'
+            style="warning",
+            font_config=self.font_config,
+            width=15,
+            height=2
         )
         self.skip_button.pack(side=tk.LEFT, padx=10)
 
         # 下一个按钮（手动模式时使用）
-        self.next_button = tk.Button(
+        self.next_button = create_button(
             buttons_frame,
             text="🔄 下一个",
-            font=self.font_config['button'],
-            width=15,
-            height=2,
             command=self._next_translation,
-            bg='#9C27B0',
-            fg='white'
+            style="purple",
+            font_config=self.font_config,
+            width=15,
+            height=2
         )
 
         # 结果显示区域
@@ -248,7 +247,7 @@ class TranslationPage(tk.Frame):
             self.main_frame,
             textvariable=self.result_var,
             font=self.font_config['normal'],
-            bg='white',
+            bg=COLORS['surface'],
             wraplength=600
         )
         self.result_label.pack(pady=20)
@@ -260,7 +259,7 @@ class TranslationPage(tk.Frame):
             self.main_frame,
             textvariable=self.status_var,
             font=self.font_config['normal'],
-            bg='#f0f0f0',
+            bg=COLORS['sidebar'],
             anchor='w',
             bd=1,
             relief=tk.SUNKEN
@@ -302,6 +301,8 @@ class TranslationPage(tk.Frame):
 
                 if not result and self.audio_available:
                     messagebox.showerror("播放失败", "无法播放单词发音，请检查网络连接。")
+                elif not self.audio_available:
+                    show_toast(self, f"当前单词: {word_to_pronounce}", kind="info")
                 else:
                     try:
                         self.status_var.set(f"已播放: {word_to_pronounce}")
@@ -337,7 +338,7 @@ class TranslationPage(tk.Frame):
         # 从单词管理器获取单词
         self.current_word = self.word_manager.get_word_by_weight()
         if not self.current_word:
-            messagebox.showinfo("提示", "没有可用的单词，请先添加单词。")
+            show_toast(self, "没有可用的单词，请先添加单词。", kind="info")
             return
 
         # 获取对应的翻译
@@ -382,12 +383,18 @@ class TranslationPage(tk.Frame):
         # 设置焦点到输入框
         self.translation_text.focus_set()
 
+        # 动态内容构建后重绑滚轮，修复滚动困难
+        try:
+            refresh_mousewheel(self.content_scroll_frame)
+        except Exception:
+            pass
+
     def _check_translation(self):
         """使用AI检查翻译答案并显示明确的提示信息"""
         user_input = self.translation_text.get(1.0, tk.END).strip()
 
         if not user_input:
-            messagebox.showwarning("提示", "请输入翻译后再检查。")
+            show_toast(self, "请输入翻译后再检查。", kind="warning")
             return
 
         # 获取翻译判定模式设置
@@ -444,9 +451,9 @@ class TranslationPage(tk.Frame):
 
             self.result_var.set(result_text)
             # 使用更醒目的样式表示正确
-            self.result_label.config(fg='#2E7D32', font=('SimHei', 13, 'bold'))
+            self.result_label.config(fg=COLORS['success'], font=('SimHei', 13, 'bold'))
             # 短暂闪烁背景色增强视觉反馈
-            self._flash_background('#E8F5E9')
+            self._flash_background(COLORS['primary_tint'])
             log_info(f"翻译正确: {self.current_word} -> {user_input}")
         else:
             # 错误答案的反馈
@@ -466,9 +473,9 @@ class TranslationPage(tk.Frame):
 
             self.result_var.set(result_text)
             # 使用更醒目的样式表示错误
-            self.result_label.config(fg='#C62828', font=('SimHei', 13, 'bold'))
+            self.result_label.config(fg=COLORS['error'], font=('SimHei', 13, 'bold'))
             # 短暂闪烁背景色增强视觉反馈
-            self._flash_background('#FFEBEE')
+            self._flash_background(COLORS['error_tint'])
             # 记录错误：日志 + word_manager 跟踪
             try:
                 if hasattr(self.word_manager, 'add_wrong_word'):
@@ -568,7 +575,7 @@ class TranslationPage(tk.Frame):
             self.result_var.set(f"⏭️ 已跳过: {self.current_word} -> {self.current_translation}{ai_reference}")
         else:
             self.result_var.set(f"⏭️ 已跳过: {self.current_translation} -> {self.current_word}{ai_reference}")
-        self.result_label.config(fg='#FF9800')
+        self.result_label.config(fg=COLORS['warning'])
         log_info(f"跳过翻译: {self.current_word}")
 
         # 检查是否需要自动下一个单词
