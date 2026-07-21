@@ -82,12 +82,15 @@ class ClozeTestPage(tk.Frame):
 
         tk.Label(mode_frame, text="模式:", font=self.font_config['normal']).grid(row=0, column=0, sticky=tk.W)
         self.mode_var = tk.StringVar(value="auto")
-        tk.Radiobutton(mode_frame, text="自动", variable=self.mode_var, value="auto",
-                       font=self.font_config['normal']).grid(row=0, column=1, padx=5)
-        tk.Radiobutton(mode_frame, text="在线", variable=self.mode_var, value="online",
-                       font=self.font_config['normal']).grid(row=0, column=2, padx=5)
-        tk.Radiobutton(mode_frame, text="离线", variable=self.mode_var, value="offline",
-                       font=self.font_config['normal']).grid(row=0, column=3, padx=5)
+        self.mode_display_var = tk.StringVar(value="自动")
+        mode_options = ["自动", "在线", "离线"]
+        mode_mapping = {"自动": "auto", "在线": "online", "离线": "offline"}
+        self.mode_combo = ttk.Combobox(mode_frame, textvariable=self.mode_display_var,
+                                       values=mode_options, font=self.font_config['normal'],
+                                       width=8, state="readonly")
+        self.mode_combo.grid(row=0, column=1, padx=5)
+        self.mode_combo.bind("<<ComboboxSelected>>",
+                             lambda e: self.mode_var.set(mode_mapping[self.mode_display_var.get()]))
 
         # 难度选择
         level_frame = tk.Frame(settings_row)

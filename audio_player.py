@@ -1,7 +1,6 @@
 import os
 import tempfile
 import asyncio
-from gtts import gTTS
 from playsound import playsound
 from logger import log_info, log_error
 from audio_cache import AudioCache
@@ -64,46 +63,6 @@ class AudioPlayer:
 
         log_error(f"播放单词发音失败: {word}")
         return False
-
-    def _play_offline(self, word: str, lang: str = 'en') -> bool:
-        """离线发音：使用系统语音引擎（pyttsx3 / SAPI5），完全不依赖网络。
-
-        Args:
-            word: 要播放发音的文本
-            lang: 语言代码（'en' 或 'zh-cn' 等）
-
-        Returns:
-            bool: 离线发音是否成功
-        """
-        try:
-            import pyttsx3
-        except Exception:
-            # 未安装离线语音引擎，静默回退（由调用方决定如何提示）
-            return False
-
-        try:
-            engine = pyttsx3.init()
-            # 尽量匹配语言对应的语音（英文/中文）
-            try:
-                voices = engine.getProperty('voices') or []
-                target = 'zh' if str(lang).startswith('zh') else 'en'
-                for v in voices:
-                    vid = (getattr(v, 'id', '') or '').lower()
-                    if target == 'zh' and ('zh' in vid or 'chinese' in vid or 'china' in vid):
-                        engine.setProperty('voice', v.id)
-                        break
-                    if target == 'en' and ('en' in vid or 'english' in vid):
-                        engine.setProperty('voice', v.id)
-                        break
-            except Exception:
-                pass
-            engine.say(word)
-            engine.runAndWait()
-            log_info(f"离线播放单词发音: {word} (lang={lang})")
-            return True
-        except Exception as e:
-            log_error(f"离线发音失败: {word}, 错误: {str(e)}")
-            return False
 
     def _run_async(self, coro):
         """在同步上下文中运行协程。Tkinter 回调内无 asyncio 事件循环，直接 asyncio.run；
@@ -201,20 +160,18 @@ class AudioPlayer:
         return self.play_pronunciation(text, lang='zh-cn')
 
     def is_available(self):
-        """检查音频播放功能是否可用：playsound 存在且任一发音后端（gTTS/edge-tts/pyttsx3）可用。"""
+        """检查音频播放功能是否可用：playsound 与 edge-tts 均存在。"""
         try:
             import playsound  # noqa
         except ImportError:
             log_error("音频播放功能不可用：缺少 playsound")
             return False
-        for mod in ("gtts", "edge_tts", "pyttsx3"):
-            try:
-                __import__(mod)
-                return True
-            except ImportError:
-                continue
-        log_error("音频播放功能不可用：缺少 gTTS/edge-tts/pyttsx3")
-        return False
+        try:
+            import edge_tts  # noqa
+            return True
+        except ImportError:
+            log_error("音频播放功能不可用：缺少 edge-tts，请执行 pip install edge-tts")
+            return False
 
     def install_requirements(self):
         """安装必要的依赖
@@ -226,16 +183,10 @@ class AudioPlayer:
             import subprocess
             import sys
 
-            # 安装gTTS
-            subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'gTTS'])
-
-            # 安装playsound
+            # 安装playsound（音频播放）
             subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'playsound'])
 
-            # 安装pyttsx3（离线发音回退，使用系统语音引擎，无需联网）
-            subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'pyttsx3'])
-
-            # 安装edge-tts（微软 Edge 神经语音，免费、无需 API key、国内可达）
+            # 安装edge-tts（微软 Edge 神经语音，免费、无需 API key、国内可达，唯一发音后端）
             subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'edge-tts'])
 
             log_info("成功安装音频播放依赖")

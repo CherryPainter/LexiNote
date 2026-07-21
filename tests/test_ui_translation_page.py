@@ -16,11 +16,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-# audio_player 顶层依赖 gtts / playsound，测试环境未安装；注入占位模块
-if "gtts" not in sys.modules:
-    _g = types.ModuleType("gtts")
-    _g.gTTS = object
-    sys.modules["gtts"] = _g
+# audio_player 顶层依赖 playsound（发音后端仅用 edge-tts，延迟导入）；测试环境未安装，注入占位模块
 if "playsound" not in sys.modules:
     _p = types.ModuleType("playsound")
     _p.playsound = lambda *a, **k: None

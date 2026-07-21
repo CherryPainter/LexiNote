@@ -528,20 +528,16 @@ class DictationManager:
                 self.word_manager, 'active_word_set_id') else None
 
             if source == "today":
-                # 优先选择有例句的今日单词
-                today_words_with_example = self._get_today_learned_words(
-                    with_example=True)
-                if today_words_with_example:
-                    selected = random.choice(today_words_with_example)
-                    log_info(f"从今日学习单词(带例句)中选择: {selected}")
-                    return selected
-
-                # 没有带例句的今日单词，尝试普通今日单词
+                # 与队列模式(build_queue)保持一致：直接取今日学习单词，不强制要求例句。
+                # 注意：旧逻辑先按 with_example=True 取词，其回退路径会对每个词
+                # 同步调用 get_word_example(async_mode=False)，触发阻塞式 AI 网络请求，
+                # 在例句缺失/网络不可用时会卡住主线程，导致单个模式与队列模式行为不一致
+                # （单个模式选择“今日学习单词”时表现为找不到/卡住，而队列模式正常）。
                 today_words = self._get_today_learned_words()
                 if today_words:
                     selected = random.choice(today_words)
                     log_info(f"从今日学习单词中选择: {selected}")
-                    # 异步获取并保存例句
+                    # 若该词缺少本地例句，后台异步补全，不阻塞取词
                     self._fetch_and_save_example_async(selected)
                     return selected
                 log_info("没有今日学习的单词，返回 None")

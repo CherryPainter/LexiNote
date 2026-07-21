@@ -75,7 +75,7 @@ class SettingsManager:
             "auto_next_familiar": False,
             "auto_next_difficult": False,
             # 语音与缓存控制
-            "tts_provider": "gTTS",
+            "tts_provider": "edge-tts",
             "tts_cache_enabled": True,
             "tts_cache_max_mb": 500,
             # 日志等级
@@ -287,7 +287,7 @@ class SettingsManager:
                 "auto_next_example": False,
                 "auto_next_familiar": False,
                 "auto_next_difficult": False,
-                "tts_provider": "gTTS",
+                "tts_provider": "edge-tts",
                 "tts_cache_enabled": True,
                 "tts_cache_max_mb": 500,
                 "log_level": "INFO",

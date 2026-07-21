@@ -757,17 +757,25 @@ class DictationPage(tk.Frame):
         close_button.pack(pady=30)
 
     def _play_pronunciation(self):
-        """播放单词发音"""
+        """播放单词发音，随后朗读例句的英语部分（无例句则调用 AI 补全后再读）"""
         if not self.current_word:
             return
+
+        word = self.current_word
 
         # 在后台线程播放，避免阻塞UI
         def _play():
             try:
-                result = self.audio_player.play_pronunciation(self.current_word)
+                result = self.audio_player.play_pronunciation(word)
             except Exception as e:
                 log_error(f"播放线程异常: {str(e)}")
                 result = False
+
+            # 单词读完后，顺序朗读例句英语部分（仍在后台线程，不阻塞UI）
+            try:
+                self._play_example_english(word)
+            except Exception as e:
+                log_error(f"朗读例句英语失败: {str(e)}")
 
             # 在主线程中恢复UI状态并显示可能的错误信息
             def _on_done():
@@ -808,6 +816,86 @@ class DictationPage(tk.Frame):
 
         t = threading.Thread(target=_play, daemon=True)
         t.start()
+
+    def _get_raw_example(self, word):
+        """从数据库读取单词的原始例句字段（可能含中英混排，需再提取英文）。
+
+        Args:
+            word: 单词
+
+        Returns:
+            原始例句字符串，读取失败或无例句返回空串
+        """
+        try:
+            rows = self.word_manager.db_manager.execute_read(
+                "SELECT example FROM words WHERE word = ? LIMIT 1", [word])
+            if rows and rows[0].get('example'):
+                return rows[0]['example']
+        except Exception as e:
+            log_error(f"读取例句失败: {str(e)}")
+        return ''
+
+    def _extract_english_example(self, text):
+        """从例句字段中提取英语部分（去除中文字符及中文标点，避免用英文语音读中文）。
+
+        Args:
+            text: 原始例句（可能含中文翻译）
+
+        Returns:
+            仅含英语的例句字符串
+        """
+        import re
+        if not text:
+            return ''
+        # 优先按行取含英文字母的行（旧数据常见“英文\n中文”格式）
+        lines = [ln.strip() for ln in str(text).replace('\r', '').split('\n')]
+        eng_lines = [ln for ln in lines if re.search(r'[A-Za-z]', ln)]
+        joined = ' '.join(eng_lines) if eng_lines else str(text)
+        # 去除中文字符及中日韩标点/全角符号
+        joined = re.sub(r'[\u4e00-\u9fff\u3000-\u303f\uff00-\uffef]', '', joined)
+        joined = re.sub(r'\s+', ' ', joined).strip()
+        return joined
+
+    def _play_example_english(self, word):
+        """朗读单词例句的英语部分；数据库无例句时调用 AI 同步补全后再读。
+
+        注意：本方法在 _play_pronunciation 的后台线程内被调用，允许阻塞。
+
+        Args:
+            word: 单词
+        """
+        example = self._get_raw_example(word)
+        if not example:
+            # 无本地例句 → 调用 AI 同步补全（当前处于后台线程，可阻塞；
+            # 补全结果会由 word_manager 回写数据库，后续无需重复请求）
+            try:
+                merged = self.word_manager.complete_word_details_single(
+                    word, async_mode=False)
+                if isinstance(merged, dict):
+                    example = merged.get('example', '') or ''
+            except Exception as e:
+                log_error(f"AI 补全例句失败: {str(e)}")
+                example = ''
+
+        english = self._extract_english_example(example)
+        if not english:
+            log_info(f"无可朗读的例句英语: {word}")
+            return
+
+        # 单词与例句之间留短暂停顿
+        try:
+            import time
+            time.sleep(0.4)
+        except Exception:
+            pass
+
+        # 若期间用户已切到下一个词，放弃本次朗读，避免串读
+        if self.current_word != word:
+            return
+        try:
+            self.audio_player.play_pronunciation(english, lang='en')
+        except Exception as e:
+            log_error(f"播放例句英语失败: {str(e)}")
 
     def _on_auto_mode_word_learning_change(self, key, value):
         """设置变更回调：自动/手动切换变动时更新 UI 行为"""

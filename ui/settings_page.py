@@ -193,6 +193,22 @@ class SettingsPage(tk.Frame):
         )
         voice_enabled_checkbox.pack(fill=tk.X, pady=5)
 
+        # 单词学习时自动发音
+        self.learning_auto_pronounce_var = tk.BooleanVar(
+            value=self.settings_manager.get_setting(
+                "learning_auto_pronounce", True)
+        )
+        learning_auto_pronounce_checkbox = tk.Checkbutton(
+            features_frame,
+            text="单词学习时自动发音",
+            variable=self.learning_auto_pronounce_var,
+            command=self._on_learning_auto_pronounce_change,
+            font=self.font_config['normal'],
+            bg=COLORS['surface'],
+            anchor=tk.W
+        )
+        learning_auto_pronounce_checkbox.pack(fill=tk.X, pady=5)
+
         # AI总结功能
         self.ai_summary_enabled_var = tk.BooleanVar(
             value=self.settings_manager.get_setting("ai_summary_enabled", True)
@@ -575,6 +591,12 @@ class SettingsPage(tk.Frame):
         self.settings_manager.set_setting("ai_summary_enabled", value)
         log_info(f"AI总结功能设置已更新为: {value}")
 
+    def _on_learning_auto_pronounce_change(self):
+        """处理“单词学习时自动发音”设置变更"""
+        value = self.learning_auto_pronounce_var.get()
+        self.settings_manager.set_setting("learning_auto_pronounce", value)
+        log_info(f"单词学习时自动发音设置已更新为: {value}")
+
     def _apply_ai_mode_ui(self):
         """根据当前 AI 模式显示/隐藏 本地 与 云端 配置区域（渠道互斥）"""
         mode = self.ai_mode_var.get() if hasattr(self, 'ai_mode_var') else "off"
@@ -749,10 +771,12 @@ class SettingsPage(tk.Frame):
                 self.auto_next_wrong_var.set(self.settings_manager.get_setting("auto_next_wrong", False))
                 self.example_enabled_var.set(self.settings_manager.get_setting("example_enabled", True))
                 self.voice_enabled_var.set(self.settings_manager.get_setting("voice_enabled", True))
+                if hasattr(self, 'learning_auto_pronounce_var'):
+                    self.learning_auto_pronounce_var.set(self.settings_manager.get_setting("learning_auto_pronounce", True))
                 if hasattr(self, 'ai_summary_enabled_var'):
                     self.ai_summary_enabled_var.set(self.settings_manager.get_setting("ai_summary_enabled", True))
                 if hasattr(self, 'tts_provider_var'):
-                    self.tts_provider_var.set(self.settings_manager.get_setting("tts_provider", "gTTS"))
+                    self.tts_provider_var.set(self.settings_manager.get_setting("tts_provider", "edge-tts"))
                 if hasattr(self, 'tts_cache_enabled_var'):
                     self.tts_cache_enabled_var.set(self.settings_manager.get_setting("tts_cache_enabled", True))
                 if hasattr(self, 'tts_cache_max_var'):

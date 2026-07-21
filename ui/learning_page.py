@@ -326,6 +326,19 @@ class LearningPage(tk.Frame):
             if self.word_manager and self.settings_manager and self.settings_manager.get_setting("example_enabled", True):
                 threading.Thread(target=self._fetch_details_async, daemon=True).start()
 
+            # 单词学习时自动发音（设置项开启时，切到该词后自动播放单词发音）
+            try:
+                auto_pronounce = (
+                    self.settings_manager
+                    and self.settings_manager.get_setting("learning_auto_pronounce", True)
+                    and self.settings_manager.get_setting("voice_enabled", True)
+                )
+                if auto_pronounce:
+                    # 稍作延迟，等界面渲染完成后再播放
+                    self.after(300, self.play_pronunciation)
+            except Exception as e:
+                log_info(f"自动发音触发失败: {str(e)}")
+
         # 动态内容（单词卡 / 异步例句）填充后，重新绑定滚动滚轮
         try:
             refresh_mousewheel(self.content_scroll_frame)
