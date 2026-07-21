@@ -109,3 +109,12 @@ check_version_consistency.py
 
 # Nuitka 编译崩溃报告（一次性产物）
 nuitka-crash-report.xml
+
+# 静态检查 / 上传缓存
+.mypy_cache/
+.uploads/
+
+# 编译产物与安装包（二进制不入库）
+*.exe
+LexiNote v 2.5.1/
+LexiNote_安装程序/
