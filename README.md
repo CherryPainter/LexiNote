@@ -2,7 +2,7 @@
 
 > 基于权重算法与 AI 辅助的桌面英语学习工具 · tkinter GUI + SQLite(WAL) + 本地/云端 LLM
 >
-> 版本 **v2.7.2** · Python 3.12+ · MIT License
+> 版本 **v2.7.4** · Python 3.12+ · MIT License
 
 LexiNote 是一款单机英语学习客户端，围绕「以遗忘曲线驱动的自适应复习」构建，集成单词学习、听写、翻译、复习、完形填空、阅读理解等模块，并通过 Ollama / 云端 OpenAI 兼容接口提供智能判题与内容生成。本文档以**技术架构**为主线，功能操作细节见 [`SETTINGS.md`](docs/SETTINGS.md) 与 [`DEVELOPER_DOCS.md`](docs/DEVELOPER_DOCS.md)。
 
@@ -37,11 +37,11 @@ LexiNote 是一款单机英语学习客户端，围绕「以遗忘曲线驱动�
 | GUI | tkinter | 标准库，无外部 UI 依赖 |
 | 持久化 | SQLite (WAL) | 单文件 `data/lexinote.db`，`busy_timeout=5000ms` |
 | AI | Ollama / OpenAI 兼容云端 | `requests` 直连，`ThreadPoolExecutor` + `asyncio` 并发 |
-| 语音 | gTTS + playsound | TTS 合成 + 本地缓存播放 |
+| 语音 | edge-tts + playsound | 微软 Edge 神经语音合成（免费、无需 API key、国内可达）+ 本地缓存播放 |
 | 静态检查 | mypy + flake8 | pre-commit 门禁挂 mypy |
 | 测试 | pytest | 会话级 `tk_root` fixture 支持 headless |
 
-依赖清单见 [`requirements.txt`](requirements.txt)（运行期仅 `gTTS` / `playsound` / `requests`，其余为开发工具）。
+依赖清单见 [`requirements.txt`](requirements.txt)（运行期仅 `edge-tts` / `playsound` / `requests`，其余为开发工具）。
 
 ---
 
@@ -133,7 +133,7 @@ flowchart TD
 │   ├── portal_manager.py       #   离线题库门户
 │   └── word_importer.py        #   JSON 批量导入
 │
-├── audio_player.py             # 发音播放（gTTS 合成 + 缓存回退）
+├── audio_player.py             # 发音播放（edge-tts 神经语音合成 + 本地缓存播放）
 ├── audio_cache.py              # 音频兜底缓存（md5 键、LRU 近似、30 天 TTL、500MB 上限）
 │
 ├── data/                       # SQLite 数据库 + 遗留 JSON + 运行日志
